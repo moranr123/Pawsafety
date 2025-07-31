@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const PrivateRoute = ({ children }) => {
+const PrivateRoute = ({ children, allowedRoles = [] }) => {
   const { currentUser, userRole, loading } = useAuth();
 
   if (loading) {
@@ -16,9 +16,14 @@ const PrivateRoute = ({ children }) => {
     );
   }
 
-  // Check if user is authenticated and is a superadmin
-  if (!currentUser || userRole !== 'superadmin') {
+  // Check if user is authenticated
+  if (!currentUser) {
     return <Navigate to="/login" replace />;
+  }
+
+  // If specific roles are required, check if user has access
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return children;

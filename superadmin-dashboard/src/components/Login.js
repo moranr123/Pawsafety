@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, Shield } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -25,7 +25,7 @@ const Login = () => {
     try {
       await login(email, password);
       toast.success('Login successful!');
-      navigate('/dashboard');
+      // Navigation will be handled by AuthContext based on role
     } catch (error) {
       console.error('Login error:', error);
       toast.error(error.message || 'Login failed');
@@ -39,11 +39,14 @@ const Login = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <Shield className="h-12 w-12 text-indigo-600" />
+            </div>
             <h2 className="text-3xl font-bold text-gray-900">
-              Superadmin Dashboard
+              Admin Portal
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Sign in to access the admin management system
+              Sign in to access your dashboard
             </p>
           </div>
 
@@ -113,6 +116,33 @@ const Login = () => {
               </button>
             </div>
           </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">
+                  Supported Roles
+                </span>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-gray-500">
+              <div className="text-center">
+                <div className="font-medium text-indigo-600">Super Admin</div>
+                <div>Full system access</div>
+              </div>
+              <div className="text-center">
+                <div className="font-medium text-green-600">Agricultural</div>
+                <div>Field operations</div>
+              </div>
+              <div className="text-center">
+                <div className="font-medium text-red-600">Impound</div>
+                <div>Animal control</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

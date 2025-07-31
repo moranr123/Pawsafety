@@ -3,8 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import Login from './components/Login';
-import Dashboard from './components/Dashboard';
+import SuperAdminDashboard from './components/SuperAdminDashboard';
+import AgriculturalDashboard from './components/AgriculturalDashboard';
+import ImpoundDashboard from './components/ImpoundDashboard';
 import PrivateRoute from './components/PrivateRoute';
+import UnauthorizedPage from './components/UnauthorizedPage';
 
 function App() {
   return (
@@ -23,15 +26,43 @@ function App() {
           />
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            
+            {/* Super Admin Dashboard */}
             <Route 
-              path="/dashboard" 
+              path="/superadmin-dashboard" 
               element={
-                <PrivateRoute>
-                  <Dashboard />
+                <PrivateRoute allowedRoles={['superadmin']}>
+                  <SuperAdminDashboard />
                 </PrivateRoute>
               } 
             />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            
+            {/* Agricultural Dashboard */}
+            <Route 
+              path="/agricultural-dashboard" 
+              element={
+                <PrivateRoute allowedRoles={['agricultural_admin']}>
+                  <AgriculturalDashboard />
+                </PrivateRoute>
+              } 
+            />
+            
+            {/* Impound Dashboard */}
+            <Route 
+              path="/impound-dashboard" 
+              element={
+                <PrivateRoute allowedRoles={['impound_admin']}>
+                  <ImpoundDashboard />
+                </PrivateRoute>
+              } 
+            />
+            
+            {/* Redirect root to login */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            
+            {/* Catch all other routes */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
       </AuthProvider>

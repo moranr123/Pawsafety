@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const navigate = useNavigate();
 
   const login = async (email, password) => {
@@ -38,19 +39,29 @@ export const AuthProvider = ({ children }) => {
       
       const userData = userDoc.data();
       
-      // Only allow superadmin to access the dashboard
-      if (userData.role !== 'superadmin') {
-        await signOut(auth);
-        throw new Error('Access denied. Only superadmins can access this dashboard.');
-      }
-      
       // Check if user is active
       if (userData.status !== 'active') {
         await signOut(auth);
-        throw new Error('Account is deactivated. Please contact the superadmin.');
+        throw new Error('Account is deactivated. Please contact the administrator.');
       }
       
       setUserRole(userData.role);
+      
+      // Redirect based on role
+      switch (userData.role) {
+        case 'superadmin':
+          navigate('/superadmin-dashboard');
+          break;
+        case 'agricultural_admin':
+          navigate('/agricultural-dashboard');
+          break;
+        case 'impound_admin':
+          navigate('/impound-dashboard');
+          break;
+        default:
+          throw new Error('Invalid user role');
+      }
+      
       return user;
     } catch (error) {
       throw error;
@@ -77,12 +88,12 @@ export const AuthProvider = ({ children }) => {
             const userData = userDoc.data();
             setCurrentUser(user);
             setUserRole(userData.role);
-          } else {
-            // User doesn't exist in Firestore, sign them out
-            await signOut(auth);
-            setCurrentUser(null);
-            setUserRole(null);
-          }
+                  } else {
+          // User doesn't exist in Firestore, sign them out
+          await signOut(auth);
+          setCurrentUser(null);
+          setUserRole(null);
+        }
         } catch (error) {
           console.error('Error fetching user data:', error);
           await signOut(auth);
