@@ -41,6 +41,18 @@ const AdminList = ({ admins, onToggleStatus, onEdit }) => {
     );
   }
 
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate();
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
       <table className="min-w-full divide-y divide-gray-300">
@@ -74,6 +86,18 @@ const AdminList = ({ admins, onToggleStatus, onEdit }) => {
               scope="col"
               className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
+              Last Modified
+            </th>
+            <th
+              scope="col"
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
+              Modified By
+            </th>
+            <th
+              scope="col"
+              className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
               Actions
             </th>
           </tr>
@@ -97,8 +121,18 @@ const AdminList = ({ admins, onToggleStatus, onEdit }) => {
               <td className="px-6 py-4 whitespace-nowrap">
                 {getStatusBadge(admin.status)}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <div className="flex space-x-2">
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm text-gray-900">
+                  {formatTimestamp(admin.lastModified)}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm text-gray-900">
+                  {admin.modifiedBy || 'N/A'}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => onEdit(admin)}
                     className="text-indigo-600 hover:text-indigo-900 flex items-center"
@@ -113,6 +147,7 @@ const AdminList = ({ admins, onToggleStatus, onEdit }) => {
                         ? 'text-red-600 hover:text-red-900'
                         : 'text-green-600 hover:text-green-900'
                     }`}
+                    title={`${admin.status === 'active' ? 'Deactivate' : 'Activate'} this admin account`}
                   >
                     {admin.status === 'active' ? (
                       <>
