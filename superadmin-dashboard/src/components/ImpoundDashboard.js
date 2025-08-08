@@ -27,7 +27,11 @@ import {
   Clock,
   ShieldCheck,
   List,
-  Edit
+  Edit,
+  BarChart3,
+  TrendingUp,
+  Users, 
+  FileText
 } from 'lucide-react';
 
 const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
@@ -167,7 +171,7 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
 
 const ImpoundDashboard = () => {
   const { currentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('notifications');
+  const [activeTab, setActiveTab] = useState('analytics');
   const [strayReports, setStrayReports] = useState([]);
   const [lostReports, setLostReports] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -573,18 +577,29 @@ const ImpoundDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <Dog className="h-8 w-8 text-red-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">Impound Dashboard</h1>
+              <Dog className="h-8 w-8 text-white mr-3" />
+              <h1 className="text-2xl font-bold text-white">Impound Dashboard</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Welcome, {currentUser?.email}</span>
+              <button
+                onClick={() => setActiveTab('notifications')}
+                className="relative flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-white bg-opacity-20 hover:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-all"
+              >
+                <Bell className="h-4 w-4 mr-2" />
+                Notifications
+                {(notifications || []).filter((n) => !n.impoundRead).length > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
+                    {Math.min((notifications || []).filter((n) => !n.impoundRead).length, 99)}
+              </span>
+                )}
+              </button>
               <button
                 onClick={handleLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -598,11 +613,10 @@ const ImpoundDashboard = () => {
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex gap-2 flex-wrap">
           <TabButton
-            active={activeTab === 'notifications'}
-            label="Notifications"
-            icon={Bell}
-            badge={(notifications || []).filter((n) => !n.impoundRead).length}
-            onClick={() => setActiveTab('notifications')}
+            active={activeTab === 'analytics'}
+            label="Dashboard"
+            icon={BarChart3}
+            onClick={() => setActiveTab('analytics')}
           />
           <TabButton
             active={activeTab === 'stray'}
@@ -826,6 +840,159 @@ const ImpoundDashboard = () => {
           </div>
         )}
 
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                    <FileText className="h-8 w-8 text-blue-600" />
+                </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500">Total Reports</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(notifications || []).length}</p>
+              </div>
+            </div>
+          </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                    <Search className="h-8 w-8 text-green-600" />
+                </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500">Stray Reports</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(strayReports || []).length}</p>
+            </div>
+          </div>
+        </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <ShieldCheck className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500">Lost Pet Reports</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(lostReports || []).length}</p>
+              </div>
+            </div>
+          </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <Heart className="h-8 w-8 text-red-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500">Adoption Applications</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(adoptionApplications || []).length}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+            {/* Detailed Analytics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Application Status Breakdown */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Application Status</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Submitted</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Approved</span>
+                    <span className="text-sm font-medium text-green-600">
+                      {(adoptionApplications || []).filter(a => a.status === 'Approved').length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Declined</span>
+                    <span className="text-sm font-medium text-red-600">
+                      {(adoptionApplications || []).filter(a => a.status === 'Declined').length}
+                  </span>
+                </div>
+                </div>
+              </div>
+
+              {/* Report Status Breakdown */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Report Status</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Unread Notifications</span>
+                    <span className="text-sm font-medium text-yellow-600">
+                      {(notifications || []).filter(n => !n.impoundRead).length}
+                  </span>
+                </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Found Pets</span>
+                    <span className="text-sm font-medium text-green-600">
+                      {(notifications || []).filter(n => n.status === 'Found').length}
+                    </span>
+              </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Adoptable Pets</span>
+                    <span className="text-sm font-medium text-blue-600">
+                      {(adoptablePets || []).length}
+                  </span>
+                </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Ready for Adoption</span>
+                    <span className="text-sm font-medium text-green-600">
+                      {(adoptablePets || []).filter(p => p.readyForAdoption !== false).length}
+                    </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+            {/* Recent Activity */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
+              <div className="space-y-3">
+                {notifications.slice(0, 5).map((notification, index) => (
+                  <button
+                    key={notification.id || index}
+                    onClick={() => openReportDetails(notification)}
+                    className="w-full text-left flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                        <div className="flex items-center">
+                      <div className={`w-2 h-2 rounded-full mr-3 ${notification.impoundRead ? 'bg-gray-400' : 'bg-blue-500'}`}></div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                          {(notification.status || 'Report')} report submitted
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {notification.locationName || 'Unknown location'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">
+                        {notification.reportTime?.toDate ? notification.reportTime.toDate().toLocaleString() : 'Unknown time'}
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        notification.impoundRead ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {notification.impoundRead ? 'Read' : 'Unread'}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+                {notifications.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">No recent activity</p>
+                )}
+                          </div>
+                        </div>
+                      </div>
+        )}
+
         {/* View Adoptable Modal */}
         {showAdoptableModal && selectedAdoptable && (
           <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
@@ -844,8 +1011,8 @@ const ImpoundDashboard = () => {
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${selectedAdoptable.readyForAdoption !== false ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                           {selectedAdoptable.readyForAdoption !== false ? 'Ready for Adoption' : 'Not Ready'}
                         </span>
-                      </div>
-                    </div>
+                  </div>
+                </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -859,12 +1026,12 @@ const ImpoundDashboard = () => {
                       <div>
                         <p className="text-sm text-gray-500">Gender</p>
                         <p className="text-base font-medium text-gray-900">{selectedAdoptable.gender || 'N/A'}</p>
-                      </div>
-                      <div>
+              </div>
+                  <div>
                         <p className="text-sm text-gray-500">Health</p>
                         <p className="text-base font-medium text-gray-900">{selectedAdoptable.healthStatus || 'N/A'}</p>
-            </div>
-          </div>
+                  </div>
+                </div>
 
                     <div className="border-t pt-4">
                       <p className="text-sm text-gray-500 mb-1">Description</p>
