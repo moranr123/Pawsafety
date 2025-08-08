@@ -1,7 +1,7 @@
 import React from 'react';
-import { Edit, UserCheck, UserX } from 'lucide-react';
+import { Edit, UserCheck, UserX, Trash2 } from 'lucide-react';
 
-const AdminList = ({ admins, onToggleStatus, onEdit }) => {
+const AdminList = ({ admins, onToggleStatus, onEdit, onDelete }) => {
   const getRoleDisplay = (role) => {
     switch (role) {
       case 'agricultural_admin':
@@ -86,13 +86,7 @@ const AdminList = ({ admins, onToggleStatus, onEdit }) => {
               scope="col"
               className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
-              Last Modified
-            </th>
-            <th
-              scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Modified By
+              Created
             </th>
             <th
               scope="col"
@@ -123,12 +117,7 @@ const AdminList = ({ admins, onToggleStatus, onEdit }) => {
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900">
-                  {formatTimestamp(admin.lastModified)}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900">
-                  {admin.modifiedBy || 'N/A'}
+                  {formatTimestamp(admin.createdAt)}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -160,6 +149,14 @@ const AdminList = ({ admins, onToggleStatus, onEdit }) => {
                         Activate
                       </>
                     )}
+                  </button>
+                  <button
+                    onClick={() => onDelete(admin)}
+                    className="text-red-600 hover:text-red-900 flex items-center"
+                    title="Delete admin"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete
                   </button>
                 </div>
               </td>

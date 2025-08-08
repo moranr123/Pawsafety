@@ -9,7 +9,8 @@ import {
   updateDoc, 
   onSnapshot, 
   query, 
-  where 
+  where,
+  serverTimestamp 
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import toast from 'react-hot-toast';
@@ -21,10 +22,12 @@ import {
   UserX, 
   Users,
   Shield,
-  Settings
+  Settings,
+  AlertTriangle
 } from 'lucide-react';
 import AdminList from './AdminList';
 import CreateAdminModal from './CreateAdminModal';
+import EditPasswordModal from './modals/EditPasswordModal';
 
 const SuperAdminDashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -33,6 +36,7 @@ const SuperAdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(null);
+  const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
 
 
   useEffect(() => {
@@ -53,34 +57,97 @@ const SuperAdminDashboard = () => {
 
   const handleCreateAdmin = async (adminData) => {
     try {
-      const functions = getFunctions();
+      // Call the Cloud Function in the same region it is deployed (us-central1)
+      const functions = getFunctions(undefined, 'us-central1');
       const createAdminUser = httpsCallable(functions, 'createAdminUser');
       
-      const result = await createAdminUser({
+      // Send only serializable fields that the function expects
+      const payload = {
         name: adminData.name,
         email: adminData.email,
         password: adminData.password,
         role: adminData.role
-      });
+      };
+
+      const result = await createAdminUser(payload);
+
+      if (result.data.error) {
+        throw new Error(result.data.error);
+      }
 
       toast.success('Admin account created successfully!');
       setShowCreateModal(false);
     } catch (error) {
       console.error('Error creating admin:', error);
-      toast.error(error.message || 'Failed to create admin account');
+      // Surface clearer Firebase Function errors when available
+      let friendlyMessage = 'Failed to create admin account. Please try again.';
+      if (error?.code === 'functions/permission-denied') {
+        friendlyMessage = 'Only superadmins can create admin users';
+      } else if (error?.code === 'functions/already-exists') {
+        friendlyMessage = 'A user with this email already exists';
+      } else if (error?.code === 'functions/invalid-argument') {
+        friendlyMessage = 'Invalid input. Please check the form fields.';
+      } else if (typeof error?.message === 'string' && error.message.trim()) {
+        friendlyMessage = error.message;
+      }
+      toast.error(friendlyMessage);
+    }
+  };
+
+  const handleOpenEditPassword = (admin) => {
+    setEditingAdmin(admin);
+    setShowEditPasswordModal(true);
+  };
+
+  const handleUpdatePassword = async (uid, newPassword) => {
+    try {
+      const functions = getFunctions(undefined, 'us-central1');
+      const updateAdminPassword = httpsCallable(functions, 'updateAdminPassword');
+      await updateAdminPassword({ uid, newPassword });
+      toast.success('Password updated successfully');
+      setShowEditPasswordModal(false);
+      setEditingAdmin(null);
+    } catch (error) {
+      console.error('Error updating password:', error);
+      let msg = 'Failed to update password';
+      if (error?.code === 'functions/invalid-argument') msg = 'Invalid password';
+      else if (error?.code === 'functions/not-found') msg = 'Admin not found';
+      else if (typeof error?.message === 'string') msg = error.message;
+      toast.error(msg);
+    }
+  };
+
+  const handleDeleteAdmin = async (admin) => {
+    const confirmed = window.confirm(`Delete admin ${admin.email}? This action cannot be undone.`);
+    if (!confirmed) return;
+    try {
+      const functions = getFunctions(undefined, 'us-central1');
+      const deleteAdminUser = httpsCallable(functions, 'deleteAdminUser');
+      await deleteAdminUser({ uid: admin.id });
+      toast.success('Admin deleted successfully');
+    } catch (error) {
+      console.error('Error deleting admin:', error);
+      let msg = 'Failed to delete admin';
+      if (error?.code === 'functions/failed-precondition') msg = 'You cannot delete your own account';
+      else if (error?.code === 'functions/permission-denied') msg = 'Not allowed to delete this account';
+      else if (typeof error?.message === 'string') msg = error.message;
+      toast.error(msg);
     }
   };
 
   const handleToggleStatus = async (adminId, currentStatus) => {
     try {
       const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-      await updateDoc(doc(db, 'users', adminId), {
+      const adminRef = doc(db, 'users', adminId);
+      
+      await updateDoc(adminRef, {
         status: newStatus
       });
+
       toast.success(`Admin ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`);
     } catch (error) {
       console.error('Error updating admin status:', error);
-      toast.error('Failed to update admin status');
+      toast.error(error.message || 'Failed to update admin status');
     }
   };
 
@@ -220,7 +287,8 @@ const SuperAdminDashboard = () => {
             <AdminList
               admins={admins}
               onToggleStatus={handleToggleStatus}
-              onEdit={setEditingAdmin}
+              onEdit={handleOpenEditPassword}
+              onDelete={handleDeleteAdmin}
             />
           </div>
         </div>
@@ -231,6 +299,14 @@ const SuperAdminDashboard = () => {
         <CreateAdminModal
           onClose={() => setShowCreateModal(false)}
           onSubmit={handleCreateAdmin}
+        />
+      )}
+
+      {showEditPasswordModal && editingAdmin && (
+        <EditPasswordModal
+          admin={editingAdmin}
+          onClose={() => { setShowEditPasswordModal(false); setEditingAdmin(null); }}
+          onSubmit={(newPassword) => handleUpdatePassword(editingAdmin.id, newPassword)}
         />
       )}
     </div>
