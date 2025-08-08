@@ -261,7 +261,8 @@ const ImpoundDashboard = () => {
   useEffect(() => {
     const qApps = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(qApps, (snap) => {
-      setAdoptionApplications(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setAdoptionApplications(snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .filter((app) => !app.hiddenFromAdmin)); // Filter out declined applications hidden from admin
 
       // Push notifications for new applications
       if (!initialAppsLoadedRef.current) {
@@ -472,9 +473,43 @@ const ImpoundDashboard = () => {
   const handleUpdateApplicationStatus = async (appId, status) => {
     try {
       await updateDoc(doc(db, 'adoption_applications', appId), { status });
+      // Optimistically remove from table
+      setAdoptionApplications((prev) => prev.filter((a) => a.id !== appId));
+      if (selectedApplication?.id === appId) {
+        setSelectedApplication(null);
+        setShowAppModal(false);
+      }
       toast.success(`Application marked as ${status}`);
     } catch (e) {
       toast.error('Failed to update application');
+    }
+  };
+
+  const handleDeclineApplication = async (app) => {
+    try {
+      const reason = window.prompt('Please enter the reason for declining this application:');
+      if (reason === null) return; // cancelled
+      const trimmed = String(reason).trim();
+      if (!trimmed) {
+        toast.error('Decline reason is required');
+        return;
+      }
+      await updateDoc(doc(db, 'adoption_applications', app.id), {
+        status: 'Declined',
+        notes: trimmed,
+        declinedAt: serverTimestamp(),
+        declinedBy: currentUser?.email || 'impound_admin',
+        hiddenFromAdmin: true, // Add this field to hide from admin view
+      });
+      // Remove from the admin's view immediately
+      setAdoptionApplications((prev) => prev.filter((a) => a.id !== app.id));
+      if (selectedApplication?.id === app.id) {
+        setSelectedApplication(null);
+        setShowAppModal(false);
+      }
+      toast.success('Application declined');
+    } catch (e) {
+      toast.error('Failed to decline application');
     }
   };
 
@@ -626,10 +661,10 @@ const ImpoundDashboard = () => {
                       Mark as {n.impoundRead ? 'Unread' : 'Read'}
                     </button>
                 </div>
-              </div>
+                </div>
               ))}
-            </div>
-          </div>
+                </div>
+              </div>
         )}
 
         {activeTab === 'stray' && (
@@ -670,45 +705,40 @@ const ImpoundDashboard = () => {
                   )}
                 </tbody>
               </table>
-                </div>
-              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'lost' && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Lost Pet Reports</h2>
-            <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Seen</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {lostReports.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-900 max-w-md truncate">
-                        {r.petName ? `${r.petName} (${r.breed || r.petType || 'Pet'})` : 'Unspecified pet'}
-                      </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{r.locationName || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{r.contactNumber || 'N/A'}</td>
-                      <td className="px-4 py-2 text-right text-sm">
-                        <div className="inline-flex flex-wrap gap-2">
-                          <button onClick={() => openReportDetails(r)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">View</button>
-                          <button onClick={() => handlePrintLostReport(r)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Print</button>
-                          <a href={`tel:${r.contactNumber || ''}`} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Contact Owner</a>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {lostReports.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">No lost pet reports</td></tr>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {lostReports.map((r) => (
+                <div key={r.id} className="border rounded-lg overflow-hidden bg-white flex flex-col h-full">
+                  {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
+                    <img src={r.imageUrl} alt={r.petName || 'Pet'} className="w-full h-40 object-cover" />
+                  ) : (
+                    <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
+                      {r.imageUrl && r.imageUrl.startsWith('file://') ? 'Old Report' : 'No Image'}
+                </div>
                   )}
-                </tbody>
-              </table>
+                  <div className="p-4 flex flex-col items-center text-center flex-1">
+                    <p className="text-base font-semibold text-gray-900 truncate w-full mb-2">
+                      {r.petName ? `${r.petName} (${r.breed || r.petType || 'Pet'})` : 'Unspecified pet'}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-1">{r.locationName || 'N/A'}</p>
+                    <p className="text-sm text-gray-600 mb-3">{r.contactNumber || 'N/A'}</p>
+                    <div className="grid grid-cols-3 gap-2 w-full">
+                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">View</button>
+                      <button onClick={() => handlePrintLostReport(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Print</button>
+                      <a href={`tel:${r.contactNumber || ''}`} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 text-center">Contact</a>
+                </div>
+              </div>
+                </div>
+              ))}
+              {lostReports.length === 0 && (
+                <div className="col-span-full text-center text-sm text-gray-500 py-8">No lost pet reports</div>
+              )}
             </div>
           </div>
         )}
@@ -781,9 +811,8 @@ const ImpoundDashboard = () => {
                       <td className="px-4 py-2 text-right text-sm">
                         <div className="inline-flex flex-wrap gap-2">
                           <button onClick={() => openApplicationDetails(a)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">View</button>
-                          <button onClick={() => handleUpdateApplicationStatus(a.id, 'Under Review')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Under Review</button>
                           <button onClick={() => handleUpdateApplicationStatus(a.id, 'Approved')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Approve</button>
-                          <button onClick={() => handleUpdateApplicationStatus(a.id, 'Declined')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Decline</button>
+                          <button onClick={() => handleDeclineApplication(a)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Decline</button>
               </div>
                       </td>
                     </tr>
@@ -834,13 +863,13 @@ const ImpoundDashboard = () => {
                       <div>
                         <p className="text-sm text-gray-500">Health</p>
                         <p className="text-base font-medium text-gray-900">{selectedAdoptable.healthStatus || 'N/A'}</p>
-                      </div>
-                    </div>
+            </div>
+          </div>
 
                     <div className="border-t pt-4">
                       <p className="text-sm text-gray-500 mb-1">Description</p>
                       <p className="text-base text-gray-900 whitespace-pre-wrap">{selectedAdoptable.description || 'N/A'}</p>
-                    </div>
+                </div>
 
                     <div className="border-t pt-4">
                       <p className="text-sm text-gray-500 mb-2">Medical</p>
@@ -848,16 +877,16 @@ const ImpoundDashboard = () => {
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${selectedAdoptable.vaccinated ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>Vaccine</span>
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${selectedAdoptable.dewormed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>Deworm</span>
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${selectedAdoptable.antiRabies ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>Anti-rabies</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
-            <div className="p-4 border-t flex justify-end gap-2">
-                <button onClick={() => setShowAdoptableModal(false)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700">Close</button>
             </div>
           </div>
         </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+                <button onClick={() => setShowAdoptableModal(false)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700">Close</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Edit Adoptable Modal */}
@@ -918,15 +947,15 @@ const ImpoundDashboard = () => {
                   <div className="flex items-center space-x-2 md:col-span-2 max-w-md">
                     <input id="editReadyForAdoption" type="checkbox" checked={!!editAdoptForm.readyForAdoption} onChange={(e) => setEditAdoptForm((p) => ({ ...p, readyForAdoption: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
                     <label htmlFor="editReadyForAdoption" className="text-base text-gray-800">Ready for Adoption</label>
-              </div>
-            </div>
+                  </div>
+                </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setShowEditAdoptableModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200">Cancel</button>
                   <button type="submit" disabled={savingAdoptable} className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{savingAdoptable ? 'Saving...' : 'Save Changes'}</button>
                 </div>
               </form>
-          </div>
-        </div>
+                  </div>
+                </div>
         )}
       </main>
 
@@ -938,8 +967,20 @@ const ImpoundDashboard = () => {
               <button onClick={() => setShowReportModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
               </div>
             <div className="p-4 space-y-3">
-              {selectedReport.imageUrl && (
-                <img src={selectedReport.imageUrl} alt="report" className="w-full h-64 object-cover rounded" />
+              {selectedReport.imageUrl && !selectedReport.imageUrl.startsWith('file://') ? (
+                <img 
+                  src={selectedReport.imageUrl} 
+                  alt="report" 
+                  className="w-full h-64 object-cover rounded"
+                  onError={(e) => {
+                    console.log('Image failed to load in modal:', selectedReport.imageUrl);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-64 bg-gray-100 rounded flex items-center justify-center text-gray-400">
+                  {selectedReport.imageUrl && selectedReport.imageUrl.startsWith('file://') ? 'Old Report (Image Not Available)' : 'No Image Available'}
+                </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -964,19 +1005,19 @@ const ImpoundDashboard = () => {
                       <p className="text-sm text-gray-500">Pet</p>
                       <p className="text-base font-medium text-gray-900">{selectedReport.petName ? `${selectedReport.petName} (${selectedReport.breed || selectedReport.petType || 'Pet'})` : 'N/A'}</p>
                 </div>
-                          <div>
+                  <div>
                       <p className="text-sm text-gray-500">Contact</p>
                       <p className="text-base font-medium text-gray-900">{selectedReport.contactNumber || 'N/A'}</p>
                   </div>
                   </>
                 )}
-                          </div>
-                        </div>
-            <div className="p-4 border-t flex justify-end">
-              <button onClick={() => setShowReportModal(false)} className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200">Close</button>
-                      </div>
                   </div>
                 </div>
+            <div className="p-4 border-t flex justify-end">
+              <button onClick={() => setShowReportModal(false)} className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200">Close</button>
+              </div>
+            </div>
+          </div>
       )}
 
       {selectedApplication && (
@@ -989,13 +1030,12 @@ const ImpoundDashboard = () => {
                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                   (selectedApplication.status || 'Submitted') === 'Approved' ? 'bg-green-100 text-green-700' :
                   (selectedApplication.status || 'Submitted') === 'Declined' ? 'bg-red-100 text-red-700' :
-                  (selectedApplication.status || 'Submitted') === 'Under Review' ? 'bg-amber-100 text-amber-700' :
                   'bg-purple-100 text-purple-800'
                 }`}>
                   {selectedApplication.status || 'Submitted'}
-                </span>
+                  </span>
+                </div>
               </div>
-            </div>
             <div className="p-0 overflow-y-auto">
               <div className="p-4 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1006,18 +1046,18 @@ const ImpoundDashboard = () => {
                       <a className="underline" href={`tel:${selectedApplication.applicant?.phone || ''}`}>{selectedApplication.applicant?.phone || 'N/A'}</a>
                       <span className="mx-2">•</span>
                       <a className="underline" href={`mailto:${selectedApplication.applicant?.email || ''}`}>{selectedApplication.applicant?.email || 'N/A'}</a>
-                    </div>
+                </div>
                     <p className="mt-2 text-sm text-gray-700">{selectedApplication.applicant?.address || 'No address provided'}</p>
-                  </div>
+              </div>
                   <div className="rounded-lg border p-4">
                     <p className="text-xs uppercase tracking-wide text-gray-500">Pet</p>
                     <p className="mt-1 text-base font-semibold text-gray-900">{selectedApplication.petName || selectedApplication.petBreed || 'Pet'}</p>
                     <div className="mt-2">
                       <p className="text-xs uppercase tracking-wide text-gray-500">Preferred Date</p>
                       <p className="text-sm text-gray-900">{selectedApplication.preferredDate || 'N/A'}</p>
-                    </div>
-                  </div>
-                </div>
+            </div>
+          </div>
+        </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="rounded-lg border p-4">
@@ -1028,8 +1068,8 @@ const ImpoundDashboard = () => {
                     <p className="text-xs uppercase tracking-wide text-gray-500">Residence</p>
                     <p className="mt-1 text-sm text-gray-900">{selectedApplication.household?.residenceType || 'N/A'}</p>
                     <p className="text-sm text-gray-900">Landlord Approval: {selectedApplication.household?.landlordApproval ? 'Yes' : 'No'}</p>
-                  </div>
-                </div>
+                          </div>
+                        </div>
 
                 {selectedApplication.experience ? (
                   <div className="rounded-lg border p-4">
@@ -1049,7 +1089,7 @@ const ImpoundDashboard = () => {
                   <div className="rounded-lg border p-4">
                     <p className="text-xs uppercase tracking-wide text-gray-500">Lifestyle</p>
                     <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{selectedApplication.lifestyle}</p>
-                  </div>
+                      </div>
                 ) : null}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1062,19 +1102,18 @@ const ImpoundDashboard = () => {
                     <div className="rounded-lg border p-4">
                       <p className="text-xs uppercase tracking-wide text-gray-500">References</p>
                       <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{selectedApplication.references}</p>
-                    </div>
-                  ) : null}
                 </div>
+                  ) : null}
+              </div>
+                  </div>
+                </div>
+            <div className="p-4 border-t flex flex-wrap justify-end gap-2">
+              <button onClick={() => handleUpdateApplicationStatus(selectedApplication.id, 'Approved')} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-green-600 hover:bg-green-700">Approve</button>
+              <button onClick={() => handleDeclineApplication(selectedApplication)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700">Decline</button>
+              <button onClick={() => setSelectedApplication(null)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800">Close</button>
               </div>
             </div>
-            <div className="p-4 border-t flex flex-wrap justify-end gap-2">
-              <button onClick={() => updateDoc(doc(db, 'adoption_applications', selectedApplication.id), { status: 'Under Review' })} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600">Under Review</button>
-              <button onClick={() => updateDoc(doc(db, 'adoption_applications', selectedApplication.id), { status: 'Approved' })} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-green-600 hover:bg-green-700">Approve</button>
-              <button onClick={() => updateDoc(doc(db, 'adoption_applications', selectedApplication.id), { status: 'Declined' })} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700">Decline</button>
-              <button onClick={() => setSelectedApplication(null)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800">Close</button>
-            </div>
           </div>
-        </div>
       )}
     </div>
   );
