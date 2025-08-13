@@ -627,6 +627,7 @@ const ImpoundDashboard = () => {
         petImage: selectedAdoptable.imageUrl || '',
         userId: selectedUser.uid,
         registeredDate: new Date().toISOString(),
+        createdAt: serverTimestamp(), // Add this field for PetListScreen query
         transferredFrom: 'impound',
         transferredAt: serverTimestamp(),
         originalAdoptableId: selectedAdoptable.id,
