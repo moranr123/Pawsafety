@@ -205,6 +205,7 @@ const ImpoundDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [transferring, setTransferring] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [adoptedPets, setAdoptedPets] = useState([]);
   // Browser notifications helpers
   const reportsSeenRef = useRef(new Set());
   const initialReportsLoadedRef = useRef(false);
@@ -302,6 +303,19 @@ const ImpoundDashboard = () => {
     const qPets = query(collection(db, 'adoptable_pets'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(qPets, (snap) => {
       setAdoptablePets(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return unsubscribe;
+  }, []);
+
+  // Adopted pets (transferred from impound)
+  useEffect(() => {
+    const qAdoptedPets = query(
+      collection(db, 'pets'), 
+      where('transferredFrom', '==', 'impound'),
+      orderBy('transferredAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(qAdoptedPets, (snap) => {
+      setAdoptedPets(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return unsubscribe;
   }, []);
@@ -938,7 +952,7 @@ const ImpoundDashboard = () => {
         {activeTab === 'analytics' && (
           <div className="space-y-6">
             {/* Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -986,6 +1000,18 @@ const ImpoundDashboard = () => {
               </div>
             </div>
           </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <CheckCircle2 className="h-8 w-8 text-green-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500">Adopted Pets</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(adoptedPets || []).length}</p>
+                  </div>
+                </div>
+              </div>
         </div>
 
             {/* Detailed Analytics */}
