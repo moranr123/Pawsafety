@@ -12,7 +12,8 @@ import {
   addDoc,
   serverTimestamp,
   where,
-  writeBatch
+  writeBatch,
+  getDocs
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
@@ -199,6 +200,11 @@ const ImpoundDashboard = () => {
     imageFile: null,
   });
   const [savingAdoptable, setSavingAdoptable] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [transferring, setTransferring] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   // Browser notifications helpers
   const reportsSeenRef = useRef(new Set());
   const initialReportsLoadedRef = useRef(false);
@@ -572,6 +578,94 @@ const ImpoundDashboard = () => {
     }
   };
 
+  // Fetch registered users from adoption applications
+  const fetchRegisteredUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      // Get all adoption applications to extract user information
+      const appsQuery = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
+      const appsSnapshot = await getDocs(appsQuery);
+      
+      const usersMap = new Map();
+      appsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.userId && data.applicant) {
+          usersMap.set(data.userId, {
+            uid: data.userId,
+            displayName: data.applicant.fullName,
+            email: data.applicant.email,
+            phone: data.applicant.phone,
+            address: data.applicant.address
+          });
+        }
+      });
+
+      setRegisteredUsers(Array.from(usersMap.values()));
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to load registered users');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Handle transfer pet to user
+  const handleTransferPet = async () => {
+    if (!selectedAdoptable || !selectedUser) return;
+    
+    setTransferring(true);
+    try {
+      // Add pet to the user's pets collection
+      await addDoc(collection(db, 'pets'), {
+        petName: selectedAdoptable.petName,
+        petType: selectedAdoptable.breed?.toLowerCase().includes('cat') ? 'cat' : 'dog',
+        petGender: selectedAdoptable.gender || 'male',
+        breed: selectedAdoptable.breed,
+        description: selectedAdoptable.description || '',
+        ownerFullName: selectedUser.displayName,
+        contactNumber: selectedUser.phone || 'N/A',
+        petImage: selectedAdoptable.imageUrl || '',
+        userId: selectedUser.uid,
+        registeredDate: new Date().toISOString(),
+        transferredFrom: 'impound',
+        transferredAt: serverTimestamp(),
+        originalAdoptableId: selectedAdoptable.id,
+        status: 'safe',
+        vaccinated: selectedAdoptable.vaccinated || false,
+        dewormed: selectedAdoptable.dewormed || false,
+        antiRabies: selectedAdoptable.antiRabies || false,
+        healthStatus: selectedAdoptable.healthStatus || ''
+      });
+
+      // Create notification for the user
+      await addDoc(collection(db, 'user_notifications'), {
+        userId: selectedUser.uid,
+        type: 'pet_transfer',
+        title: 'New Pet Transferred to You!',
+        message: `Congratulations! ${selectedAdoptable.petName} (${selectedAdoptable.breed}) has been transferred to your care by the animal impound facility.`,
+        petName: selectedAdoptable.petName,
+        petBreed: selectedAdoptable.breed,
+        petImage: selectedAdoptable.imageUrl || '',
+        read: false,
+        createdAt: serverTimestamp(),
+        createdBy: currentUser?.email || 'impound_admin'
+      });
+
+      // Remove from adoptable pets
+      await deleteDoc(doc(db, 'adoptable_pets', selectedAdoptable.id));
+
+      toast.success(`${selectedAdoptable.petName} has been successfully transferred to ${selectedUser.displayName}`);
+      setShowTransferModal(false);
+      setSelectedAdoptable(null);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error transferring pet:', error);
+      toast.error('Failed to transfer pet. Please try again.');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   
 
   return (
@@ -783,7 +877,7 @@ const ImpoundDashboard = () => {
                   <div className="p-4 flex flex-col items-center text-center flex-1">
                     <p className="text-base font-semibold text-gray-900 truncate w-full">{p.petName || 'Unnamed Pet'}</p>
                     <div className="mt-4 grid grid-cols-3 gap-2 w-full">
-                      <button onClick={() => { setSelectedAdoptable(p); setShowAdoptableModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">View</button>
+                      <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Transfer</button>
                       <button onClick={() => { setEditingAdoptable(p); setShowEditAdoptableModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Edit</button>
                       <button onClick={async () => { if (window.confirm('Delete this pet?')) { await deleteDoc(doc(db, 'adoptable_pets', p.id)); toast.success('Deleted'); } }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-red-50 text-red-600 border-red-200">Delete</button>
                 </div>
@@ -1281,6 +1375,135 @@ const ImpoundDashboard = () => {
               </div>
             </div>
           </div>
+      )}
+
+      {/* Transfer Pet Modal */}
+      {showTransferModal && selectedAdoptable && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Transfer {selectedAdoptable.petName} to New Owner
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowTransferModal(false);
+                  setSelectedUser(null);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Pet Information */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="text-md font-medium text-gray-900 mb-2">Pet Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Name:</span>
+                    <span className="ml-2 font-medium">{selectedAdoptable.petName}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Breed:</span>
+                    <span className="ml-2 font-medium">{selectedAdoptable.breed}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Gender:</span>
+                    <span className="ml-2 font-medium">{selectedAdoptable.gender}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Age:</span>
+                    <span className="ml-2 font-medium">{selectedAdoptable.age || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Selection */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-md font-medium text-gray-900">Select New Owner</h4>
+                  <button
+                    onClick={fetchRegisteredUsers}
+                    disabled={loadingUsers}
+                    className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {loadingUsers ? 'Loading...' : 'Refresh Users'}
+                  </button>
+                </div>
+
+                {loadingUsers ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <p className="mt-2 text-gray-600">Loading registered users...</p>
+                  </div>
+                ) : registeredUsers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">No registered users found.</p>
+                    <button
+                      onClick={fetchRegisteredUsers}
+                      className="mt-2 px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    >
+                      Load Users
+                    </button>
+                  </div>
+                ) : (
+                  <div className="max-h-60 overflow-y-auto border rounded-lg">
+                    {registeredUsers.map((user) => (
+                      <div
+                        key={user.uid}
+                        className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 ${
+                          selectedUser?.uid === user.uid ? 'bg-indigo-50 border-indigo-200' : ''
+                        }`}
+                        onClick={() => setSelectedUser(user)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h5 className="font-medium text-gray-900">{user.displayName}</h5>
+                            <p className="text-sm text-gray-600">{user.email}</p>
+                            {user.phone && (
+                              <p className="text-sm text-gray-600">📞 {user.phone}</p>
+                            )}
+                            {user.address && (
+                              <p className="text-sm text-gray-600">📍 {user.address}</p>
+                            )}
+                          </div>
+                          {selectedUser?.uid === user.uid && (
+                            <div className="text-indigo-600">
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowTransferModal(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTransferPet}
+                disabled={!selectedUser || transferring}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {transferring ? 'Transferring...' : 'Transfer Pet'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
