@@ -892,7 +892,7 @@ const ImpoundDashboard = () => {
                   <div className="p-4 flex flex-col items-center text-center flex-1">
                     <p className="text-base font-semibold text-gray-900 truncate w-full">{p.petName || 'Unnamed Pet'}</p>
                     <div className="mt-4 grid grid-cols-3 gap-2 w-full">
-                      <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Transfer</button>
+                      <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium text-white bg-green-600 hover:bg-green-700">Transfer</button>
                       <button onClick={() => { setEditingAdoptable(p); setShowEditAdoptableModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Edit</button>
                       <button onClick={async () => { if (window.confirm('Delete this pet?')) { await deleteDoc(doc(db, 'adoptable_pets', p.id)); toast.success('Deleted'); } }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-red-50 text-red-600 border-red-200">Delete</button>
                 </div>
