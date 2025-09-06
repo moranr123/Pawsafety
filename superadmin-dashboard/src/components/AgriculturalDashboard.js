@@ -407,6 +407,27 @@ const AgriculturalDashboard = () => {
 
   // User Management Functions
   const handleActivateUser = async (userId) => {
+    // Find user details for confirmation dialog
+    const user = users.find(u => u.uid === userId);
+    const userName = user?.displayName || 'Unknown User';
+    const userEmail = user?.email || 'No email';
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to activate this user account?\n\n` +
+      `User: ${userName}\n` +
+      `Email: ${userEmail}\n\n` +
+      `This will:\n` +
+      `• Allow the user to log into the mobile app\n` +
+      `• Restore full access to their account\n` +
+      `• Enable all app features for this user\n\n` +
+      `Click OK to activate or Cancel to abort.`
+    );
+    
+    if (!confirmed) {
+      return; // User cancelled the action
+    }
+    
     try {
       // Update user status in adoption_applications collection
       const appsQuery = query(collection(db, 'adoption_applications'), where('userId', '==', userId));
@@ -427,7 +448,7 @@ const AgriculturalDashboard = () => {
       
       await batch.commit();
       
-      toast.success('User activated successfully');
+      toast.success(`${userName} has been activated successfully`);
     } catch (error) {
       console.error('Error activating user:', error);
       toast.error('Failed to activate user');
@@ -435,6 +456,27 @@ const AgriculturalDashboard = () => {
   };
 
   const handleDeactivateUser = async (userId) => {
+    // Find user details for confirmation dialog
+    const user = users.find(u => u.uid === userId);
+    const userName = user?.displayName || 'Unknown User';
+    const userEmail = user?.email || 'No email';
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to deactivate this user account?\n\n` +
+      `User: ${userName}\n` +
+      `Email: ${userEmail}\n\n` +
+      `This will:\n` +
+      `• Sign out the user from the mobile app immediately\n` +
+      `• Prevent them from logging back in\n` +
+      `• Keep their data but restrict access\n\n` +
+      `Click OK to deactivate or Cancel to abort.`
+    );
+    
+    if (!confirmed) {
+      return; // User cancelled the action
+    }
+    
     try {
       // Update user status in adoption_applications collection
       const appsQuery = query(collection(db, 'adoption_applications'), where('userId', '==', userId));
@@ -455,7 +497,7 @@ const AgriculturalDashboard = () => {
       
       await batch.commit();
       
-      toast.success('User deactivated successfully');
+      toast.success(`${userName} has been deactivated successfully`);
     } catch (error) {
       console.error('Error deactivating user:', error);
       toast.error('Failed to deactivate user');
