@@ -561,7 +561,7 @@ const AgriculturalDashboard = () => {
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
+              </span>
                   )}
                 </button>
                 
@@ -795,9 +795,9 @@ const AgriculturalDashboard = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Total Pets</span>
                     <span className="text-sm font-medium text-gray-900">{pets.length}</span>
-              </div>
             </div>
           </div>
+        </div>
 
               {/* User Status Breakdown */}
               <div className="bg-white rounded-lg shadow p-6">
@@ -854,7 +854,7 @@ const AgriculturalDashboard = () => {
                    className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
                  >
                    Clear
-                 </button>
+                </button>
           </div>
         </div>
 
@@ -887,7 +887,7 @@ const AgriculturalDashboard = () => {
                              className="px-2 py-1 text-xs rounded border text-blue-700 border-blue-200 hover:bg-blue-50"
                            >
                              View
-                           </button>
+                </button>
                            <button 
                              onClick={() => handleApprovePetRegistration(pet.id)}
                              className="px-2 py-1 text-xs rounded border text-green-700 border-green-200 hover:bg-green-50"
@@ -900,7 +900,7 @@ const AgriculturalDashboard = () => {
                            >
                              Reject
                 </button>
-                         </div>
+              </div>
                        </td>
                     </tr>
                   ))}
@@ -1033,8 +1033,8 @@ const AgriculturalDashboard = () => {
                       <p className="text-lg font-semibold text-green-700">
                         {registeredPets.filter(pet => pet.petType === 'dog').length}
                     </p>
-                    </div>
                   </div>
+                </div>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4">
                   <div className="flex items-center">
@@ -1044,8 +1044,8 @@ const AgriculturalDashboard = () => {
                       <p className="text-lg font-semibold text-purple-700">
                         {registeredPets.filter(pet => pet.petType === 'cat').length}
                     </p>
-                    </div>
                   </div>
+                </div>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-4">
                   <div className="flex items-center">
@@ -1137,10 +1137,10 @@ const AgriculturalDashboard = () => {
                           ) : (
                             <>
                               <ShieldCheck className="h-3 w-3 mr-1" />
-                              Active
+                    Active
                             </>
                           )}
-                        </span>
+                  </span>
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-700">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -1173,7 +1173,7 @@ const AgriculturalDashboard = () => {
                               Deactivate
                             </button>
                           )}
-                        </div>
+                </div>
                       </td>
                     </tr>
                   ))}
@@ -1186,7 +1186,7 @@ const AgriculturalDashboard = () => {
                   )}
                 </tbody>
               </table>
-            </div>
+              </div>
 
             {/* Summary Stats */}
             {users.length > 0 && (
@@ -1465,7 +1465,7 @@ const AgriculturalDashboard = () => {
                         Registered
                   </span>
                 </div>
-                  </div>
+              </div>
                 </div>
                 
                 <div>
@@ -1561,10 +1561,10 @@ const AgriculturalDashboard = () => {
                           Active
                         </>
                       )}
-                    </span>
-                  </div>
+                  </span>
                 </div>
               </div>
+            </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -1574,12 +1574,12 @@ const AgriculturalDashboard = () => {
                     <div>
                       <label className="text-sm font-medium text-gray-500">Email Address</label>
                       <p className="text-gray-900">{selectedUser.email || 'No email provided'}</p>
-                    </div>
+          </div>
                     
                     <div>
                       <label className="text-sm font-medium text-gray-500">Phone Number</label>
                       <p className="text-gray-900">{selectedUser.phone || 'No phone provided'}</p>
-                    </div>
+        </div>
                     
                     <div>
                       <label className="text-sm font-medium text-gray-500">Address</label>
