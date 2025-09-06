@@ -80,6 +80,8 @@ const AgriculturalDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showUserModal, setShowUserModal] = useState(false);
 
   // Firebase data listeners
   useEffect(() => {
@@ -514,6 +516,12 @@ const AgriculturalDashboard = () => {
       
       return matchesSearch;
     });
+  };
+
+  // View user details
+  const handleViewUser = (user) => {
+    setSelectedUser(user);
+    setShowUserModal(true);
   };
 
 
@@ -1141,6 +1149,13 @@ const AgriculturalDashboard = () => {
                       </td>
                       <td className="px-4 py-2 text-right text-sm">
                         <div className="inline-flex gap-2">
+                          <button
+                            onClick={() => handleViewUser(user)}
+                            className="px-3 py-1 text-xs rounded border text-blue-700 border-blue-200 hover:bg-blue-50 flex items-center"
+                          >
+                            <User className="h-3 w-3 mr-1" />
+                            View
+                          </button>
                           {user.status === 'deactivated' ? (
                             <button
                               onClick={() => handleActivateUser(user.uid)}
@@ -1501,6 +1516,159 @@ const AgriculturalDashboard = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Details Modal */}
+      {showUserModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">User Details</h3>
+              <button 
+                onClick={() => setShowUserModal(false)} 
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* User Profile Section */}
+              <div className="mb-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mr-4">
+                    <User className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-semibold text-gray-900">{selectedUser.displayName || 'Unknown User'}</h4>
+                    <p className="text-sm text-gray-500">User Account</p>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${
+                      selectedUser.status === 'deactivated' 
+                        ? 'bg-red-100 text-red-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {selectedUser.status === 'deactivated' ? (
+                        <>
+                          <ShieldOff className="h-3 w-3 mr-1" />
+                          Deactivated
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-3 w-3 mr-1" />
+                          Active
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h5 className="text-md font-semibold text-gray-900 mb-4">Contact Information</h5>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Email Address</label>
+                      <p className="text-gray-900">{selectedUser.email || 'No email provided'}</p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Phone Number</label>
+                      <p className="text-gray-900">{selectedUser.phone || 'No phone provided'}</p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Address</label>
+                      <p className="text-gray-900">{selectedUser.address || 'No address provided'}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h5 className="text-md font-semibold text-gray-900 mb-4">Account Statistics</h5>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Registered Pets</label>
+                      <p className="text-gray-900">
+                        {registeredPets.filter(pet => pet.userId === selectedUser.uid).length} pets
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Account Status</label>
+                      <p className="text-gray-900">
+                        {selectedUser.status === 'deactivated' ? 'Deactivated' : 'Active'}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">User ID</label>
+                      <p className="text-gray-900 text-xs font-mono break-all">{selectedUser.uid}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* User's Pets Section */}
+              {registeredPets.filter(pet => pet.userId === selectedUser.uid).length > 0 && (
+                <div className="mt-6">
+                  <h5 className="text-md font-semibold text-gray-900 mb-4">Registered Pets</h5>
+                  <div className="space-y-2">
+                    {registeredPets.filter(pet => pet.userId === selectedUser.uid).map((pet) => (
+                      <div key={pet.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                            <Dog className="h-5 w-5 text-gray-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{pet.petName || 'Unnamed Pet'}</p>
+                            <p className="text-xs text-gray-500">{pet.petType} - {pet.breed}</p>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Registered
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button
+                onClick={() => setShowUserModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+              >
+                Close
+              </button>
+              {selectedUser.status === 'deactivated' ? (
+                <button
+                  onClick={() => {
+                    setShowUserModal(false);
+                    handleActivateUser(selectedUser.uid);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                >
+                  Activate User
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowUserModal(false);
+                    handleDeactivateUser(selectedUser.uid);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700"
+                >
+                  Deactivate User
+                </button>
+              )}
             </div>
           </div>
         </div>
