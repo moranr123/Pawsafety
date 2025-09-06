@@ -182,6 +182,8 @@ const ImpoundDashboard = () => {
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [selectedAdoptable, setSelectedAdoptable] = useState(null);
   const [showAdoptableModal, setShowAdoptableModal] = useState(false);
   const [editingAdoptable, setEditingAdoptable] = useState(null);
@@ -238,7 +240,9 @@ const ImpoundDashboard = () => {
     const qReports = query(collection(db, 'stray_reports'), orderBy('reportTime', 'desc'));
     const unsubscribe = onSnapshot(qReports, (snap) => {
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setNotifications(rows.filter((r) => !r.hiddenImpoundNotification));
+      const filteredNotifications = rows.filter((r) => !r.hiddenImpoundNotification);
+      setNotifications(filteredNotifications);
+      setUnreadCount(filteredNotifications.filter((n) => !n.impoundRead).length);
       setStrayReports(rows.filter((r) => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'));
       setLostReports(rows.filter((r) => (r.status || '').toLowerCase() === 'lost'));
 
@@ -397,18 +401,6 @@ const ImpoundDashboard = () => {
     }
   };
 
-  const handleMarkAllRead = async () => {
-    const unread = (notifications || []).filter((n) => !n.impoundRead);
-    if (unread.length === 0) return;
-    try {
-      const batch = writeBatch(db);
-      unread.forEach((n) => batch.update(doc(db, 'stray_reports', n.id), { impoundRead: true }));
-      await batch.commit();
-      toast.success('All notifications marked as read');
-    } catch (e) {
-      toast.error('Failed to mark all as read');
-    }
-  };
 
   const handleDeleteAllNotifications = async () => {
     if ((notifications || []).length === 0) return;
@@ -419,10 +411,61 @@ const ImpoundDashboard = () => {
       notifications.forEach((n) => batch.update(doc(db, 'stray_reports', n.id), { hiddenImpoundNotification: true }));
       await batch.commit();
       toast.success('All notifications removed');
+      setShowNotifications(false);
     } catch (e) {
       toast.error('Failed to remove notifications');
     }
   };
+
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await updateDoc(doc(db, 'stray_reports', notificationId), {
+        impoundRead: true
+      });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    try {
+      const batch = writeBatch(db);
+      notifications.forEach(notification => {
+        if (!notification.impoundRead) {
+          batch.update(doc(db, 'stray_reports', notification.id), { impoundRead: true });
+        }
+      });
+      await batch.commit();
+      setShowNotifications(false);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const handleNotificationClick = async (notification) => {
+    // Mark notification as read
+    if (!notification.impoundRead) {
+      await markNotificationAsRead(notification.id);
+    }
+    
+    // Open report details
+    openReportDetails(notification);
+    setShowNotifications(false);
+  };
+
+  // Close notifications dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showNotifications && !event.target.closest('.notifications-container')) {
+        setShowNotifications(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
 
   const openReportDetails = (report) => {
     setSelectedReport(report);
@@ -694,18 +737,123 @@ const ImpoundDashboard = () => {
               <h1 className="text-2xl font-bold text-white">Impound Dashboard</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setActiveTab('notifications')}
-                className="relative flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-white bg-opacity-20 hover:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-all"
-              >
-                <Bell className="h-4 w-4 mr-2" />
-                Notifications
-                {(notifications || []).filter((n) => !n.impoundRead).length > 0 && (
-                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
-                    {Math.min((notifications || []).filter((n) => !n.impoundRead).length, 99)}
-              </span>
+              {/* Notifications */}
+              <div className="relative notifications-container">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Notifications Dropdown */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl z-50 border border-gray-200">
+                    {/* Header */}
+                    <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                          <Bell className="h-5 w-5 text-gray-600 mr-2" />
+                          <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                          {unreadCount > 0 && (
+                            <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                              {unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllNotificationsAsRead}
+                              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              Mark all read
+                            </button>
+                          )}
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={handleDeleteAllNotifications}
+                              className="text-sm text-red-600 hover:text-red-800 font-medium"
+                            >
+                              Delete all
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setShowNotifications(false)}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Notifications List */}
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500">No notifications yet</p>
+                          <p className="text-sm text-gray-400">New reports will appear here</p>
+                        </div>
+                      ) : (
+                        notifications.slice(0, 10).map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                              !notification.impoundRead ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                            }`}
+                            onClick={() => handleNotificationClick(notification)}
+                          >
+                            <div className="flex items-start">
+                              <div className="flex-shrink-0 mr-3">
+                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <FileText className="h-4 w-4 text-blue-600" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">
+                                    {(notification.status || 'Report')} report submitted
+                                  </p>
+                                  {!notification.impoundRead && (
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                  {notification.locationName || 'Unknown location'}
+                                </p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <p className="text-xs text-gray-400">
+                                    {notification.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}
+                                  </p>
+                                  <span className="text-xs text-blue-600 font-medium">
+                                    Click to view details →
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    
+                    {/* Footer */}
+                    {notifications.length > 10 && (
+                      <div className="p-3 border-t border-gray-100 bg-gray-50 rounded-b-lg">
+                        <p className="text-sm text-gray-500 text-center">
+                          Showing 10 of {notifications.length} notifications
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
               <button
                 onClick={handleLogout}
                 className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
@@ -749,46 +897,6 @@ const ImpoundDashboard = () => {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {activeTab === 'notifications' && (
-          <div className="bg-white shadow rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Real-time Notifications</h2>
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2 text-xs text-gray-700">
-                  <input type="checkbox" checked={showUnreadOnly} onChange={(e) => setShowUnreadOnly(e.target.checked)} />
-                  Show unread only
-                </label>
-                <button onClick={handleMarkAllRead} className="px-3 py-2 text-xs rounded-md border font-medium hover:bg-gray-50 disabled:opacity-50" disabled={(notifications || []).filter((n) => !n.impoundRead).length === 0}>Mark all as read</button>
-                <button onClick={handleDeleteAllNotifications} className="px-3 py-2 text-xs rounded-md border font-medium text-red-600 hover:bg-red-50 disabled:opacity-50" disabled={(notifications || []).length === 0}>Delete all</button>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {notifications.length === 0 && (
-                <p className="text-sm text-gray-500">No notifications yet.</p>
-              )}
-              {(showUnreadOnly ? notifications.filter((n) => !n.impoundRead) : notifications).map((n) => (
-                <div key={n.id} className="flex items-start justify-between p-3 rounded-md border">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{(n.status || 'Report')} report submitted</p>
-                    <p className="text-xs text-gray-600">{n.locationName || 'Unknown location'}</p>
-                </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => openReportDetails(n)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">View</button>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${n.impoundRead ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {n.impoundRead ? 'Read' : 'Unread'}
-                    </span>
-                    <button
-                      onClick={() => toggleNotificationRead(n.id, n.impoundRead)}
-                      className="px-2 py-1 text-xs rounded border text-gray-700 hover:bg-gray-50"
-                    >
-                      Mark as {n.impoundRead ? 'Unread' : 'Read'}
-                    </button>
-                </div>
-                </div>
-              ))}
-                </div>
-              </div>
-        )}
 
         {activeTab === 'stray' && (
           <div className="bg-white shadow rounded-lg p-6">
