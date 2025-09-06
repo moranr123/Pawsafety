@@ -16,6 +16,7 @@ import {
   writeBatch,
   getDocs
 } from 'firebase/firestore';
+import { getAuth, updateUserProfile } from 'firebase/auth';
 import { db } from '../firebase/config';
 import { 
   LogOut, 
@@ -31,7 +32,10 @@ import {
   FileText,
   Settings,
   User,
-  Bell
+  Bell,
+  Shield,
+  ShieldCheck,
+  ShieldOff
 } from 'lucide-react';
 
 const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
@@ -137,7 +141,7 @@ const AgriculturalDashboard = () => {
 
     // Listen to users from adoption applications to get user count
     const usersQuery = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+    const unsubscribeUsers = onSnapshot(usersQuery, async (snapshot) => {
       const userMap = new Map();
       snapshot.docs.forEach(doc => {
         const data = doc.data();
@@ -152,6 +156,20 @@ const AgriculturalDashboard = () => {
           });
         }
       });
+      
+      // Also check users collection for status updates
+      const usersCollectionQuery = query(collection(db, 'users'));
+      const usersSnapshot = await getDocs(usersCollectionQuery);
+      usersSnapshot.docs.forEach(doc => {
+        const userData = doc.data();
+        if (userMap.has(doc.id)) {
+          userMap.set(doc.id, {
+            ...userMap.get(doc.id),
+            status: userData.status || userMap.get(doc.id).status
+          });
+        }
+      });
+      
       const allUsers = Array.from(userMap.values());
       setUsers(allUsers);
       setDeactivatedUsers(allUsers.filter(user => user.status === 'deactivated'));
@@ -387,6 +405,75 @@ const AgriculturalDashboard = () => {
     }
   };
 
+  // User Management Functions
+  const handleActivateUser = async (userId) => {
+    try {
+      // Update user status in adoption_applications collection
+      const appsQuery = query(collection(db, 'adoption_applications'), where('userId', '==', userId));
+      const appsSnapshot = await getDocs(appsQuery);
+      
+      const batch = writeBatch(db);
+      appsSnapshot.docs.forEach(doc => {
+        batch.update(doc.ref, { userStatus: 'active' });
+      });
+      
+      // Create or update user status in users collection
+      const userDocRef = doc(db, 'users', userId);
+      batch.set(userDocRef, { 
+        status: 'active',
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser?.email || 'agricultural_admin'
+      }, { merge: true });
+      
+      await batch.commit();
+      
+      toast.success('User activated successfully');
+    } catch (error) {
+      console.error('Error activating user:', error);
+      toast.error('Failed to activate user');
+    }
+  };
+
+  const handleDeactivateUser = async (userId) => {
+    try {
+      // Update user status in adoption_applications collection
+      const appsQuery = query(collection(db, 'adoption_applications'), where('userId', '==', userId));
+      const appsSnapshot = await getDocs(appsQuery);
+      
+      const batch = writeBatch(db);
+      appsSnapshot.docs.forEach(doc => {
+        batch.update(doc.ref, { userStatus: 'deactivated' });
+      });
+      
+      // Create or update user status in users collection
+      const userDocRef = doc(db, 'users', userId);
+      batch.set(userDocRef, { 
+        status: 'deactivated',
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser?.email || 'agricultural_admin'
+      }, { merge: true });
+      
+      await batch.commit();
+      
+      toast.success('User deactivated successfully');
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      toast.error('Failed to deactivate user');
+    }
+  };
+
+  // Filter users based on search term
+  const getFilteredUsers = () => {
+    return users.filter(user => {
+      const matchesSearch = !searchTerm || 
+        user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.phone?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesSearch;
+    });
+  };
+
 
 
   // Close notifications dropdown when clicking outside
@@ -575,6 +662,13 @@ const AgriculturalDashboard = () => {
             icon={Settings}
             badge={registeredPets.length}
             onClick={() => setActiveTab('petManagement')}
+          />
+          <TabButton
+            active={activeTab === 'userManagement'}
+            label="User Management"
+            icon={Shield}
+            badge={deactivatedUsers.length}
+            onClick={() => setActiveTab('userManagement')}
           />
         </div>
       </div>
@@ -918,6 +1012,165 @@ const AgriculturalDashboard = () => {
             )}
           </div>
         )}
+
+        {activeTab === 'userManagement' && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">User Management</h2>
+            
+            {/* Search Controls */}
+            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                >
+                  Clear
+                </button>
+          </div>
+        </div>
+
+            <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pets Count</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {getFilteredUsers().map((user) => (
+                    <tr key={user.uid} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+                            <User className="h-5 w-5 text-gray-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{user.displayName || 'Unknown User'}</p>
+                            <p className="text-xs text-gray-500">{user.email || 'No email'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <div>
+                          <p className="text-sm">{user.phone || 'No phone'}</p>
+                          <p className="text-xs text-gray-500">{user.email || 'No email'}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <p className="max-w-xs truncate">{user.address || 'No address provided'}</p>
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          user.status === 'deactivated' 
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {user.status === 'deactivated' ? (
+                            <>
+                              <ShieldOff className="h-3 w-3 mr-1" />
+                              Deactivated
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                              Active
+                            </>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {registeredPets.filter(pet => pet.userId === user.uid).length} pets
+                  </span>
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm">
+                        <div className="inline-flex gap-2">
+                          {user.status === 'deactivated' ? (
+                            <button
+                              onClick={() => handleActivateUser(user.uid)}
+                              className="px-3 py-1 text-xs rounded border text-green-700 border-green-200 hover:bg-green-50 flex items-center"
+                            >
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                              Activate
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleDeactivateUser(user.uid)}
+                              className="px-3 py-1 text-xs rounded border text-red-700 border-red-200 hover:bg-red-50 flex items-center"
+                            >
+                              <ShieldOff className="h-3 w-3 mr-1" />
+                              Deactivate
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {getFilteredUsers().length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                        {searchTerm ? 'No users match your search criteria' : 'No users found'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Summary Stats */}
+            {users.length > 0 && (
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <ShieldCheck className="h-5 w-5 text-green-600 mr-2" />
+                    <div>
+                      <p className="text-sm font-medium text-green-900">Active Users</p>
+                      <p className="text-lg font-semibold text-green-700">
+                        {users.filter(user => user.status !== 'deactivated').length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <ShieldOff className="h-5 w-5 text-red-600 mr-2" />
+                    <div>
+                      <p className="text-sm font-medium text-red-900">Deactivated Users</p>
+                      <p className="text-lg font-semibold text-red-700">
+                        {deactivatedUsers.length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <Users className="h-5 w-5 text-blue-600 mr-2" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">Total Users</p>
+                      <p className="text-lg font-semibold text-blue-700">
+                        {users.length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Pet Details Modal */}
@@ -1139,14 +1392,14 @@ const AgriculturalDashboard = () => {
                     <div>
                       <label className="text-sm font-medium text-gray-500">Breed</label>
                       <p className="text-gray-900">{selectedPet.breed || 'Unknown breed'}</p>
-                    </div>
+                </div>
                     
                     <div>
                       <label className="text-sm font-medium text-gray-500">Gender</label>
                       <p className="text-gray-900">
                         {selectedPet.petGender === 'male' ? '♂ Male' : '♀ Female'}
                       </p>
-        </div>
+              </div>
 
                     <div>
                       <label className="text-sm font-medium text-gray-500">Registration Status</label>
