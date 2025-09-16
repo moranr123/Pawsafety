@@ -43,7 +43,22 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete }) => {
 
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate();
+    
+    let date;
+    // Handle both Firestore timestamp objects and ISO strings
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      // Firestore timestamp object
+      date = timestamp.toDate();
+    } else if (typeof timestamp === 'string') {
+      // ISO string
+      date = new Date(timestamp);
+    } else if (timestamp instanceof Date) {
+      // Already a Date object
+      date = timestamp;
+    } else {
+      return 'Invalid Date';
+    }
+    
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
