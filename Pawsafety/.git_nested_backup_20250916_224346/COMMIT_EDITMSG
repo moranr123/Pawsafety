@@ -1,0 +1,1 @@
+auth: add email verification flow, enforce verified login, create user doc on verify; UI: add resend cooldown, spam-folder reminders; UX: add eye icon toggles for password fields in Login & SignUp; infra: add userService for Firestore user ops
