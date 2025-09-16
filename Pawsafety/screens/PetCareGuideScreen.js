@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 
 const PetCareGuideScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
+  const [species, setSpecies] = useState('dog');
+  const [ageGroup, setAgeGroup] = useState('adult');
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -35,6 +37,19 @@ const PetCareGuideScreen = ({ navigation }) => {
       textAlign: 'center',
       marginLeft: -32,
     },
+    headerMeta: {
+      marginTop: 6,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: 6,
+    },
+    headerMetaText: {
+      color: 'rgba(255, 255, 255, 0.9)',
+      fontSize: 12,
+      fontFamily: FONTS.family,
+    },
+    linkText: {
+      textDecorationLine: 'underline',
+    },
     backButton: {
       padding: SPACING.sm,
       borderRadius: 12,
@@ -51,6 +66,40 @@ const PetCareGuideScreen = ({ navigation }) => {
       padding: SPACING.lg,
       marginBottom: SPACING.md,
       ...SHADOWS.light,
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      // gap polyfill for RN: use margins on children
+      marginTop: SPACING.xs,
+      marginBottom: SPACING.sm,
+    },
+    toggleButton: {
+      flex: 1,
+      paddingVertical: SPACING.sm,
+      borderWidth: 1,
+      borderColor: COLORS.lightGray,
+      borderRadius: RADIUS.medium,
+      alignItems: 'center',
+      backgroundColor: COLORS.inputBackground,
+      marginRight: SPACING.xs,
+    },
+    toggleButtonLast: {
+      marginRight: 0,
+      marginLeft: SPACING.xs,
+    },
+    toggleActive: {
+      backgroundColor: COLORS.darkPurple,
+      borderColor: COLORS.darkPurple,
+    },
+    toggleText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.text,
+      fontWeight: FONTS.weights.medium,
+    },
+    toggleTextActive: {
+      color: COLORS.white,
+      fontWeight: FONTS.weights.bold,
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -95,9 +144,50 @@ const PetCareGuideScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>Pet Care Guide</Text>
           <View style={{ width: 32 }} />
         </View>
+        <View style={styles.headerMeta}>
+          <Text style={styles.headerMetaText}>
+            Last updated: Sep 2025 • Sources:
+            <Text style={[styles.headerMetaText, styles.linkText]} onPress={() => Linking.openURL('https://www.avma.org/resources-tools/pet-owners')}> AVMA</Text>,
+            <Text style={[styles.headerMetaText, styles.linkText]} onPress={() => Linking.openURL('https://wsava.org/')}> WSAVA</Text>
+          </Text>
+        </View>
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Guide Preferences</Text>
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              onPress={() => setSpecies('dog')}
+              style={[styles.toggleButton, species === 'dog' && styles.toggleActive]}
+            >
+              <Text style={[styles.toggleText, species === 'dog' && styles.toggleTextActive]}>Dog</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setSpecies('cat')}
+              style={[styles.toggleButton, styles.toggleButtonLast, species === 'cat' && styles.toggleActive]}
+            >
+              <Text style={[styles.toggleText, species === 'cat' && styles.toggleTextActive]}>Cat</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              onPress={() => setAgeGroup('young')}
+              style={[styles.toggleButton, ageGroup === 'young' && styles.toggleActive]}
+            >
+              <Text style={[styles.toggleText, ageGroup === 'young' && styles.toggleTextActive]}>
+                {species === 'dog' ? 'Puppy' : 'Kitten'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setAgeGroup('adult')}
+              style={[styles.toggleButton, styles.toggleButtonLast, ageGroup === 'adult' && styles.toggleActive]}
+            >
+              <Text style={[styles.toggleText, ageGroup === 'adult' && styles.toggleTextActive]}>Adult</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <MaterialIcons name="favorite" size={22} color={COLORS.darkPurple} style={styles.sectionIcon} />
@@ -117,6 +207,18 @@ const PetCareGuideScreen = ({ navigation }) => {
           <Bullet>Puppies/kittens: 3–4 meals/day; adults: 1–2 meals/day.</Bullet>
           <Bullet>Transition foods gradually (7–10 days) to avoid stomach upset.</Bullet>
           <Bullet>Avoid toxic foods: chocolate, grapes/raisins, onions, xylitol.</Bullet>
+          {species === 'dog' && ageGroup === 'young' && (
+            <Bullet>Puppy: choose AAFCO puppy formula with DHA; small, frequent meals.</Bullet>
+          )}
+          {species === 'dog' && ageGroup === 'adult' && (
+            <Bullet>Adult dog: feed 1–2x/day; adjust portions by body condition score.</Bullet>
+          )}
+          {species === 'cat' && ageGroup === 'young' && (
+            <Bullet>Kitten: energy-dense kitten food; 3–4 meals/day or free-feed dry.</Bullet>
+          )}
+          {species === 'cat' && ageGroup === 'adult' && (
+            <Bullet>Adult cat: scheduled meals help weight control; promote wet food + water.</Bullet>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -127,6 +229,11 @@ const PetCareGuideScreen = ({ navigation }) => {
           <Bullet>Daily walks/playtime suited to breed and energy level.</Bullet>
           <Bullet>Rotate toys and use puzzle feeders for mental stimulation.</Bullet>
           <Bullet>Provide scratching posts (cats) or chew toys (dogs).</Bullet>
+          {species === 'dog' ? (
+            <Bullet>{ageGroup === 'young' ? 'Puppy: several short play sessions; avoid high-impact jumps.' : 'Adult dog: 30–60 min activity daily; include sniff walks.'}</Bullet>
+          ) : (
+            <Bullet>{ageGroup === 'young' ? 'Kitten: multiple short play bursts with wand toys daily.' : 'Adult cat: 2–3 interactive play sessions; encourage climbing/perches.'}</Bullet>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -137,6 +244,11 @@ const PetCareGuideScreen = ({ navigation }) => {
           <Bullet>Brush coat regularly to reduce shedding and matting.</Bullet>
           <Bullet>Trim nails every 3–4 weeks; brush teeth 2–3x/week.</Bullet>
           <Bullet>Bathe only as needed with pet-safe shampoo.</Bullet>
+          {species === 'dog' ? (
+            <Bullet>Dogs: ear checks after baths/swims; long coats may need professional grooming.</Bullet>
+          ) : (
+            <Bullet>Cats: scoop litter daily; longhaired cats need more frequent brushing.</Bullet>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -159,6 +271,12 @@ const PetCareGuideScreen = ({ navigation }) => {
           <Bullet>Rabies: typically at 12–16 weeks (follow your local regulations and vet advice).</Bullet>
           <Bullet>Adults: booster 1 year after the initial series, then every 1–3 years as advised by your vet.</Bullet>
           <Bullet>Newly adopted/impounded pets: book a wellness and vaccine check within 3–7 days.</Bullet>
+          {species === 'dog' && (
+            <Bullet>{ageGroup === 'young' ? 'For your selection: Puppy—DA2PP at 6–8w, 10–12w, 14–16w; Rabies at ~12–16w.' : 'For your selection: Adult dog—booster 1 year after series, then every 1–3 years as advised.'}</Bullet>
+          )}
+          {species === 'cat' && (
+            <Bullet>{ageGroup === 'young' ? 'For your selection: Kitten—FVRCP at 6–8w, 10–12w, 14–16w; Rabies at ~12–16w.' : 'For your selection: Adult cat—booster 1 year after series, then every 1–3 years as advised.'}</Bullet>
+          )}
         </View>
 
         <View style={styles.section}>
