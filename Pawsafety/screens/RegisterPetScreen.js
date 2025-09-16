@@ -709,6 +709,13 @@ const RegisterPetScreen = ({ navigation }) => {
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       justifyContent: 'flex-end',
     },
+    centeredModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: SPACING.lg,
+    },
     modalContent: {
       backgroundColor: COLORS.cardBackground,
       borderTopLeftRadius: RADIUS.large,
@@ -849,6 +856,31 @@ const RegisterPetScreen = ({ navigation }) => {
       fontWeight: FONTS.weights.bold,
       color: COLORS.white,
       textAlign: 'center',
+    },
+    pendingContainer: {
+      backgroundColor: COLORS.lightBlue,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.lg,
+      alignItems: 'center',
+      marginBottom: SPACING.lg,
+    },
+    pendingIcon: {
+      fontSize: 40,
+      marginBottom: SPACING.sm,
+    },
+    pendingTitle: {
+      fontSize: FONTS.sizes.large,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      marginBottom: SPACING.sm,
+    },
+    pendingText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      textAlign: 'center',
+      lineHeight: 18,
     },
   }), [COLORS]);
 
@@ -1089,27 +1121,21 @@ const RegisterPetScreen = ({ navigation }) => {
         transparent={true}
         onRequestClose={() => setShowQRModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.centeredModalOverlay}>
           <View style={styles.qrModalContent}>
-            <Text style={styles.qrModalTitle}>🎉 Pet Registered Successfully!</Text>
+            <Text style={styles.qrModalTitle}>🎉 Pet Registration Submitted!</Text>
             <Text style={styles.qrModalSubtitle}>
-              {registeredPet?.petName} is now registered. Here's their QR code:
+              {registeredPet?.petName} has been registered and is awaiting admin approval.
             </Text>
             
-            {registeredPet && (
-              <View style={styles.qrContainer}>
-                <QRCode
-                  value={generateQRData(registeredPet)}
-                  size={200}
-                  backgroundColor="white"
-                  color="black"
-                />
-              </View>
-            )}
-            
-            <Text style={styles.qrInfo}>
-              Save this QR code! It contains {registeredPet?.petName}'s information and your contact details.
-            </Text>
+            <View style={styles.pendingContainer}>
+              <Text style={styles.pendingIcon}>⏳</Text>
+              <Text style={styles.pendingTitle}>Pending Verification</Text>
+              <Text style={styles.pendingText}>
+                Your pet's information has been submitted to the agricultural admin for review. 
+                Once approved, you'll receive a notification and the QR code will be available in "My Pets".
+              </Text>
+            </View>
             
             <View style={styles.qrModalButtons}>
               <TouchableOpacity
@@ -1119,7 +1145,7 @@ const RegisterPetScreen = ({ navigation }) => {
                   navigation.goBack();
                 }}
               >
-                <Text style={styles.qrModalButtonText}>Done</Text>
+                <Text style={styles.qrModalButtonText}>Got It</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.qrModalButton, styles.viewPetsButton]}

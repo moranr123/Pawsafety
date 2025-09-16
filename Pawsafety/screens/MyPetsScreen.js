@@ -746,6 +746,10 @@ Thank you for helping reunite pets with their families! ❤️`;
     qrButton: {
       backgroundColor: COLORS.mediumBlue,
     },
+    pendingQRButton: {
+      backgroundColor: COLORS.secondaryText,
+      opacity: 0.6,
+    },
     lostButton: {
       backgroundColor: '#FF8C00', // Orange color for warning/lost
     },
@@ -761,6 +765,14 @@ Thank you for helping reunite pets with their families! ❤️`;
       fontWeight: FONTS.weights.bold,
       color: COLORS.white,
       textAlign: 'center',
+    },
+    pendingQRButtonText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.white,
+      textAlign: 'center',
+      opacity: 0.8,
     },
     addPetButton: {
       backgroundColor: COLORS.darkPurple,
@@ -1883,12 +1895,21 @@ Thank you for helping reunite pets with their families! ❤️`;
       </View>
       
       <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.qrButton]} 
-          onPress={() => setSelectedPetQR(pet)}
-        >
-          <Text style={styles.actionButtonText}>QR Code</Text>
-        </TouchableOpacity>
+        {pet.registrationStatus === 'registered' ? (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.qrButton]} 
+            onPress={() => setSelectedPetQR(pet)}
+          >
+            <Text style={styles.actionButtonText}>QR Code</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.pendingQRButton]} 
+            disabled={true}
+          >
+            <Text style={styles.pendingQRButtonText}>QR Pending</Text>
+          </TouchableOpacity>
+        )}
         {pet.status === 'lost' ? (
           <TouchableOpacity 
             style={[styles.actionButton, styles.foundButton]} 
