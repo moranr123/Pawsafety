@@ -414,6 +414,162 @@ const AdoptScreen = () => {
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.medium,
       color: '#374151',
+    },
+    // Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: SPACING.lg,
+    },
+    modalContainer: {
+      backgroundColor: COLORS.cardBackground,
+      borderRadius: RADIUS.xlarge,
+      maxHeight: '90%',
+      width: '100%',
+      maxWidth: 400,
+      elevation: 10,
+      ...SHADOWS.heavy,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: SPACING.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E5E5',
+    },
+    modalTitle: {
+      fontSize: FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+    },
+    closeButton: {
+      padding: SPACING.sm,
+      borderRadius: RADIUS.medium,
+      backgroundColor: COLORS.inputBackground,
+    },
+    imageContainer: {
+      padding: SPACING.lg,
+      alignItems: 'center',
+    },
+    petImageModal: {
+      width: 200,
+      height: 200,
+      borderRadius: RADIUS.xlarge,
+      backgroundColor: COLORS.inputBackground,
+    },
+    placeholderImage: {
+      width: 200,
+      height: 200,
+      borderRadius: RADIUS.xlarge,
+      backgroundColor: COLORS.inputBackground,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    placeholderText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      marginTop: SPACING.sm,
+    },
+    nameSection: {
+      paddingHorizontal: SPACING.lg,
+      marginBottom: SPACING.lg,
+    },
+    petNameModal: {
+      fontSize: FONTS.sizes.xxlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      textAlign: 'center',
+    },
+    infoSection: {
+      paddingHorizontal: SPACING.lg,
+    },
+    infoCard: {
+      backgroundColor: COLORS.inputBackground,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      marginBottom: SPACING.sm,
+      borderLeftWidth: 4,
+      borderLeftColor: COLORS.mediumBlue,
+    },
+    infoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    infoIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: RADIUS.large,
+      backgroundColor: COLORS.cardBackground,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.md,
+    },
+    infoContent: {
+      flex: 1,
+    },
+    infoLabel: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.secondaryText,
+      marginBottom: SPACING.xs,
+    },
+    infoValue: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.medium,
+      color: COLORS.text,
+    },
+    descriptionSection: {
+      margin: SPACING.lg,
+      padding: SPACING.md,
+      backgroundColor: COLORS.inputBackground,
+      borderRadius: RADIUS.medium,
+      borderLeftWidth: 4,
+      borderLeftColor: COLORS.darkPurple,
+    },
+    descriptionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: SPACING.sm,
+    },
+    descriptionTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginLeft: SPACING.sm,
+    },
+    descriptionText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      color: COLORS.text,
+      lineHeight: 22,
+    },
+    actionButtonsContainer: {
+      padding: SPACING.lg,
+      borderTopWidth: 1,
+      borderTopColor: '#E5E5E5',
+    },
+    actionButton: {
+      borderRadius: RADIUS.medium,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+    },
+    closeActionButton: {
+      backgroundColor: COLORS.darkPurple,
+    },
+    closeButtonText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.white,
     }
   }), [COLORS]);
 
@@ -586,70 +742,180 @@ const AdoptScreen = () => {
       <Modal
         visible={detailsVisible}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setDetailsVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 16 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden' }}>
-            {selectedPet?.imageUrl ? (
-              <Image source={{ uri: selectedPet.imageUrl }} style={{ width: '100%', height: 260 }} resizeMode="cover" />
-            ) : null}
-            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 16 }}>
-              <Text style={{ fontSize: FONTS.sizes.large, fontWeight: '700', marginBottom: 8, color: '#0f172a', textAlign: 'center' }}>
-                {selectedPet?.petName || 'Unnamed Pet'}
-              </Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Modal Header with Close Button */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pet Details</Text>
+              <TouchableOpacity
+                onPress={() => setDetailsVisible(false)}
+                style={styles.closeButton}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
 
-              {/* Labeled details: breed, age, gender */}
-              <View style={{ borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10, marginBottom: 8 }}>
-                <Text style={{ color: '#64748b', fontSize: FONTS.sizes.small, marginBottom: 4 }}>Breed</Text>
-                <Text style={{ color: '#111827' }}>{selectedPet?.breed || 'Unknown breed'}</Text>
-              </View>
-              <View style={{ borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10, marginBottom: 8 }}>
-                <Text style={{ color: '#64748b', fontSize: FONTS.sizes.small, marginBottom: 4 }}>Age</Text>
-                <Text style={{ color: '#111827' }}>{selectedPet?.age || 'Unknown age'}</Text>
-              </View>
-              <View style={{ borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10, marginBottom: 12 }}>
-                <Text style={{ color: '#64748b', fontSize: FONTS.sizes.small, marginBottom: 4 }}>Gender</Text>
-                <Text style={{ color: '#111827' }}>
-                  {String(selectedPet?.gender || 'male').charAt(0).toUpperCase() + String(selectedPet?.gender || 'male').slice(1)}
-              </Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Pet Image */}
+              <View style={styles.imageContainer}>
+                {selectedPet?.imageUrl ? (
+                  <Image 
+                    source={{ uri: selectedPet.imageUrl }} 
+                    style={styles.petImageModal} 
+                    resizeMode="cover" 
+                  />
+                ) : (
+                  <View style={styles.placeholderImage}>
+                    <MaterialIcons 
+                      name="pets" 
+                      size={80} 
+                      color={COLORS.mediumBlue} 
+                    />
+                    <Text style={styles.placeholderText}>No Photo</Text>
+                  </View>
+                )}
               </View>
 
-              {/* Quick facts card */}
-              {(selectedPet?.healthStatus || selectedPet?.temperament || selectedPet?.location) ? (
-                <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 }}>
-              {selectedPet?.healthStatus ? (
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: (selectedPet?.temperament || selectedPet?.location) ? 1 : 0, borderBottomColor: '#f1f5f9' }}>
-                      <Text style={{ color: '#64748b', fontSize: FONTS.sizes.small }}>Health</Text>
-                      <Text style={{ color: '#0f172a', fontWeight: '700' }}>{selectedPet.healthStatus}</Text>
+              {/* Pet Name */}
+              <View style={styles.nameSection}>
+                <Text style={styles.petNameModal}>{selectedPet?.petName || 'Unnamed Pet'}</Text>
+              </View>
+
+              {/* Pet Information Cards */}
+              <View style={styles.infoSection}>
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <MaterialIcons 
+                        name={selectedPet?.petType === 'cat' ? 'pets' : 'pets'} 
+                        size={20} 
+                        color={COLORS.darkPurple} 
+                      />
                     </View>
-              ) : null}
-              {selectedPet?.temperament ? (
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: selectedPet?.location ? 1 : 0, borderBottomColor: '#f1f5f9' }}>
-                      <Text style={{ color: '#64748b', fontSize: FONTS.sizes.small }}>Temperament</Text>
-                      <Text style={{ color: '#0f172a', fontWeight: '700' }}>{selectedPet.temperament}</Text>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Type</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedPet?.petType ? 
+                          (selectedPet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : 
+                          'Unknown'
+                        }
+                      </Text>
                     </View>
-              ) : null}
-              {selectedPet?.location ? (
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
-                      <Text style={{ color: '#64748b', fontSize: FONTS.sizes.small }}>Location</Text>
-                      <Text style={{ color: '#0f172a', fontWeight: '700' }}>{selectedPet.location}</Text>
-                    </View>
-              ) : null}
+                  </View>
                 </View>
-              ) : null}
 
-              {/* Description section */}
-              <View style={{ borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10 }}>
-                <Text style={{ color: '#64748b', fontSize: FONTS.sizes.small, marginBottom: 6 }}>Description</Text>
-                <Text style={{ color: '#111827', lineHeight: 20 }}>
-                  {selectedPet?.description || 'No description provided.'}
-                </Text>
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <MaterialIcons name="category" size={20} color="#FF9800" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Breed</Text>
+                      <Text style={styles.infoValue}>{selectedPet?.breed || 'Unknown Breed'}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {selectedPet?.age && (
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconContainer}>
+                        <MaterialIcons name="cake" size={20} color="#4CAF50" />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Age</Text>
+                        <Text style={styles.infoValue}>{selectedPet.age}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <MaterialIcons 
+                        name={selectedPet?.gender === 'male' ? 'male' : 'female'} 
+                        size={20} 
+                        color={selectedPet?.gender === 'male' ? '#2196F3' : '#E91E63'} 
+                      />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Gender</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedPet?.gender ? 
+                          (selectedPet.gender === 'male' ? '♂️ Male' : '♀️ Female') : 
+                          'Unknown'
+                        }
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {selectedPet?.location && (
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconContainer}>
+                        <MaterialIcons name="location-on" size={20} color="#F44336" />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Location</Text>
+                        <Text style={styles.infoValue}>{selectedPet.location}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {selectedPet?.healthStatus && (
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconContainer}>
+                        <MaterialIcons name="favorite" size={20} color="#E91E63" />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Health Status</Text>
+                        <Text style={styles.infoValue}>{selectedPet.healthStatus}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {selectedPet?.temperament && (
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconContainer}>
+                        <MaterialIcons name="psychology" size={20} color="#9C27B0" />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Temperament</Text>
+                        <Text style={styles.infoValue}>{selectedPet.temperament}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
+
+              {/* Description Section */}
+              {selectedPet?.description && (
+                <View style={styles.descriptionSection}>
+                  <View style={styles.descriptionHeader}>
+                    <MaterialIcons name="description" size={20} color={COLORS.darkPurple} />
+                    <Text style={styles.descriptionTitle}>Description</Text>
+                  </View>
+                  <Text style={styles.descriptionText}>{selectedPet.description}</Text>
+                </View>
+              )}
             </ScrollView>
-            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', flexDirection: 'row', justifyContent: 'flex-end' }}>
-              <TouchableOpacity onPress={() => setDetailsVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#f1f5f9', borderRadius: 8 }}>
-                <Text>Close</Text>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                onPress={() => setDetailsVisible(false)}
+                style={[styles.actionButton, styles.closeActionButton]}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>

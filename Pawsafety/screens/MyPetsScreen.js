@@ -1006,11 +1006,21 @@ Thank you for helping reunite pets with their families! ❤️`;
       backgroundColor: COLORS.white,
       gap: SPACING.sm,
     },
+    locationButtonContent: {
+      flex: 1,
+    },
     mapSelectButtonText: {
       fontSize: FONTS.sizes.medium,
       fontFamily: FONTS.family,
-      color: reportForm.lastSeenLocation ? COLORS.text : COLORS.secondaryText,
-      flex: 1,
+      fontWeight: FONTS.weights.medium,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    locationButtonSubtext: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 18,
     },
     dateTimeSelectButton: {
       flexDirection: 'row',
@@ -1480,6 +1490,8 @@ Thank you for helping reunite pets with their families! ❤️`;
       justifyContent: 'center',
       alignItems: 'center',
       zIndex: 999999,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.sm,
     },
     centeredMapModal: {
       backgroundColor: COLORS.white,
@@ -1490,22 +1502,26 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     centeredDateTimeModal: {
       backgroundColor: COLORS.white,
-      borderRadius: RADIUS.large,
-      width: '85%',
-      maxHeight: '80%',
-      ...SHADOWS.medium,
+      borderRadius: RADIUS.xlarge,
+      width: '90%',
+      maxHeight: '85%',
+      ...SHADOWS.heavy,
+      elevation: 10,
     },
     centeredModalHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
+      paddingVertical: SPACING.lg,
       borderBottomWidth: 1,
-      borderBottomColor: COLORS.lightGray,
+      borderBottomColor: '#E5E5E5',
+      backgroundColor: COLORS.cardBackground,
+      borderTopLeftRadius: RADIUS.xlarge,
+      borderTopRightRadius: RADIUS.xlarge,
     },
     centeredModalTitle: {
-      fontSize: FONTS.sizes.large,
+      fontSize: FONTS.sizes.xlarge,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: COLORS.text,
@@ -1547,17 +1563,20 @@ Thank you for helping reunite pets with their families! ❤️`;
     centeredContent: {
       paddingHorizontal: SPACING.lg,
       paddingVertical: SPACING.md,
-      maxHeight: 300,
+      flexGrow: 1,
+      flexShrink: 1,
     },
     centeredSection: {
       marginBottom: SPACING.lg,
+      paddingHorizontal: SPACING.lg,
     },
     centeredSectionTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: FONTS.sizes.large,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginBottom: SPACING.sm,
+      color: COLORS.darkPurple,
+      marginBottom: SPACING.md,
+      textAlign: 'center',
     },
     centeredDatePickerContainer: {
       flexDirection: 'row',
@@ -1566,17 +1585,19 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     centeredDateButton: {
       flex: 1,
-      paddingVertical: SPACING.sm,
+      paddingVertical: SPACING.md,
       paddingHorizontal: SPACING.md,
-      borderWidth: 1,
+      borderWidth: 2,
       borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
+      borderRadius: RADIUS.medium,
       alignItems: 'center',
       backgroundColor: COLORS.white,
+      ...SHADOWS.light,
     },
     centeredActiveDateButton: {
       backgroundColor: COLORS.darkPurple,
       borderColor: COLORS.darkPurple,
+      ...SHADOWS.medium,
     },
     centeredDateButtonText: {
       fontSize: FONTS.sizes.medium,
@@ -1609,11 +1630,23 @@ Thank you for helping reunite pets with their families! ❤️`;
     centeredDateInputContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      gap: SPACING.xs,
+      gap: SPACING.sm,
+      alignItems: 'center',
     },
     centeredDateInputGroup: {
       flex: 1,
       alignItems: 'center',
+      marginHorizontal: SPACING.xs,
+    },
+    centeredYearInputContainer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: SPACING.sm,
+    },
+    centeredYearInputGroup: {
+      alignItems: 'center',
+      width: 150,
     },
     centeredDateInputLabel: {
       fontSize: FONTS.sizes.xsmall,
@@ -1625,21 +1658,32 @@ Thank you for helping reunite pets with their families! ❤️`;
     centeredDateInputWrapper: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
       borderWidth: 1,
       borderColor: COLORS.lightGray,
       borderRadius: RADIUS.small,
       backgroundColor: COLORS.white,
       paddingHorizontal: SPACING.xs,
+      paddingVertical: SPACING.xs,
+      minHeight: 44,
+      minWidth: 120,
+      gap: SPACING.xs,
     },
     centeredDateInputButton: {
-      padding: SPACING.xs,
+      padding: SPACING.sm,
+      borderRadius: RADIUS.small,
+      backgroundColor: COLORS.lightBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 32,
+      height: 32,
     },
     centeredDateInputValue: {
       fontSize: FONTS.sizes.medium,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: COLORS.text,
-      minWidth: 30,
+      minWidth: 50,
       textAlign: 'center',
       paddingHorizontal: SPACING.xs,
     },
@@ -1728,32 +1772,54 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     centeredCancelButton: {
       flex: 1,
-      paddingVertical: SPACING.sm,
-      borderWidth: 1,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
+      borderWidth: 2,
       borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
+      borderRadius: RADIUS.medium,
       alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: COLORS.white,
+      marginRight: SPACING.sm,
+      minHeight: 48,
+      ...SHADOWS.medium,
+      elevation: 4,
     },
     centeredCancelButtonText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: FONTS.sizes.large,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semibold,
-      color: COLORS.text,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.secondaryText,
+      textAlign: 'center',
+      letterSpacing: 0.5,
     },
     centeredConfirmButton: {
       flex: 1,
-      paddingVertical: SPACING.sm,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
       backgroundColor: COLORS.darkPurple,
-      borderRadius: RADIUS.small,
+      borderRadius: RADIUS.medium,
       alignItems: 'center',
-      ...SHADOWS.light,
+      justifyContent: 'center',
+      minHeight: 48,
+      ...SHADOWS.medium,
+      elevation: 4,
     },
     centeredButtonText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: FONTS.sizes.large,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: COLORS.white,
+      textAlign: 'center',
+      letterSpacing: 0.5,
+    },
+    centeredDisabledButton: {
+      backgroundColor: COLORS.secondaryText,
+      opacity: 0.7,
+    },
+    centeredDisabledButtonText: {
+      color: COLORS.white,
+      opacity: 0.8,
     },
     // Edit Modal Styles
     centeredEditModal: {
@@ -2080,9 +2146,14 @@ Thank you for helping reunite pets with their families! ❤️`;
                   onPress={handleLocationModalOpen}
                 >
                   <MaterialIcons name="place" size={24} color={COLORS.darkPurple} />
-                  <Text style={styles.mapSelectButtonText}>
-                    {reportForm.lastSeenLocation || 'Tap to pin location on map'}
-                  </Text>
+                  <View style={styles.locationButtonContent}>
+                    <Text style={styles.mapSelectButtonText}>
+                      {reportForm.lastSeenLocation || 'Select Location'}
+                    </Text>
+                    <Text style={styles.locationButtonSubtext}>
+                      {reportForm.lastSeenLocation ? 'Tap to change location' : 'Tap to pin the exact location where your pet was last seen'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
                 {reportForm.coordinates && (
                   <Text style={styles.coordinatesText}>
@@ -2141,199 +2212,9 @@ Thank you for helping reunite pets with their families! ❤️`;
         </View>
       </Modal>
 
-      {/* Simple Test Modal */}
-      <Modal
-        visible={showLocationModal}
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={{
-          flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}>
-          <View style={{
-            backgroundColor: 'white',
-            padding: 20,
-            borderRadius: 10,
-            width: 300,
-            alignItems: 'center'
-          }}>
-            <Text style={{ fontSize: 18, marginBottom: 20 }}>
-              TEST MODAL IS WORKING!
-            </Text>
-            <Text style={{ marginBottom: 20 }}>
-              showLocationModal: {showLocationModal ? 'TRUE' : 'FALSE'}
-            </Text>
-            <TouchableOpacity
-              style={{
-                backgroundColor: '#4741A6',
-                padding: 10,
-                borderRadius: 5
-              }}
-              onPress={() => {
-                setShowLocationModal(false);
-                Alert.alert('Debug', 'Modal closed!');
-              }}
-            >
-              <Text style={{ color: 'white' }}>Close Test Modal</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Map Location Modal - Temporarily Hidden */}
-      {false && (
-      <Modal
-        visible={showLocationModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowLocationModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.mapModalContent}>
-            <View style={styles.mapModalHeader}>
-              <Text style={styles.mapModalTitle}>Pin Last Seen Location</Text>
-              <TouchableOpacity onPress={() => setShowLocationModal(false)}>
-                <MaterialIcons name="close" size={24} color={COLORS.text} />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Temporary simplified version for debugging */}
-            <View style={styles.debugContainer}>
-              <Text style={styles.debugText}>Map Modal is Working!</Text>
-              <Text style={styles.debugText}>
-                showLocationModal: {showLocationModal ? 'true' : 'false'}
-              </Text>
-              <TouchableOpacity
-                style={styles.debugButton}
-                onPress={handleGetCurrentLocation}
-                disabled={isGettingLocation}
-              >
-                {isGettingLocation ? (
-                  <ActivityIndicator size="small" color={COLORS.white} />
-                ) : (
-                  <Text style={styles.debugButtonText}>Get Current Location</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.locationInfo}>
-              <Text style={styles.locationInfoTitle}>Selected Location:</Text>
-              <Text style={styles.locationInfoText}>
-                {reportForm.lastSeenLocation || 'No location selected yet'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.modalButton, styles.confirmLocationButton]}
-              onPress={() => setShowLocationModal(false)}
-            >
-              <Text style={styles.modalButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-      )}
-
-      {/* Simple DateTime Test Modal */}
-      <Modal
-        visible={showDateTimeModal}
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={{
-          flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}>
-          <View style={{
-            backgroundColor: 'white',
-            padding: 20,
-            borderRadius: 10,
-            width: 300,
-            alignItems: 'center'
-          }}>
-            <Text style={{ fontSize: 18, marginBottom: 20 }}>
-              DATETIME TEST MODAL!
-            </Text>
-            <Text style={{ marginBottom: 20 }}>
-              showDateTimeModal: {showDateTimeModal ? 'TRUE' : 'FALSE'}
-            </Text>
-            <TouchableOpacity
-              style={{
-                backgroundColor: '#4741A6',
-                padding: 10,
-                borderRadius: 5
-              }}
-              onPress={() => {
-                setShowDateTimeModal(false);
-                Alert.alert('Debug', 'DateTime modal closed!');
-              }}
-            >
-              <Text style={{ color: 'white' }}>Close DateTime Modal</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Custom Date Time Picker Modal */}
-      {false && (
-      <Modal
-        visible={showDateTimeModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowDateTimeModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.dateTimeModalContent}>
-            <View style={styles.dateTimeModalHeader}>
-              <Text style={styles.dateTimeModalTitle}>Set Date & Time</Text>
-              <TouchableOpacity onPress={() => setShowDateTimeModal(false)}>
-                <MaterialIcons name="close" size={24} color={COLORS.text} />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Temporary simplified version for debugging */}
-            <View style={styles.debugContainer}>
-              <Text style={styles.debugText}>Date Time Modal is Working!</Text>
-              <Text style={styles.debugText}>
-                showDateTimeModal: {showDateTimeModal ? 'true' : 'false'}
-              </Text>
-              <Text style={styles.debugText}>
-                Current temp date: {tempDate.toDateString()}
-              </Text>
-              <Text style={styles.debugText}>
-                Current temp time: {tempTime.hours}:{tempTime.minutes.toString().padStart(2, '0')} {tempTime.period}
-              </Text>
-            </View>
-
-            <View style={styles.dateTimeModalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowDateTimeModal(false)}
-              >
-                <Text style={[styles.modalButtonText, { color: COLORS.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={() => {
-                  const formattedDateTime = formatDateTime(tempDate, tempTime);
-                  setReportForm(prev => ({ ...prev, timeLost: formattedDateTime, lostDate: tempDate }));
-                  setShowDateTimeModal(false);
-                }}
-              >
-                <Text style={styles.modalButtonText}>Confirm</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      )}
-
     </View>
     )}
+
 
     {/* Location Map Modal - Centered Modal */}
     {showLocationModal && (
@@ -2376,11 +2257,19 @@ Thank you for helping reunite pets with their families! ❤️`;
             </View>
             
             <TouchableOpacity
-              style={styles.centeredConfirmButton}
+              style={[
+                styles.centeredConfirmButton,
+                !reportForm.coordinates && styles.centeredDisabledButton
+              ]}
               onPress={() => setShowLocationModal(false)}
               disabled={!reportForm.coordinates}
             >
-              <Text style={styles.centeredButtonText}>Confirm Location</Text>
+              <Text style={[
+                styles.centeredButtonText,
+                !reportForm.coordinates && styles.centeredDisabledButtonText
+              ]}>
+                {reportForm.coordinates ? 'Confirm Location' : 'Select Location on Map'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2408,7 +2297,7 @@ Thank you for helping reunite pets with their families! ❤️`;
                 <TouchableOpacity
                   style={styles.centeredDateButton}
                   onPress={() => {
-                    const yesterday = new Date(tempDate);
+                    const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
                     setTempDate(yesterday);
                   }}
@@ -2426,6 +2315,8 @@ Thank you for helping reunite pets with their families! ❤️`;
               {/* Custom Date Picker */}
               <View style={styles.centeredCustomDateContainer}>
                 <Text style={styles.centeredCustomDateLabel}>Or pick specific date:</Text>
+                
+                {/* First Row: Month and Day */}
                 <View style={styles.centeredDateInputContainer}>
                   <View style={styles.centeredDateInputGroup}>
                     <Text style={styles.centeredDateInputLabel}>Month</Text>
@@ -2484,8 +2375,11 @@ Thank you for helping reunite pets with their families! ❤️`;
                       </TouchableOpacity>
                     </View>
                   </View>
-                  
-                  <View style={styles.centeredDateInputGroup}>
+                </View>
+                
+                {/* Second Row: Year */}
+                <View style={styles.centeredYearInputContainer}>
+                  <View style={styles.centeredYearInputGroup}>
                     <Text style={styles.centeredDateInputLabel}>Year</Text>
                     <View style={styles.centeredDateInputWrapper}>
                       <TouchableOpacity
@@ -2619,6 +2513,7 @@ Thank you for helping reunite pets with their families! ❤️`;
             <TouchableOpacity
               style={styles.centeredCancelButton}
               onPress={() => setShowDateTimeModal(false)}
+              activeOpacity={0.8}
             >
               <Text style={styles.centeredCancelButtonText}>Cancel</Text>
             </TouchableOpacity>
