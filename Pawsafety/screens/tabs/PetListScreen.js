@@ -287,6 +287,177 @@ const PetListScreen = ({ navigation }) => {
     },
 
 
+    // Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: SPACING.lg,
+    },
+    modalContainer: {
+      backgroundColor: COLORS.cardBackground,
+      borderRadius: RADIUS.xlarge,
+      maxHeight: '90%',
+      width: '100%',
+      maxWidth: 400,
+      elevation: 10,
+      ...SHADOWS.heavy,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: SPACING.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E5E5',
+    },
+    modalTitle: {
+      fontSize: FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+    },
+    closeButton: {
+      padding: SPACING.sm,
+      borderRadius: RADIUS.medium,
+      backgroundColor: COLORS.inputBackground,
+    },
+    imageContainer: {
+      padding: SPACING.lg,
+      alignItems: 'center',
+    },
+    petImage: {
+      width: 200,
+      height: 200,
+      borderRadius: RADIUS.xlarge,
+      backgroundColor: COLORS.inputBackground,
+    },
+    placeholderImage: {
+      width: 200,
+      height: 200,
+      borderRadius: RADIUS.xlarge,
+      backgroundColor: COLORS.inputBackground,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    placeholderText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      marginTop: SPACING.sm,
+    },
+    nameSection: {
+      paddingHorizontal: SPACING.lg,
+      marginBottom: SPACING.lg,
+    },
+    petName: {
+      fontSize: FONTS.sizes.xxlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      flex: 1,
+    },
+    infoSection: {
+      paddingHorizontal: SPACING.lg,
+    },
+    infoCard: {
+      backgroundColor: COLORS.inputBackground,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      marginBottom: SPACING.sm,
+      borderLeftWidth: 4,
+      borderLeftColor: COLORS.mediumBlue,
+    },
+    infoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    infoIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: RADIUS.large,
+      backgroundColor: COLORS.cardBackground,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.md,
+    },
+    infoContent: {
+      flex: 1,
+    },
+    infoLabel: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.secondaryText,
+      marginBottom: SPACING.xs,
+    },
+    infoValue: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.medium,
+      color: COLORS.text,
+    },
+    descriptionSection: {
+      margin: SPACING.lg,
+      padding: SPACING.md,
+      backgroundColor: COLORS.inputBackground,
+      borderRadius: RADIUS.medium,
+      borderLeftWidth: 4,
+      borderLeftColor: COLORS.darkPurple,
+    },
+    descriptionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: SPACING.sm,
+    },
+    descriptionTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginLeft: SPACING.sm,
+    },
+    descriptionText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      color: COLORS.text,
+      lineHeight: 22,
+    },
+    registrationSection: {
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.md,
+    },
+    registrationHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    registrationText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      marginLeft: SPACING.xs,
+    },
+    actionButtonsContainer: {
+      padding: SPACING.lg,
+      borderTopWidth: 1,
+      borderTopColor: '#E5E5E5',
+    },
+    actionButton: {
+      borderRadius: RADIUS.medium,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+    },
+    closeActionButton: {
+      backgroundColor: COLORS.darkPurple,
+    },
+    closeButtonText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.white,
+    },
   }), [COLORS]);
 
   useEffect(() => {
@@ -523,49 +694,169 @@ const PetListScreen = ({ navigation }) => {
            </View>
          )}
       />
-      {/* Details Modal */}
+      {/* Enhanced Pet Details Modal */}
       <Modal
         visible={detailsVisible}
         transparent
         animationType="slide"
         onRequestClose={() => setDetailsVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16 }}>
-          <View style={{ 
-            backgroundColor: '#fff', 
-            borderRadius: 24, 
-            overflow: 'hidden',
-            elevation: 10,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.3,
-            shadowRadius: 20,
-          }}>
-            {selectedPet?.petImage ? (
-              <Image source={{ uri: selectedPet.petImage }} style={{ width: '100%', height: 240 }} resizeMode="cover" />
-            ) : null}
-            <View style={{ padding: 16 }}>
-              <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 6 }}>{selectedPet?.petName || 'Pet'}</Text>
-              <Text style={{ color: '#374151', marginBottom: 4 }}>
-                Gender: {selectedPet?.petGender ? selectedPet.petGender.charAt(0).toUpperCase() + selectedPet.petGender.slice(1) : 'Unknown'}
-              </Text>
-              <Text style={{ color: '#374151', marginBottom: 8 }}>
-                Type: {selectedPet?.petType ? selectedPet.petType.charAt(0).toUpperCase() + selectedPet.petType.slice(1) : 'Unknown'}
-              </Text>
-              <Text style={{ color: '#374151', marginBottom: 12 }}>
-                Breed: {selectedPet?.breed || 'Unknown Breed'}
-              </Text>
-              {selectedPet?.description ? (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={{ color: '#374151', marginBottom: 6 }}>Description</Text>
-                  <Text style={{ color: '#374151', lineHeight: 20 }}>{selectedPet.description}</Text>
-                </View>
-              ) : null}
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                <TouchableOpacity onPress={() => setDetailsVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#111827', borderRadius: 8 }}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Close</Text>
-                </TouchableOpacity>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Modal Header with Close Button */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pet Details</Text>
+              <TouchableOpacity
+                onPress={() => setDetailsVisible(false)}
+                style={styles.closeButton}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Pet Image */}
+              <View style={styles.imageContainer}>
+                {selectedPet?.petImage ? (
+                  <Image 
+                    source={{ uri: selectedPet.petImage }} 
+                    style={styles.petImage} 
+                    resizeMode="cover" 
+                  />
+                ) : (
+                  <View style={styles.placeholderImage}>
+                    <MaterialIcons 
+                      name={selectedPet?.petType === 'cat' ? 'pets' : 'pets'} 
+                      size={80} 
+                      color={COLORS.mediumBlue} 
+                    />
+                    <Text style={styles.placeholderText}>No Photo</Text>
+                  </View>
+                )}
               </View>
+
+              {/* Pet Name */}
+              <View style={styles.nameSection}>
+                <Text style={styles.petName}>{selectedPet?.petName || 'Unnamed Pet'}</Text>
+              </View>
+
+              {/* Pet Information Cards */}
+              <View style={styles.infoSection}>
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <MaterialIcons 
+                        name={selectedPet?.petType === 'cat' ? 'pets' : 'pets'} 
+                        size={20} 
+                        color={COLORS.darkPurple} 
+                      />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Type</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedPet?.petType ? 
+                          (selectedPet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : 
+                          'Unknown'
+                        }
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <MaterialIcons 
+                        name={selectedPet?.petGender === 'male' ? 'male' : 'female'} 
+                        size={20} 
+                        color={selectedPet?.petGender === 'male' ? '#2196F3' : '#E91E63'} 
+                      />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Gender</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedPet?.petGender ? 
+                          (selectedPet.petGender === 'male' ? '♂️ Male' : '♀️ Female') : 
+                          'Unknown'
+                        }
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <MaterialIcons name="category" size={20} color="#FF9800" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Breed</Text>
+                      <Text style={styles.infoValue}>{selectedPet?.breed || 'Unknown Breed'}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {selectedPet?.ownerFullName && (
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconContainer}>
+                        <MaterialIcons name="person" size={20} color={COLORS.success} />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Owner</Text>
+                        <Text style={styles.infoValue}>{selectedPet.ownerFullName}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {selectedPet?.contactNumber && (
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconContainer}>
+                        <MaterialIcons name="phone" size={20} color={COLORS.mediumBlue} />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Contact</Text>
+                        <Text style={styles.infoValue}>{selectedPet.contactNumber}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* Description Section */}
+              {selectedPet?.description && (
+                <View style={styles.descriptionSection}>
+                  <View style={styles.descriptionHeader}>
+                    <MaterialIcons name="description" size={20} color={COLORS.darkPurple} />
+                    <Text style={styles.descriptionTitle}>Description</Text>
+                  </View>
+                  <Text style={styles.descriptionText}>{selectedPet.description}</Text>
+                </View>
+              )}
+
+              {/* Registration Info */}
+              {selectedPet?.registeredDate && (
+                <View style={styles.registrationSection}>
+                  <View style={styles.registrationHeader}>
+                    <MaterialIcons name="event" size={16} color={COLORS.gray} />
+                    <Text style={styles.registrationText}>
+                      Registered on {new Date(selectedPet.registeredDate).toLocaleDateString()}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                onPress={() => setDetailsVisible(false)}
+                style={[styles.actionButton, styles.closeActionButton]}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
