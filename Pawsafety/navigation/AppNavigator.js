@@ -19,6 +19,7 @@ import MyReportsScreen from '../screens/MyReportsScreen';
 import EditReportScreen from '../screens/EditReportScreen';
 import MyPetsScreen from '../screens/MyPetsScreen';
 import SettingsScreen from '../screens/tabs/SettingsScreen';
+import PetCareGuideScreen from '../screens/PetCareGuideScreen';
 
 const Stack = createStackNavigator();
 const MainStack = createStackNavigator();
@@ -59,6 +60,10 @@ const MainStackNavigator = () => {
       <MainStack.Screen 
         name="Settings" 
         component={SettingsScreen}
+      />
+      <MainStack.Screen 
+        name="PetCareGuide" 
+        component={PetCareGuideScreen}
       />
     </MainStack.Navigator>
   );

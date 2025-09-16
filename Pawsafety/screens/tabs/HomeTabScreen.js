@@ -24,6 +24,7 @@ const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS } = useTheme();
   const [recentReports, setRecentReports] = useState([]);
+  const [recentPets, setRecentPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
@@ -36,6 +37,8 @@ const HomeTabScreen = ({ navigation }) => {
   const [showBanner, setShowBanner] = useState(false);
   const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0 });
   const [selectedNotif, setSelectedNotif] = useState(null); // { id, type, ts, title, sub, data }
+  const [selectedPetDetails, setSelectedPetDetails] = useState(null);
+  const [selectedReportDetails, setSelectedReportDetails] = useState(null);
   const [hiddenAppIds, setHiddenAppIds] = useState(new Set());
   const [hiddenPetIds, setHiddenPetIds] = useState(new Set());
   const [hiddenTransferIds, setHiddenTransferIds] = useState(new Set());
@@ -124,13 +127,10 @@ const HomeTabScreen = ({ navigation }) => {
       return 0;
     }
   }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, lastReadUpdate]);
-  const [analytics, setAnalytics] = useState({
-    myPets: 0,
-    myReports: 0,
-    communityHelped: 0
-  });
 
   useEffect(() => {
+    let loadingCount = 2; // Track both queries
+    
     // Fetch recent reports
     const reportsQuery = query(
       collection(db, 'stray_reports'),
@@ -141,40 +141,27 @@ const HomeTabScreen = ({ navigation }) => {
     const reportsUnsubscribe = onSnapshot(reportsQuery, (snapshot) => {
       const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRecentReports(reports);
+      loadingCount--;
+      if (loadingCount === 0) setLoading(false);
     });
-
-    // Fetch analytics data
-    const petsQuery = query(collection(db, 'pets'));
-    const reportsQuery2 = query(collection(db, 'stray_reports'));
+    
+    // Fetch recent registered pets
+    const petsQuery = query(
+      collection(db, 'pets'),
+      orderBy('createdAt', 'desc'),
+      limit(5)
+    );
     
     const petsUnsubscribe = onSnapshot(petsQuery, (snapshot) => {
-      const myPets = snapshot.docs.filter(doc => doc.data().userId === user?.uid).length;
-      
-      setAnalytics(prev => ({
-        ...prev,
-        myPets
-      }));
-    });
-
-    const reportsUnsubscribe2 = onSnapshot(reportsQuery2, (snapshot) => {
-      const myReports = snapshot.docs.filter(doc => doc.data().userId === user?.uid).length;
-      const communityHelped = snapshot.docs.filter(doc => 
-        doc.data().status === 'Found' || doc.data().status === 'Reunited'
-      ).length;
-      
-      setAnalytics(prev => ({
-        ...prev,
-        myReports,
-        communityHelped
-      }));
-      
-      setLoading(false);
+      const pets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRecentPets(pets);
+      loadingCount--;
+      if (loadingCount === 0) setLoading(false);
     });
     
     return () => {
       reportsUnsubscribe();
       petsUnsubscribe();
-      reportsUnsubscribe2();
     };
   }, [user?.uid]);
 
@@ -455,42 +442,20 @@ const HomeTabScreen = ({ navigation }) => {
       fontSize: 10,
       fontWeight: '700',
     },
-    statsContainer: {
-      flexDirection: 'row',
-      paddingHorizontal: SPACING.lg,
-      marginBottom: SPACING.lg,
-    },
-    statsCard: {
-      flex: 1,
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      alignItems: 'center',
-      marginHorizontal: SPACING.xs,
-      ...SHADOWS.light,
-    },
-    statsIcon: {
-      fontSize: FONTS.sizes.xxlarge,
-      marginBottom: SPACING.xs,
-    },
-    statsNumber: {
-      fontSize: FONTS.sizes.xlarge,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-    },
-    statsLabel: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      textAlign: 'center',
-    },
     section: {
       paddingHorizontal: SPACING.lg,
       marginBottom: SPACING.lg,
     },
     quickActionsSection: {
       backgroundColor: COLORS.lightBlue,
+      borderRadius: RADIUS.large,
+      paddingVertical: SPACING.lg,
+      marginHorizontal: SPACING.sm,
+      marginBottom: SPACING.xl,
+      ...SHADOWS.light,
+    },
+    petsSection: {
+      backgroundColor: COLORS.golden,
       borderRadius: RADIUS.large,
       paddingVertical: SPACING.lg,
       marginHorizontal: SPACING.sm,
@@ -733,13 +698,6 @@ const HomeTabScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const StatsCard = ({ number, label, icon }) => (
-    <View style={styles.statsCard}>
-      <Text style={styles.statsIcon}>{icon}</Text>
-      <Text style={styles.statsNumber}>{number}</Text>
-      <Text style={styles.statsLabel}>{label}</Text>
-    </View>
-  );
 
   return (
     <View style={styles.container}>
@@ -845,12 +803,6 @@ const HomeTabScreen = ({ navigation }) => {
         }
       >
 
-        {/* Stats Row */}
-        <View style={styles.statsContainer}>
-          <StatsCard number={analytics.myPets.toString()} label="My Pets" icon="🐕" />
-          <StatsCard number={analytics.communityHelped.toString()} label="Helped" icon="❤️" />
-          <StatsCard number={analytics.myReports.toString()} label="Reports" icon="📋" />
-        </View>
 
 
 
@@ -889,6 +841,79 @@ const HomeTabScreen = ({ navigation }) => {
             color={COLORS.mediumBlue}
             onPress={() => navigation.navigate('MyPets')}
           />
+
+          <QuickActionCard
+            title="Pet Care Guide"
+            description="How to care for your pet"
+            icon="📘"
+            color={COLORS.darkPurple}
+            onPress={() => navigation.navigate('PetCareGuide')}
+          />
+        </View>
+
+        {/* Recent Registered Pets */}
+        <View style={[styles.section, styles.petsSection]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInHeader]}>Recent Registered Pets</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('PetList')}>
+              <Text style={styles.viewAllButton}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.white} />
+              <Text style={styles.loadingText}>Loading pets...</Text>
+            </View>
+          ) : recentPets.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No registered pets yet</Text>
+              <Text style={styles.emptySubtext}>Be the first to register your pet!</Text>
+            </View>
+          ) : (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.reportsScrollContainer}
+            >
+              {recentPets.map((pet) => (
+                <ImageBackground 
+                  key={pet.id}
+                  source={pet.petImage ? { uri: pet.petImage } : null}
+                  style={styles.reportCard}
+                  imageStyle={styles.cardBackgroundImage}
+                >
+                  {!pet.petImage && (
+                    <View style={styles.placeholderBackground}>
+                      <Text style={styles.petEmoji}>🐕</Text>
+                    </View>
+                  )}
+                  <View style={styles.darkOverlay} />
+                  
+                  <View style={styles.reportContent}>
+                    <View style={styles.reportHeader}>
+                      <Text style={styles.reportName}>{pet.petName || 'Unnamed Pet'}</Text>
+                    </View>
+                    
+                    <Text style={styles.reportLocation}>🐾 {pet.breed || 'Unknown Breed'}</Text>
+                    <Text style={styles.reportDistance}>{formatTimeAgo(pet.createdAt)}</Text>
+                    <Text style={styles.reportDescription} numberOfLines={3}>
+                      {pet.description || `A lovely ${pet.petType || 'pet'} looking for a loving home.`}
+                    </Text>
+                    
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity 
+                        style={styles.helpButton}
+                        onPress={() => setSelectedPetDetails(pet)}
+                      >
+                        <Text style={styles.helpButtonText}>View Details</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </ImageBackground>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* Recent Reports */}
@@ -947,7 +972,7 @@ const HomeTabScreen = ({ navigation }) => {
                     <View style={styles.actionButtons}>
                       <TouchableOpacity 
                         style={styles.helpButton}
-                        onPress={() => navigation.navigate('Strays')}
+                        onPress={() => setSelectedReportDetails(report)}
                       >
                         <Text style={styles.helpButtonText}>View Details</Text>
                       </TouchableOpacity>
@@ -1851,6 +1876,599 @@ const HomeTabScreen = ({ navigation }) => {
             </View>
           </View>
         </View>
+      )}
+
+      {/* Pet Details Modal */}
+      {selectedPetDetails && (
+        <Modal
+          visible={!!selectedPetDetails}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedPetDetails(null)}
+        >
+          <View style={{
+            flex: 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: SPACING.lg,
+          }}>
+            <View style={{
+              backgroundColor: COLORS.cardBackground,
+              borderRadius: RADIUS.xlarge,
+              maxHeight: '90%',
+              width: '100%',
+              maxWidth: 400,
+              elevation: 10,
+              ...SHADOWS.heavy,
+            }}>
+              {/* Modal Header with Close Button */}
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: SPACING.lg,
+                borderBottomWidth: 1,
+                borderBottomColor: '#E5E5E5',
+              }}>
+                <Text style={{
+                  fontSize: FONTS.sizes.xlarge,
+                  fontFamily: FONTS.family,
+                  fontWeight: FONTS.weights.bold,
+                  color: COLORS.text,
+                }}>Pet Details</Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedPetDetails(null)}
+                  style={{
+                    padding: SPACING.sm,
+                    borderRadius: RADIUS.medium,
+                    backgroundColor: COLORS.inputBackground,
+                  }}
+                >
+                  <MaterialIcons name="close" size={24} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Pet Image */}
+                <View style={{
+                  padding: SPACING.lg,
+                  alignItems: 'center',
+                }}>
+                  {selectedPetDetails.petImage ? (
+                    <Image 
+                      source={{ uri: selectedPetDetails.petImage }} 
+                      style={{
+                        width: 200,
+                        height: 200,
+                        borderRadius: RADIUS.xlarge,
+                        backgroundColor: COLORS.inputBackground,
+                      }} 
+                      resizeMode="cover" 
+                    />
+                  ) : (
+                    <View style={{
+                      width: 200,
+                      height: 200,
+                      borderRadius: RADIUS.xlarge,
+                      backgroundColor: COLORS.inputBackground,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}>
+                      <MaterialIcons 
+                        name="pets" 
+                        size={80} 
+                        color={COLORS.mediumBlue} 
+                      />
+                      <Text style={{
+                        fontSize: FONTS.sizes.medium,
+                        fontFamily: FONTS.family,
+                        color: COLORS.secondaryText,
+                        marginTop: SPACING.sm,
+                      }}>No Photo</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Pet Name */}
+                <View style={{
+                  paddingHorizontal: SPACING.lg,
+                  marginBottom: SPACING.lg,
+                }}>
+                  <Text style={{
+                    fontSize: FONTS.sizes.xxlarge,
+                    fontFamily: FONTS.family,
+                    fontWeight: FONTS.weights.bold,
+                    color: COLORS.text,
+                    flex: 1,
+                  }}>{selectedPetDetails.petName || 'Unnamed Pet'}</Text>
+                </View>
+
+                {/* Pet Information Cards */}
+                <View style={{
+                  paddingHorizontal: SPACING.lg,
+                }}>
+                  <View style={{
+                    backgroundColor: COLORS.inputBackground,
+                    borderRadius: RADIUS.medium,
+                    padding: SPACING.md,
+                    marginBottom: SPACING.sm,
+                    borderLeftWidth: 4,
+                    borderLeftColor: COLORS.mediumBlue,
+                  }}>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}>
+                      <View style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: RADIUS.large,
+                        backgroundColor: COLORS.cardBackground,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginRight: SPACING.md,
+                      }}>
+                        <MaterialIcons 
+                          name="pets" 
+                          size={20} 
+                          color={COLORS.darkPurple} 
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{
+                          fontSize: FONTS.sizes.small,
+                          fontFamily: FONTS.family,
+                          fontWeight: FONTS.weights.semiBold,
+                          color: COLORS.secondaryText,
+                          marginBottom: SPACING.xs,
+                        }}>Type</Text>
+                        <Text style={{
+                          fontSize: FONTS.sizes.medium,
+                          fontFamily: FONTS.family,
+                          fontWeight: FONTS.weights.medium,
+                          color: COLORS.text,
+                        }}>
+                          {selectedPetDetails.petType ? 
+                            (selectedPetDetails.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : 
+                            'Unknown'
+                          }
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={{
+                    backgroundColor: COLORS.inputBackground,
+                    borderRadius: RADIUS.medium,
+                    padding: SPACING.md,
+                    marginBottom: SPACING.sm,
+                    borderLeftWidth: 4,
+                    borderLeftColor: COLORS.mediumBlue,
+                  }}>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}>
+                      <View style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: RADIUS.large,
+                        backgroundColor: COLORS.cardBackground,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginRight: SPACING.md,
+                      }}>
+                        <MaterialIcons 
+                          name={selectedPetDetails.petGender === 'male' ? 'male' : 'female'} 
+                          size={20} 
+                          color={selectedPetDetails.petGender === 'male' ? '#2196F3' : '#E91E63'} 
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{
+                          fontSize: FONTS.sizes.small,
+                          fontFamily: FONTS.family,
+                          fontWeight: FONTS.weights.semiBold,
+                          color: COLORS.secondaryText,
+                          marginBottom: SPACING.xs,
+                        }}>Gender</Text>
+                        <Text style={{
+                          fontSize: FONTS.sizes.medium,
+                          fontFamily: FONTS.family,
+                          fontWeight: FONTS.weights.medium,
+                          color: COLORS.text,
+                        }}>
+                          {selectedPetDetails.petGender ? 
+                            (selectedPetDetails.petGender === 'male' ? '♂️ Male' : '♀️ Female') : 
+                            'Unknown'
+                          }
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={{
+                    backgroundColor: COLORS.inputBackground,
+                    borderRadius: RADIUS.medium,
+                    padding: SPACING.md,
+                    marginBottom: SPACING.sm,
+                    borderLeftWidth: 4,
+                    borderLeftColor: COLORS.mediumBlue,
+                  }}>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}>
+                      <View style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: RADIUS.large,
+                        backgroundColor: COLORS.cardBackground,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginRight: SPACING.md,
+                      }}>
+                        <MaterialIcons name="category" size={20} color="#FF9800" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{
+                          fontSize: FONTS.sizes.small,
+                          fontFamily: FONTS.family,
+                          fontWeight: FONTS.weights.semiBold,
+                          color: COLORS.secondaryText,
+                          marginBottom: SPACING.xs,
+                        }}>Breed</Text>
+                        <Text style={{
+                          fontSize: FONTS.sizes.medium,
+                          fontFamily: FONTS.family,
+                          fontWeight: FONTS.weights.medium,
+                          color: COLORS.text,
+                        }}>{selectedPetDetails.breed || 'Unknown Breed'}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {selectedPetDetails.ownerFullName && (
+                    <View style={{
+                      backgroundColor: COLORS.inputBackground,
+                      borderRadius: RADIUS.medium,
+                      padding: SPACING.md,
+                      marginBottom: SPACING.sm,
+                      borderLeftWidth: 4,
+                      borderLeftColor: COLORS.mediumBlue,
+                    }}>
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                      }}>
+                        <View style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: RADIUS.large,
+                          backgroundColor: COLORS.cardBackground,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          marginRight: SPACING.md,
+                        }}>
+                          <MaterialIcons name="person" size={20} color={COLORS.success} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{
+                            fontSize: FONTS.sizes.small,
+                            fontFamily: FONTS.family,
+                            fontWeight: FONTS.weights.semiBold,
+                            color: COLORS.secondaryText,
+                            marginBottom: SPACING.xs,
+                          }}>Owner</Text>
+                          <Text style={{
+                            fontSize: FONTS.sizes.medium,
+                            fontFamily: FONTS.family,
+                            fontWeight: FONTS.weights.medium,
+                            color: COLORS.text,
+                          }}>{selectedPetDetails.ownerFullName}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+
+                  {selectedPetDetails.contactNumber && (
+                    <View style={{
+                      backgroundColor: COLORS.inputBackground,
+                      borderRadius: RADIUS.medium,
+                      padding: SPACING.md,
+                      marginBottom: SPACING.sm,
+                      borderLeftWidth: 4,
+                      borderLeftColor: COLORS.mediumBlue,
+                    }}>
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                      }}>
+                        <View style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: RADIUS.large,
+                          backgroundColor: COLORS.cardBackground,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          marginRight: SPACING.md,
+                        }}>
+                          <MaterialIcons name="phone" size={20} color={COLORS.mediumBlue} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{
+                            fontSize: FONTS.sizes.small,
+                            fontFamily: FONTS.family,
+                            fontWeight: FONTS.weights.semiBold,
+                            color: COLORS.secondaryText,
+                            marginBottom: SPACING.xs,
+                          }}>Contact</Text>
+                          <Text style={{
+                            fontSize: FONTS.sizes.medium,
+                            fontFamily: FONTS.family,
+                            fontWeight: FONTS.weights.medium,
+                            color: COLORS.text,
+                          }}>{selectedPetDetails.contactNumber}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </View>
+
+                {/* Description Section */}
+                {selectedPetDetails.description && (
+                  <View style={{
+                    margin: SPACING.lg,
+                    padding: SPACING.md,
+                    backgroundColor: COLORS.inputBackground,
+                    borderRadius: RADIUS.medium,
+                    borderLeftWidth: 4,
+                    borderLeftColor: COLORS.darkPurple,
+                  }}>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginBottom: SPACING.sm,
+                    }}>
+                      <MaterialIcons name="description" size={20} color={COLORS.darkPurple} />
+                      <Text style={{
+                        fontSize: FONTS.sizes.medium,
+                        fontFamily: FONTS.family,
+                        fontWeight: FONTS.weights.semiBold,
+                        color: COLORS.text,
+                        marginLeft: SPACING.sm,
+                      }}>Description</Text>
+                    </View>
+                    <Text style={{
+                      fontSize: FONTS.sizes.medium,
+                      fontFamily: FONTS.family,
+                      color: COLORS.text,
+                      lineHeight: 22,
+                    }}>{selectedPetDetails.description}</Text>
+                  </View>
+                )}
+
+                {/* Registration Info */}
+                {selectedPetDetails.createdAt && (
+                  <View style={{
+                    paddingHorizontal: SPACING.lg,
+                    paddingBottom: SPACING.md,
+                  }}>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <MaterialIcons name="event" size={16} color={COLORS.secondaryText} />
+                      <Text style={{
+                        fontSize: FONTS.sizes.small,
+                        fontFamily: FONTS.family,
+                        color: COLORS.secondaryText,
+                        marginLeft: SPACING.xs,
+                      }}>
+                        Registered {formatTimeAgo(selectedPetDetails.createdAt)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* Action Buttons */}
+              <View style={{
+                padding: SPACING.lg,
+                borderTopWidth: 1,
+                borderTopColor: '#E5E5E5',
+              }}>
+                <TouchableOpacity
+                  onPress={() => setSelectedPetDetails(null)}
+                  style={{
+                    borderRadius: RADIUS.medium,
+                    paddingVertical: SPACING.md,
+                    alignItems: 'center',
+                    backgroundColor: COLORS.darkPurple,
+                  }}
+                >
+                  <Text style={{
+                    fontSize: FONTS.sizes.medium,
+                    fontFamily: FONTS.family,
+                    fontWeight: FONTS.weights.semiBold,
+                    color: COLORS.white,
+                  }}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Report Details Modal */}
+      {selectedReportDetails && (
+        <Modal
+          visible={!!selectedReportDetails}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedReportDetails(null)}
+        >
+          <View style={{ 
+            flex: 1, 
+            backgroundColor: 'rgba(0,0,0,0.7)', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            padding: 20 
+          }}>
+            <View style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              width: '100%',
+              maxHeight: '85%',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 20,
+              elevation: 10
+            }}>
+              {/* Header */}
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: 20,
+                borderBottomWidth: 1,
+                borderBottomColor: '#f1f5f9'
+              }}>
+                <Text style={{ fontSize: 24, fontWeight: '800', color: '#1f2937' }}>
+                  Report Details
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedReportDetails(null)}
+                  style={{ padding: 8 }}
+                >
+                  <MaterialIcons name="close" size={24} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Content */}
+              <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+                {/* Report Image */}
+                {selectedReportDetails.imageUrl && (
+                  <View style={{ marginBottom: 20, alignItems: 'center' }}>
+                    <Image 
+                      source={{ uri: selectedReportDetails.imageUrl }} 
+                      style={{ 
+                        width: '100%', 
+                        height: 200, 
+                        borderRadius: 16,
+                        backgroundColor: '#f3f4f6'
+                      }} 
+                      resizeMode="cover"
+                    />
+                  </View>
+                )}
+
+                {/* Status Card */}
+                <View style={{
+                  backgroundColor: getStatusColor(selectedReportDetails.status) === COLORS.error ? '#fee2e2' :
+                               getStatusColor(selectedReportDetails.status) === COLORS.warning ? '#fef3c7' : '#dbeafe',
+                  padding: 16,
+                  borderRadius: 12,
+                  marginBottom: 20,
+                  borderLeftWidth: 4,
+                  borderLeftColor: getStatusColor(selectedReportDetails.status)
+                }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#1f2937', marginBottom: 8 }}>
+                    Status: {selectedReportDetails.status || 'Stray'}
+                  </Text>
+                  <Text style={{ fontSize: 14, color: '#374151' }}>
+                    {selectedReportDetails.status === 'Found' ? 'This pet has been found and is safe!' :
+                     selectedReportDetails.status === 'Reunited' ? 'This pet has been reunited with its owner!' :
+                     selectedReportDetails.status === 'Lost' ? 'This pet is currently missing.' :
+                     'This is a stray pet that needs help.'}
+                  </Text>
+                </View>
+
+                {/* Location Information */}
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#1f2937', marginBottom: 12 }}>
+                    Location
+                  </Text>
+                  <View style={{ backgroundColor: '#f9fafb', padding: 16, borderRadius: 12 }}>
+                    <Text style={{ fontSize: 16, color: '#374151', marginBottom: 8 }}>
+                      📍 {selectedReportDetails.locationName || 'Unknown Location'}
+                    </Text>
+                    {selectedReportDetails.coordinates && (
+                      <Text style={{ fontSize: 14, color: '#6b7280' }}>
+                        Coordinates: {selectedReportDetails.coordinates.latitude.toFixed(6)}, {selectedReportDetails.coordinates.longitude.toFixed(6)}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Description */}
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#1f2937', marginBottom: 12 }}>
+                    Description
+                  </Text>
+                  <Text style={{ fontSize: 16, color: '#374151', lineHeight: 24 }}>
+                    {selectedReportDetails.description || 'No description provided'}
+                  </Text>
+                </View>
+
+                {/* Reporter Information */}
+                {selectedReportDetails.reporterName && (
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#1f2937', marginBottom: 12 }}>
+                      Reporter Information
+                    </Text>
+                    <View style={{ backgroundColor: '#f9fafb', padding: 16, borderRadius: 12 }}>
+                      <Text style={{ fontSize: 16, color: '#374151', marginBottom: 8 }}>
+                        <Text style={{ fontWeight: '700' }}>Name:</Text> {selectedReportDetails.reporterName}
+                      </Text>
+                      {selectedReportDetails.reporterContact && (
+                        <Text style={{ fontSize: 16, color: '#374151' }}>
+                          <Text style={{ fontWeight: '700' }}>Contact:</Text> {selectedReportDetails.reporterContact}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {/* Report Date */}
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#1f2937', marginBottom: 12 }}>
+                    Report Date
+                  </Text>
+                  <Text style={{ fontSize: 16, color: '#374151' }}>
+                    {selectedReportDetails.reportTime ? formatTimeAgo(selectedReportDetails.reportTime) : 'Unknown'}
+                  </Text>
+                </View>
+              </ScrollView>
+
+              {/* Footer */}
+              <View style={{
+                padding: 20,
+                borderTopWidth: 1,
+                borderTopColor: '#f1f5f9',
+                flexDirection: 'row',
+                justifyContent: 'flex-end'
+              }}>
+                <TouchableOpacity 
+                  onPress={() => setSelectedReportDetails(null)}
+                  style={{
+                    backgroundColor: '#1f2937',
+                    paddingHorizontal: 24,
+                    paddingVertical: 12,
+                    borderRadius: 12
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 16 }}>
+                    Close
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
     </View>
   );
