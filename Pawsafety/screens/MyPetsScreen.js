@@ -1889,6 +1889,14 @@ Thank you for helping reunite pets with their families! ❤️`;
     disabledButton: {
       opacity: 0.6,
     },
+    disabledButtonText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.secondaryText,
+      textAlign: 'center',
+      opacity: 0.7,
+    },
   }), [COLORS, reportForm.lastSeenLocation, reportForm.timeLost]);
 
   const PetCard = ({ pet }) => {
@@ -1983,12 +1991,19 @@ Thank you for helping reunite pets with their families! ❤️`;
           >
             <Text style={styles.actionButtonText}>Mark Found</Text>
           </TouchableOpacity>
-        ) : (
+        ) : pet.registrationStatus === 'registered' ? (
           <TouchableOpacity 
             style={[styles.actionButton, styles.lostButton]} 
             onPress={() => handleReportLost(pet)}
           >
             <Text style={styles.actionButtonText}>Report Lost</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.disabledButton]} 
+            disabled={true}
+          >
+            <Text style={styles.disabledButtonText}>Report Lost</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity 
