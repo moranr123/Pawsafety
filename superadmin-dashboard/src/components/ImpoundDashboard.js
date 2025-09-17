@@ -1987,7 +1987,10 @@ const ImpoundDashboard = () => {
         <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <svg className="w-6 h-6 text-indigo-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
                 Transfer {selectedAdoptable.petName} to New Owner
               </h3>
               <button 
@@ -2028,7 +2031,12 @@ const ImpoundDashboard = () => {
               {/* User Selection */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-md font-medium text-gray-900">Select New Owner</h4>
+                  <h4 className="text-md font-medium text-gray-900 flex items-center">
+                    <svg className="w-5 h-5 text-indigo-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                    Select New Owner
+                  </h4>
                   <button
                     onClick={fetchRegisteredUsers}
                     disabled={loadingUsers}
@@ -2064,15 +2072,29 @@ const ImpoundDashboard = () => {
                         onClick={() => setSelectedUser(user)}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h5 className="font-medium text-gray-900">{user.displayName}</h5>
-                            <p className="text-sm text-gray-600">{user.email}</p>
-                            {user.phone && (
-                              <p className="text-sm text-gray-600">📞 {user.phone}</p>
-                            )}
-                            {user.address && (
-                              <p className="text-sm text-gray-600">📍 {user.address}</p>
-                            )}
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className="flex-shrink-0">
+                              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                                <svg className="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-medium text-gray-900 flex items-center">
+                                <svg className="w-4 h-4 text-gray-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                </svg>
+                                {user.displayName}
+                              </h5>
+                              <p className="text-sm text-gray-600 flex items-center">
+                                <svg className="w-4 h-4 text-gray-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                                </svg>
+                                {user.email}
+                              </p>
+                            </div>
                           </div>
                           {selectedUser?.uid === user.uid && (
                             <div className="text-indigo-600">
