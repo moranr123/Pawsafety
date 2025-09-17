@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
 import * as MediaLibrary from 'expo-media-library';
 import { captureRef } from 'react-native-view-shot';
+import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { auth, db, storage } from '../services/firebase';
@@ -26,6 +27,303 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
+
+// Styles for the PetCard component
+const petCardStyles = StyleSheet.create({
+  petCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 16,
+    ...SHADOWS.medium,
+    overflow: 'hidden',
+  },
+  petImageContainer: {
+    height: 200,
+    backgroundColor: '#F8FAFC',
+  },
+  petImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  imagePlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  placeholderIcon: {
+    fontSize: 60,
+    marginBottom: 8,
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  petInfo: {
+    padding: 16,
+  },
+  petHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  petName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    flex: 1,
+  },
+  petTypeIcon: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  petDetails: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  ownerInfo: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 8,
+  },
+  description: {
+    fontSize: 14,
+    color: '#475569',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  statusButtonsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  statusButton: {
+    flex: 1,
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pregnantButton: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  deceasedButton: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  undoButton: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#16A34A',
+  },
+  statusButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    padding: 16,
+    paddingTop: 0,
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrButton: {
+    backgroundColor: '#3B82F6',
+  },
+  pendingQRButton: {
+    backgroundColor: '#9CA3AF',
+    opacity: 0.6,
+  },
+  foundButton: {
+    backgroundColor: '#4CAF50',
+  },
+  lostButton: {
+    backgroundColor: '#F59E0B',
+  },
+  editButton: {
+    backgroundColor: '#8B5CF6',
+  },
+  deleteButton: {
+    backgroundColor: '#EF4444',
+  },
+  disabledButton: {
+    backgroundColor: '#E5E7EB',
+    opacity: 0.6,
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  pendingQRButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  disabledButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+});
+
+// Memoized PetCard component to prevent unnecessary re-renders
+const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onDeletePet, onReportLost, onMarkFound, onShowQR }) => {
+  const [imageError, setImageError] = useState(false);
+  
+  return (
+    <View style={petCardStyles.petCard}>
+      <View style={petCardStyles.petImageContainer}>
+        {pet.petImage && !imageError ? (
+          <Image 
+            source={{ uri: pet.petImage }} 
+            style={petCardStyles.petImage} 
+            onError={() => setImageError(true)}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={petCardStyles.imagePlaceholder}>
+            <Text style={petCardStyles.placeholderIcon}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
+            <Text style={petCardStyles.placeholderText}>No Photo</Text>
+          </View>
+        )}
+      </View>
+      
+      <View style={petCardStyles.petInfo}>
+        <View style={petCardStyles.petHeader}>
+          <Text style={petCardStyles.petName}>{pet.petName}</Text>
+          <View style={petCardStyles.petTypeIcon}>
+            <Text style={{ fontSize: 16 }}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
+          </View>
+        </View>
+        
+        <Text style={petCardStyles.petDetails}>
+          {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
+        </Text>
+        
+        <Text style={petCardStyles.ownerInfo}>
+          Owner: {pet.ownerFullName || 'Unknown'}
+        </Text>
+        
+        {pet.description && (
+          <Text style={petCardStyles.description}>{pet.description}</Text>
+        )}
+      </View>
+      
+      {/* Status Buttons */}
+      <View style={petCardStyles.statusButtonsContainer}>
+        {pet.petStatus === 'pregnant' ? (
+          <TouchableOpacity 
+            style={[petCardStyles.statusButton, petCardStyles.undoButton]} 
+            onPress={() => onUpdateStatus(pet.id, 'healthy')}
+          >
+            <Text style={petCardStyles.statusButtonText}>✅ Undo Pregnant</Text>
+          </TouchableOpacity>
+        ) : pet.petStatus === 'deceased' ? (
+          <TouchableOpacity 
+            style={[petCardStyles.statusButton, petCardStyles.undoButton]} 
+            onPress={() => onUpdateStatus(pet.id, 'healthy')}
+          >
+            <Text style={petCardStyles.statusButtonText}>✅ Undo Deceased</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            {pet.petGender === 'female' && (
+              <TouchableOpacity 
+                style={[petCardStyles.statusButton, petCardStyles.pregnantButton]} 
+                onPress={() => onUpdateStatus(pet.id, 'pregnant')}
+              >
+                <Text style={petCardStyles.statusButtonText}>🤰 Mark Pregnant</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              style={[petCardStyles.statusButton, petCardStyles.deceasedButton]} 
+              onPress={() => onUpdateStatus(pet.id, 'deceased')}
+            >
+              <Text style={petCardStyles.statusButtonText}>🕊️ Mark Deceased</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      <View style={petCardStyles.actionButtons}>
+        {(pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
+          <TouchableOpacity 
+            style={[petCardStyles.actionButton, petCardStyles.qrButton]} 
+            onPress={() => onShowQR(pet)}
+          >
+            <Text style={petCardStyles.actionButtonText}>QR Code</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[petCardStyles.actionButton, petCardStyles.pendingQRButton]} 
+            disabled={true}
+          >
+            <Text style={petCardStyles.pendingQRButtonText}>QR Pending</Text>
+          </TouchableOpacity>
+        )}
+        {pet.status === 'lost' ? (
+          <TouchableOpacity 
+            style={[petCardStyles.actionButton, petCardStyles.foundButton]} 
+            onPress={() => onMarkFound(pet)}
+          >
+            <Text style={petCardStyles.actionButtonText}>Mark Found</Text>
+          </TouchableOpacity>
+        ) : (pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
+          <TouchableOpacity 
+            style={[petCardStyles.actionButton, petCardStyles.lostButton]} 
+            onPress={() => onReportLost(pet)}
+          >
+            <Text style={petCardStyles.actionButtonText}>Report Lost</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[petCardStyles.actionButton, petCardStyles.disabledButton]} 
+            disabled={true}
+          >
+            <Text style={petCardStyles.disabledButtonText}>Report Lost</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity 
+          style={[petCardStyles.actionButton, petCardStyles.editButton]} 
+          onPress={() => onEditPet(pet)}
+        >
+          <Text style={petCardStyles.actionButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[petCardStyles.actionButton, petCardStyles.deleteButton]} 
+          onPress={() => onDeletePet(pet.id, pet.petName)}
+        >
+          <Text style={petCardStyles.actionButtonText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
 
 const MyPetsScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -437,7 +735,7 @@ const MyPetsScreen = ({ navigation }) => {
      );
    };
 
-   const handleEditPet = (pet) => {
+   const handleEditPet = useCallback((pet) => {
      setSelectedPetForEdit(pet);
      setEditForm({
        petName: pet.petName || '',
@@ -450,7 +748,76 @@ const MyPetsScreen = ({ navigation }) => {
        petImage: pet.petImage || ''
      });
      setShowEditModal(true);
+   }, []);
+
+   const handleImagePicker = async (source) => {
+     try {
+       let result;
+       
+       if (source === 'camera') {
+         const { status } = await ImagePicker.requestCameraPermissionsAsync();
+         if (status !== 'granted') {
+           Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+           return;
+         }
+         result = await ImagePicker.launchCameraAsync({
+           mediaTypes: ImagePicker.MediaTypeOptions.Images,
+           allowsEditing: true,
+           aspect: [1, 1],
+           quality: 0.8,
+         });
+       } else {
+         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+         if (status !== 'granted') {
+           Alert.alert('Permission Required', 'Photo library permission is required to select images.');
+           return;
+         }
+         result = await ImagePicker.launchImageLibraryAsync({
+           mediaTypes: ImagePicker.MediaTypeOptions.Images,
+           allowsEditing: true,
+           aspect: [1, 1],
+           quality: 0.8,
+         });
+       }
+
+       if (!result.canceled && result.assets[0]) {
+         setEditForm(prev => ({ ...prev, petImage: result.assets[0].uri }));
+       }
+     } catch (error) {
+       console.error('Error picking image:', error);
+       Alert.alert('Error', 'Failed to select image. Please try again.');
+     }
    };
+
+   const selectImage = () => {
+     Alert.alert(
+       'Select Pet Photo',
+       'Choose how you want to update your pet\'s photo',
+       [
+         { text: 'Camera', onPress: () => handleImagePicker('camera') },
+         { text: 'Photo Library', onPress: () => handleImagePicker('library') },
+         { text: 'Cancel', style: 'cancel' }
+       ]
+     );
+   };
+
+  const handleUpdatePetStatus = useCallback(async (petId, newStatus) => {
+    try {
+      await updateDoc(doc(db, 'pets', petId), {
+        petStatus: newStatus,
+        updatedAt: serverTimestamp()
+      });
+      
+      const statusMessage = newStatus === 'pregnant' ? 'Pet marked as pregnant' : 
+                          newStatus === 'deceased' ? 'Pet marked as deceased' : 
+                          newStatus === 'healthy' ? 'Pet status reset to healthy' :
+                          'Pet status updated';
+      Alert.alert('Success', statusMessage);
+    } catch (error) {
+      console.error('Error updating pet status:', error);
+      Alert.alert('Error', 'Failed to update pet status. Please try again.');
+    }
+  }, []);
 
    const handleSubmitEdit = async () => {
      if (!selectedPetForEdit) return;
@@ -465,6 +832,17 @@ const MyPetsScreen = ({ navigation }) => {
      setIsSubmittingEdit(true);
      
      try {
+       let imageUrl = editForm.petImage;
+       
+       // If a new image was selected, upload it to Firebase Storage
+       if (editForm.petImage && editForm.petImage.startsWith('file://')) {
+         const response = await fetch(editForm.petImage);
+         const blob = await response.blob();
+         const imageRef = ref(storage, `pet-images/${selectedPetForEdit.id}_${Date.now()}.jpg`);
+         await uploadBytes(imageRef, blob);
+         imageUrl = await getDownloadURL(imageRef);
+       }
+
        await updateDoc(doc(db, 'pets', selectedPetForEdit.id), {
          petName: editForm.petName.trim(),
          petType: editForm.petType,
@@ -473,7 +851,7 @@ const MyPetsScreen = ({ navigation }) => {
          description: editForm.description.trim(),
          ownerFullName: editForm.ownerFullName.trim(),
          contactNumber: editForm.contactNumber.trim(),
-         petImage: editForm.petImage,
+         petImage: imageUrl,
          updatedAt: serverTimestamp()
        });
 
@@ -764,6 +1142,41 @@ Thank you for helping reunite pets with their families! ❤️`;
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: COLORS.white,
+      textAlign: 'center',
+    },
+    statusButtonsContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.sm,
+      gap: SPACING.sm,
+    },
+    statusButton: {
+      flex: 1,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...SHADOWS.light,
+    },
+    pregnantButton: {
+      backgroundColor: '#FEF3C7',
+      borderWidth: 1,
+      borderColor: '#F59E0B',
+    },
+    deceasedButton: {
+      backgroundColor: '#FEE2E2',
+      borderWidth: 1,
+      borderColor: '#EF4444',
+    },
+    undoButton: {
+      backgroundColor: '#DCFCE7',
+      borderWidth: 1,
+      borderColor: '#16A34A',
+    },
+    statusButtonText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
       textAlign: 'center',
     },
     pendingQRButtonText: {
@@ -1859,8 +2272,36 @@ Thank you for helping reunite pets with their families! ❤️`;
       height: 80,
       textAlignVertical: 'top',
     },
+    imagePickerButton: {
+      borderWidth: 2,
+      borderColor: COLORS.border,
+      borderStyle: 'dashed',
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.inputBackground,
+    },
+    editFormImage: {
+      width: 120,
+      height: 120,
+      borderRadius: RADIUS.medium,
+      resizeMode: 'cover',
+    },
+    imagePlaceholder: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: SPACING.lg,
+    },
+    imagePlaceholderText: {
+      fontSize: FONTS.sizes.small,
+      color: COLORS.secondaryText,
+      marginTop: SPACING.sm,
+      textAlign: 'center',
+    },
     editFormRadioGroup: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: SPACING.sm,
     },
     editFormRadioButton: {
@@ -1968,6 +2409,42 @@ Thank you for helping reunite pets with their families! ❤️`;
         )}
       </View>
       
+      {/* Status Buttons */}
+      <View style={styles.statusButtonsContainer}>
+        {pet.petStatus === 'pregnant' ? (
+          <TouchableOpacity 
+            style={[styles.statusButton, styles.undoButton]} 
+            onPress={() => handleUpdatePetStatus(pet.id, 'healthy')}
+          >
+            <Text style={styles.statusButtonText}>✅ Undo Pregnant</Text>
+          </TouchableOpacity>
+        ) : pet.petStatus === 'deceased' ? (
+          <TouchableOpacity 
+            style={[styles.statusButton, styles.undoButton]} 
+            onPress={() => handleUpdatePetStatus(pet.id, 'healthy')}
+          >
+            <Text style={styles.statusButtonText}>✅ Undo Deceased</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            {pet.petGender === 'female' && (
+              <TouchableOpacity 
+                style={[styles.statusButton, styles.pregnantButton]} 
+                onPress={() => handleUpdatePetStatus(pet.id, 'pregnant')}
+              >
+                <Text style={styles.statusButtonText}>🤰 Mark Pregnant</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              style={[styles.statusButton, styles.deceasedButton]} 
+              onPress={() => handleUpdatePetStatus(pet.id, 'deceased')}
+            >
+              <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
       <View style={styles.actionButtons}>
         {(pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
           <TouchableOpacity 
@@ -2066,7 +2543,16 @@ Thank you for helping reunite pets with their families! ❤️`;
           ) : (
             <>
               {pets.map((pet) => (
-                <PetCard key={pet.id} pet={pet} />
+                <PetCard 
+                  key={pet.id} 
+                  pet={pet}
+                  onUpdateStatus={handleUpdatePetStatus}
+                  onEditPet={handleEditPet}
+                  onDeletePet={(petId, petName) => Alert.alert('Delete Pet', `Are you sure you want to delete ${petName}?`)}
+                  onReportLost={(pet) => {setSelectedPetForReport(pet); setShowReportLostModal(true);}}
+                  onMarkFound={(pet) => handleMarkFound(pet)}
+                  onShowQR={(pet) => setSelectedPetQR(pet)}
+                />
               ))}
               
               <TouchableOpacity 
@@ -2655,6 +3141,21 @@ Thank you for helping reunite pets with their families! ❤️`;
               />
             </View>
 
+            {/* Pet Image */}
+            <View style={styles.editFormGroup}>
+              <Text style={styles.editFormLabel}>Pet Image</Text>
+              <TouchableOpacity style={styles.imagePickerButton} onPress={selectImage}>
+                {editForm.petImage ? (
+                  <Image source={{ uri: editForm.petImage }} style={styles.editFormImage} />
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <MaterialIcons name="add-a-photo" size={40} color={COLORS.secondaryText} />
+                    <Text style={styles.imagePlaceholderText}>Tap to add photo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
             {/* Owner Name */}
             <View style={styles.editFormGroup}>
               <Text style={styles.editFormLabel}>Owner Name</Text>
@@ -2679,6 +3180,7 @@ Thank you for helping reunite pets with their families! ❤️`;
                 keyboardType="phone-pad"
               />
             </View>
+
           </ScrollView>
 
           <View style={styles.centeredBottomButtons}>

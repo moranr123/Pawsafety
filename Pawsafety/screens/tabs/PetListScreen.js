@@ -161,23 +161,6 @@ const PetListScreen = ({ navigation }) => {
       fontWeight: FONTS.weights.semibold,
       opacity: 0.9,
     },
-    transferBadge: {
-      position: 'absolute',
-      top: 8,
-      right: 8,
-      backgroundColor: '#8B5CF6',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    transferBadgeText: {
-      color: '#FFFFFF',
-      fontSize: 10,
-      fontWeight: '700',
-      marginLeft: 2,
-    },
     cardContent: {
       padding: 16,
     },
@@ -216,6 +199,27 @@ const PetListScreen = ({ navigation }) => {
       color: '#9CA3AF',
       marginBottom: 12,
       fontWeight: '400',
+    },
+    statusContainer: {
+      marginBottom: 8,
+    },
+    statusText: {
+      fontSize: 11,
+      fontFamily: FONTS.family,
+      fontWeight: '600',
+      textAlign: 'center',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    pregnantStatus: {
+      backgroundColor: '#FEF3C7',
+      color: '#D97706',
+    },
+    deceasedStatus: {
+      backgroundColor: '#FEE2E2',
+      color: '#DC2626',
     },
 
     cardActions: {
@@ -656,13 +660,6 @@ const PetListScreen = ({ navigation }) => {
                )}
                
                
-               {/* Transfer Badge */}
-               {pet.transferredFrom && (
-                 <View style={styles.transferBadge}>
-                   <MaterialIcons name="swap-horiz" size={12} color="#FFFFFF" />
-                   <Text style={styles.transferBadgeText}>ADOPTED</Text>
-                 </View>
-               )}
              </View>
              
              {/* Card Content */}
@@ -681,6 +678,20 @@ const PetListScreen = ({ navigation }) => {
                <Text style={styles.ownerInfo}>
                  Owner: {pet.ownerFullName || pet.ownerName || 'Unknown'}
                </Text>
+               
+               {/* Pet Status */}
+               {pet.petStatus && pet.petStatus !== 'healthy' && (
+                 <View style={styles.statusContainer}>
+                   <Text style={[
+                     styles.statusText,
+                     pet.petStatus === 'pregnant' && styles.pregnantStatus,
+                     pet.petStatus === 'deceased' && styles.deceasedStatus
+                   ]}>
+                     {pet.petStatus === 'pregnant' ? '🤰 Pregnant' : 
+                      pet.petStatus === 'deceased' ? '🕊️ Deceased' : ''}
+                   </Text>
+                 </View>
+               )}
                
                <TouchableOpacity
                  style={styles.detailsButton}
@@ -819,6 +830,33 @@ const PetListScreen = ({ navigation }) => {
                       <View style={styles.infoContent}>
                         <Text style={styles.infoLabel}>Contact</Text>
                         <Text style={styles.infoValue}>{selectedPet.contactNumber}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Pet Status */}
+                {selectedPet?.petStatus && selectedPet.petStatus !== 'healthy' && (
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconContainer}>
+                        <MaterialIcons 
+                          name={selectedPet.petStatus === 'pregnant' ? 'favorite' : 'pets'} 
+                          size={20} 
+                          color={selectedPet.petStatus === 'pregnant' ? '#E91E63' : '#9E9E9E'} 
+                        />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Status</Text>
+                        <Text style={[
+                          styles.infoValue,
+                          selectedPet.petStatus === 'pregnant' && { color: '#E91E63' },
+                          selectedPet.petStatus === 'deceased' && { color: '#DC2626' }
+                        ]}>
+                          {selectedPet.petStatus === 'pregnant' ? '🤰 Pregnant' : 
+                           selectedPet.petStatus === 'deceased' ? '🕊️ Deceased' : 
+                           selectedPet.petStatus}
+                        </Text>
                       </View>
                     </View>
                   </View>
