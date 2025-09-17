@@ -138,9 +138,11 @@ const AdoptScreen = () => {
       borderRadius: RADIUS.medium,
     },
     petContent: {
-      padding: SPACING.md,
-      position: 'relative',
-      zIndex: 1,
+      position: 'absolute',
+      bottom: SPACING.md,
+      left: SPACING.md,
+      right: SPACING.md,
+      zIndex: 2,
     },
     petHeader: {
       flexDirection: 'row',
@@ -695,6 +697,18 @@ const AdoptScreen = () => {
       marginTop: 2,
       textAlign: 'center',
     },
+    upperLeftInfo: {
+      position: 'absolute',
+      top: SPACING.md,
+      left: SPACING.md,
+      zIndex: 2,
+    },
+    upperRightInfo: {
+      position: 'absolute',
+      top: SPACING.md,
+      right: SPACING.md,
+      zIndex: 2,
+    },
   }), [COLORS]);
 
   const AdoptionCard = ({ pet, onPressDetails, onPressAdopt }) => (
@@ -711,52 +725,21 @@ const AdoptScreen = () => {
       
       <View style={styles.darkOverlay} />
       
-      <View style={styles.petContent}>
-        <View style={styles.petHeader}>
-          <Text style={styles.petName}>{pet.petName}</Text>
-          <View style={styles.genderBadge}>
-            <Text style={styles.genderText}>{pet.gender === 'male' ? '♂' : '♀'}</Text>
-          </View>
-        </View>
-        
+      {/* Pet name and type at upper left */}
+      <View style={styles.upperLeftInfo}>
+        <Text style={styles.petName}>{pet.petName}</Text>
         <Text style={styles.petType}>{pet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}</Text>
-        <Text style={styles.petBreed}>{pet.breed} • {pet.age}</Text>
-        <Text style={styles.petLocation}>📍 {pet.location || 'Unknown location'}</Text>
-        <Text style={styles.petDescription}>{pet.description}</Text>
-        
-        {/* Medical Information */}
-        <View style={styles.medicalInfoCard}>
-          <Text style={styles.medicalTitle}>Medical Info</Text>
-          <View style={styles.medicalBadges}>
-            <View style={[styles.medicalBadge, pet.vaccinated ? styles.medicalBadgeActive : styles.medicalBadgeInactive]}>
-              <Text style={[styles.medicalBadgeText, pet.vaccinated && styles.medicalBadgeTextActive]}>
-                💉 {pet.vaccinated ? '✓' : '✗'}
-              </Text>
-              {pet.vaccinated && pet.vaccinatedDate && (
-                <Text style={styles.medicalDate}>{pet.vaccinatedDate}</Text>
-              )}
-            </View>
-            
-            <View style={[styles.medicalBadge, pet.dewormed ? styles.medicalBadgeActive : styles.medicalBadgeInactive]}>
-              <Text style={[styles.medicalBadgeText, pet.dewormed && styles.medicalBadgeTextActive]}>
-                🪱 {pet.dewormed ? '✓' : '✗'}
-              </Text>
-              {pet.dewormed && pet.dewormedDate && (
-                <Text style={styles.medicalDate}>{pet.dewormedDate}</Text>
-              )}
-            </View>
-            
-            <View style={[styles.medicalBadge, pet.antiRabies ? styles.medicalBadgeActive : styles.medicalBadgeInactive]}>
-              <Text style={[styles.medicalBadgeText, pet.antiRabies && styles.medicalBadgeTextActive]}>
-                🏥 {pet.antiRabies ? '✓' : '✗'}
-              </Text>
-              {pet.antiRabies && pet.antiRabiesDate && (
-                <Text style={styles.medicalDate}>{pet.antiRabiesDate}</Text>
-              )}
-            </View>
-          </View>
+      </View>
+      
+      {/* Gender badge at upper right */}
+      <View style={styles.upperRightInfo}>
+        <View style={styles.genderBadge}>
+          <Text style={styles.genderText}>{pet.gender === 'male' ? '♂' : '♀'}</Text>
         </View>
-        
+      </View>
+      
+      {/* Action buttons at bottom */}
+      <View style={styles.petContent}>
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.adoptButton} onPress={onPressAdopt}>
             <Text style={styles.adoptButtonText}>❤️ Adopt</Text>

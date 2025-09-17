@@ -1011,6 +1011,7 @@ const ImpoundDashboard = () => {
         transferredAt: serverTimestamp(),
         originalAdoptableId: selectedAdoptable.id,
         status: 'safe',
+        registrationStatus: 'registered', // Enable QR code and report lost functionality
         vaccinated: selectedAdoptable.vaccinated || false,
         dewormed: selectedAdoptable.dewormed || false,
         antiRabies: selectedAdoptable.antiRabies || false,

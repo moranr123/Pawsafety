@@ -1969,7 +1969,7 @@ Thank you for helping reunite pets with their families! ❤️`;
       </View>
       
       <View style={styles.actionButtons}>
-        {pet.registrationStatus === 'registered' ? (
+        {(pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
           <TouchableOpacity 
             style={[styles.actionButton, styles.qrButton]} 
             onPress={() => setSelectedPetQR(pet)}
@@ -1991,7 +1991,7 @@ Thank you for helping reunite pets with their families! ❤️`;
           >
             <Text style={styles.actionButtonText}>Mark Found</Text>
           </TouchableOpacity>
-        ) : pet.registrationStatus === 'registered' ? (
+        ) : (pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
           <TouchableOpacity 
             style={[styles.actionButton, styles.lostButton]} 
             onPress={() => handleReportLost(pet)}
