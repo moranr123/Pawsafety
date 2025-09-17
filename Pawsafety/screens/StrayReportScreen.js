@@ -596,15 +596,15 @@ const StrayReportScreen = ({ navigation, route }) => {
               <TouchableOpacity
                 style={[
                   styles.reportTypeButton,
-                  reportType === 'Lost' && styles.reportTypeButtonActive
+                  reportType === 'Incident' && styles.reportTypeButtonActive
                 ]}
-                onPress={() => setReportType('Lost')}
+                onPress={() => setReportType('Incident')}
               >
                 <Text style={[
                   styles.reportTypeText,
-                  reportType === 'Lost' && styles.reportTypeTextActive
+                  reportType === 'Incident' && styles.reportTypeTextActive
                 ]}>
-                  ❤️ Lost Pet
+                  🚨 Incident Report
                 </Text>
               </TouchableOpacity>
             </View>

@@ -102,7 +102,7 @@ const StraysScreen = ({ navigation }) => {
       const status = (r.status || 'Stray').toLowerCase();
       return status === 'found' && r.foundBy !== 'owner';
     });
-  } else if (['Stray', 'Lost'].includes(filter)) {
+  } else if (['Stray', 'Lost', 'Incident'].includes(filter)) {
     // Only show reports with the specific status, but exclude found reports from MyPetsScreen
     filteredReports = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
@@ -417,6 +417,14 @@ const StraysScreen = ({ navigation }) => {
           buttonText: 'Report Lost'
         };
 
+      case 'Incident':
+        return {
+          title: 'Pet incident?',
+          subtitle: 'Report the incident',
+          icon: '🚨',
+          buttonText: 'Report Incident'
+        };
+
       case 'Stray':
         return {
           title: 'Found a stray?',
@@ -454,6 +462,7 @@ const StraysScreen = ({ navigation }) => {
           <FilterButton title="All" active={filter === 'All'} onPress={() => setFilter('All')} />
           <FilterButton title="Stray" active={filter === 'Stray'} onPress={() => setFilter('Stray')} />
           <FilterButton title="Lost" active={filter === 'Lost'} onPress={() => setFilter('Lost')} />
+          <FilterButton title="Incident" active={filter === 'Incident'} onPress={() => setFilter('Incident')} />
           <FilterButton title="Found" active={filter === 'Found'} onPress={() => setFilter('Found')} />
         </View>
       </View>
@@ -479,6 +488,8 @@ const StraysScreen = ({ navigation }) => {
                 navigation.navigate('MyPets');
               } else if (filter === 'Found') {
                 navigation.navigate('StrayReport', { initialType: 'Found' });
+              } else if (filter === 'Incident') {
+                navigation.navigate('StrayReport', { initialType: 'Incident' });
               } else {
                 navigation.navigate('StrayReport');
               }
