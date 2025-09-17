@@ -140,7 +140,20 @@ const HomeTabScreen = ({ navigation }) => {
     
     const reportsUnsubscribe = onSnapshot(reportsQuery, (snapshot) => {
       const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRecentReports(reports);
+      // Filter out found reports from MyPetsScreen (foundBy: 'owner') and resolved reports
+      const filteredReports = reports.filter(report => {
+        const status = (report.status || 'Stray').toLowerCase();
+        // Exclude found reports that came from MyPetsScreen
+        if (status === 'found' && report.foundBy === 'owner') {
+          return false;
+        }
+        // Exclude resolved reports
+        if (status === 'resolved') {
+          return false;
+        }
+        return true;
+      });
+      setRecentReports(filteredReports);
       loadingCount--;
       if (loadingCount === 0) setLoading(false);
     });
@@ -819,8 +832,8 @@ const HomeTabScreen = ({ navigation }) => {
           />
 
           <QuickActionCard
-            title="Stray Report"
-            description="Report a found or lost pet"
+            title="File a Report"
+            description="Report a stray, lost, or found pet"
             icon="📍"
             color={COLORS.success}
             onPress={() => navigation.navigate('StrayReport')}

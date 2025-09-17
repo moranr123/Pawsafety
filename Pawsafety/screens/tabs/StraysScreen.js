@@ -87,15 +87,29 @@ const StraysScreen = ({ navigation }) => {
 
   let filteredReports = reports;
   if (filter === 'All') {
-    // Exclude reports marked as "Found" or "Resolved" from the "All" filter
+    // Exclude reports marked as "Found" (from MyPetsScreen) or "Resolved" from the "All" filter
     filteredReports = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
-      return status !== 'found' && status !== 'resolved';
+      // Exclude found reports that came from MyPetsScreen (foundBy: 'owner')
+      if (status === 'found' && r.foundBy === 'owner') {
+        return false;
+      }
+      return status !== 'resolved';
+    });
+  } else if (filter === 'Found') {
+    // Only show "Found" reports that came from the File a Report form (not from MyPetsScreen)
+    filteredReports = reports.filter(r => {
+      const status = (r.status || 'Stray').toLowerCase();
+      return status === 'found' && r.foundBy !== 'owner';
     });
   } else if (['Stray', 'Lost'].includes(filter)) {
-    // Only show reports with the specific status, but exclude resolved ones
+    // Only show reports with the specific status, but exclude found reports from MyPetsScreen
     filteredReports = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
+      // Exclude found reports that came from MyPetsScreen
+      if (status === 'found' && r.foundBy === 'owner') {
+        return false;
+      }
       return status === filter.toLowerCase() && status !== 'resolved';
     });
   }
@@ -410,6 +424,15 @@ const StraysScreen = ({ navigation }) => {
           icon: '🚨',
           buttonText: 'Report Stray'
         };
+
+      case 'Found':
+        return {
+          title: 'Found a pet?',
+          subtitle: 'Report it to help reunite',
+          icon: '🎉',
+          buttonText: 'Report Found'
+        };
+
       default:
         return {
           title: 'Found a stray?',
@@ -431,7 +454,7 @@ const StraysScreen = ({ navigation }) => {
           <FilterButton title="All" active={filter === 'All'} onPress={() => setFilter('All')} />
           <FilterButton title="Stray" active={filter === 'Stray'} onPress={() => setFilter('Stray')} />
           <FilterButton title="Lost" active={filter === 'Lost'} onPress={() => setFilter('Lost')} />
-
+          <FilterButton title="Found" active={filter === 'Found'} onPress={() => setFilter('Found')} />
         </View>
       </View>
 
@@ -454,6 +477,8 @@ const StraysScreen = ({ navigation }) => {
             onPress={() => {
               if (filter === 'Lost') {
                 navigation.navigate('MyPets');
+              } else if (filter === 'Found') {
+                navigation.navigate('StrayReport', { initialType: 'Found' });
               } else {
                 navigation.navigate('StrayReport');
               }

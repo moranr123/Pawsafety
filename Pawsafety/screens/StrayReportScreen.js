@@ -25,13 +25,14 @@ import { auth } from '../services/firebase';
 
 const { width } = Dimensions.get('window');
 
-const StrayReportScreen = ({ navigation }) => {
+const StrayReportScreen = ({ navigation, route }) => {
   const { colors: COLORS } = useTheme();
   const [selectedImages, setSelectedImages] = useState([]);
   const [location, setLocation] = useState(null);
   const [locationName, setLocationName] = useState('');
   const [reportTime, setReportTime] = useState(new Date());
   const [description, setDescription] = useState('');
+  const [reportType, setReportType] = useState(route?.params?.initialType || 'Stray');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [mapRegion, setMapRegion] = useState({
@@ -224,7 +225,7 @@ const StrayReportScreen = ({ navigation }) => {
         locationName,
         reportTime: serverTimestamp(),
         description,
-        status: 'Stray', // Add status field
+        status: reportType, // Use the selected report type
         userId: (auth.currentUser && auth.currentUser.uid) || null,
       });
       Alert.alert(
@@ -283,6 +284,38 @@ const StrayReportScreen = ({ navigation }) => {
       fontWeight: FONTS.weights.bold,
       color: COLORS.text,
       marginBottom: SPACING.md,
+    },
+    reportTypeContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: SPACING.sm,
+    },
+    reportTypeButton: {
+      flex: 1,
+      minWidth: '30%',
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.sm,
+      backgroundColor: COLORS.inputBackground,
+      borderRadius: RADIUS.medium,
+      borderWidth: 2,
+      borderColor: COLORS.lightBlue,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reportTypeButtonActive: {
+      backgroundColor: COLORS.mediumBlue,
+      borderColor: COLORS.darkPurple,
+    },
+    reportTypeText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.medium,
+      color: COLORS.secondaryText,
+      textAlign: 'center',
+    },
+    reportTypeTextActive: {
+      color: COLORS.white,
+      fontWeight: FONTS.weights.bold,
     },
     photoContainer: {
       minHeight: 150,
@@ -526,6 +559,55 @@ const StrayReportScreen = ({ navigation }) => {
               <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.formTitle}>Stray Pet Report Form</Text>
+          </View>
+          
+          {/* Report Type Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Report Type *</Text>
+            <View style={styles.reportTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.reportTypeButton,
+                  reportType === 'Stray' && styles.reportTypeButtonActive
+                ]}
+                onPress={() => setReportType('Stray')}
+              >
+                <Text style={[
+                  styles.reportTypeText,
+                  reportType === 'Stray' && styles.reportTypeTextActive
+                ]}>
+                  🐾 Stray Pet
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.reportTypeButton,
+                  reportType === 'Found' && styles.reportTypeButtonActive
+                ]}
+                onPress={() => setReportType('Found')}
+              >
+                <Text style={[
+                  styles.reportTypeText,
+                  reportType === 'Found' && styles.reportTypeTextActive
+                ]}>
+                  🔍 Found Pet
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.reportTypeButton,
+                  reportType === 'Lost' && styles.reportTypeButtonActive
+                ]}
+                onPress={() => setReportType('Lost')}
+              >
+                <Text style={[
+                  styles.reportTypeText,
+                  reportType === 'Lost' && styles.reportTypeTextActive
+                ]}>
+                  ❤️ Lost Pet
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
           {/* Photos Section */}

@@ -95,24 +95,34 @@ const MyReportsScreen = ({ navigation }) => {
   // Filter reports based on active tab
   const getFilteredReports = () => {
     if (activeTab === 'archived') {
-      // Show completed reports (Found, Resolved)
-      return userReports.filter(report => 
-        report.status === 'Found' || report.status === 'Resolved'
-      );
+      // Show completed reports (Resolved)
+      return userReports.filter(report => report.status === 'Resolved');
     } else {
-      // Show active reports (Lost, Stray)
-      return userReports.filter(report => 
-        report.status === 'Lost' || report.status === 'Stray'
-      );
+      // Show all active reports (Lost, Stray, and Found from form) - exclude found reports from MyPetsScreen
+      return userReports.filter(report => {
+        const status = report.status;
+        // Exclude found reports that came from MyPetsScreen
+        if (status === 'Found' && report.foundBy === 'owner') {
+          return false;
+        }
+        // Include all active statuses: Lost, Stray, and Found (from form)
+        return status === 'Lost' || status === 'Stray' || status === 'Found';
+      });
     }
   };
 
   const getTabStats = () => {
-    const activeReports = userReports.filter(report => 
-      report.status === 'Lost' || report.status === 'Stray'
-    );
+    const activeReports = userReports.filter(report => {
+      const status = report.status;
+      // Exclude found reports that came from MyPetsScreen
+      if (status === 'Found' && report.foundBy === 'owner') {
+        return false;
+      }
+      // Include all active statuses: Lost, Stray, and Found (from form)
+      return status === 'Lost' || status === 'Stray' || status === 'Found';
+    });
     const archivedReports = userReports.filter(report => 
-      report.status === 'Found' || report.status === 'Resolved'
+      report.status === 'Resolved'
     );
     
     return {
@@ -448,8 +458,9 @@ const MyReportsScreen = ({ navigation }) => {
   }), [COLORS]);
 
   const ReportCard = ({ report }) => {
-    const isArchived = report.status === 'Found' || report.status === 'Resolved';
-    const reportType = report.status === 'Lost' ? 'Lost Pet Report' : 'Stray Report';
+    // Only consider reports as archived if they are Resolved, or Found reports from MyPetsScreen
+    const isArchived = report.status === 'Resolved' || (report.status === 'Found' && report.foundBy === 'owner');
+    const reportType = report.status === 'Lost' ? 'Lost Pet Report' : report.status === 'Found' ? 'Found Pet Report' : 'Stray Report';
     
     return (
       <View style={styles.reportCard}>
@@ -597,7 +608,7 @@ const MyReportsScreen = ({ navigation }) => {
             </Text>
             <Text style={styles.emptyDescription}>
               {activeTab === 'archived' 
-                ? 'You don\'t have any completed reports yet. Completed reports include found pets and resolved stray reports.'
+                ? 'You don\'t have any completed reports yet. Completed reports are resolved stray reports.'
                 : 'You don\'t have any active reports yet. Help reunite pets with their families by reporting strays you find or lost pets.'
               }
             </Text>
