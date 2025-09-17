@@ -141,40 +141,64 @@ const AgriculturalDashboard = () => {
       setPendingPets(pending);
     });
 
-    // Listen to users from adoption applications to get user count
-    const usersQuery = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
+    // Listen to all registered users from users collection
+    const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(usersQuery, async (snapshot) => {
       const userMap = new Map();
+      
+      // Get all users from users collection
       snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.userId && data.applicant) {
-          userMap.set(data.userId, {
-            uid: data.userId,
-            displayName: data.applicant.fullName,
-            email: data.applicant.email,
-            phone: data.applicant.phone,
-            address: data.applicant.address,
-            status: data.userStatus || 'active'
-          });
-        }
+        const userData = doc.data();
+        userMap.set(doc.id, {
+          uid: doc.id,
+          displayName: userData.name || userData.displayName || 'Unknown User',
+          email: userData.email || 'No email',
+          phone: userData.phone || 'No phone',
+          address: userData.address || 'No address',
+          status: userData.status || 'active',
+          role: userData.role || 'user',
+          emailVerified: userData.emailVerified || false,
+          createdAt: userData.createdAt
+        });
       });
       
-      // Also check users collection for status updates
-      const usersCollectionQuery = query(collection(db, 'users'));
-      const usersSnapshot = await getDocs(usersCollectionQuery);
-      usersSnapshot.docs.forEach(doc => {
-        const userData = doc.data();
-        if (userMap.has(doc.id)) {
-          userMap.set(doc.id, {
-            ...userMap.get(doc.id),
-            status: userData.status || userMap.get(doc.id).status
-          });
-        }
-      });
+      // Enhance with adoption application data if available
+      try {
+        const adoptionAppsQuery = query(collection(db, 'adoption_applications'));
+        const adoptionAppsSnapshot = await getDocs(adoptionAppsQuery);
+        
+        adoptionAppsSnapshot.docs.forEach(doc => {
+          const appData = doc.data();
+          if (appData.userId && userMap.has(appData.userId) && appData.applicant) {
+            const existingUser = userMap.get(appData.userId);
+            userMap.set(appData.userId, {
+              ...existingUser,
+              // Override with more detailed info from adoption application if available
+              displayName: appData.applicant.fullName || existingUser.displayName,
+              phone: appData.applicant.phone || existingUser.phone,
+              address: appData.applicant.address || existingUser.address,
+              hasAdoptionApplication: true
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching adoption applications:', error);
+      }
       
       const allUsers = Array.from(userMap.values());
-      setUsers(allUsers);
-      setDeactivatedUsers(allUsers.filter(user => user.status === 'deactivated'));
+      
+      // Filter out admin and superadmin users - only show regular users
+      const regularUsers = allUsers.filter(user => {
+        const role = user.role || 'user';
+        return role === 'user' || role === 'regular'; // Only include regular users
+      });
+      
+      console.log('All registered users:', allUsers.length);
+      console.log('Regular users (filtered):', regularUsers.length);
+      console.log('Filtered out admin users:', allUsers.length - regularUsers.length);
+      
+      setUsers(regularUsers);
+      setDeactivatedUsers(regularUsers.filter(user => user.status === 'deactivated'));
     });
 
     // Listen to admin notifications
@@ -1065,7 +1089,15 @@ const AgriculturalDashboard = () => {
 
         {activeTab === 'userManagement' && (
           <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">User Management</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-medium text-gray-900">User Management</h2>
+                <p className="text-sm text-gray-600">Managing regular users only (admin users not displayed)</p>
+              </div>
+              <div className="text-sm text-gray-500">
+                Total Users: {users.length}
+              </div>
+            </div>
             
             {/* Search Controls */}
             <div className="mb-6 flex flex-col sm:flex-row gap-4">

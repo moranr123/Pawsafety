@@ -35,6 +35,47 @@ import {
   FileText
 } from 'lucide-react';
 
+// Breed options based on pet type
+const DOG_BREEDS = [
+  'Aspin',
+  'Labrador Retriever',
+  'Golden Retriever',
+  'German Shepherd',
+  'Bulldog',
+  'Poodle',
+  'Beagle',
+  'Rottweiler',
+  'Yorkshire Terrier',
+  'Dachshund',
+  'Siberian Husky',
+  'Shih Tzu',
+  'Boston Terrier',
+  'Pomeranian',
+  'Chihuahua',
+  'Border Collie',
+  'Mixed Breed',
+  'Other'
+];
+
+const CAT_BREEDS = [
+  'Puspin',
+  'Persian',
+  'Siamese',
+  'Maine Coon',
+  'British Shorthair',
+  'Ragdoll',
+  'Bengal',
+  'Abyssinian',
+  'Russian Blue',
+  'American Shorthair',
+  'Scottish Fold',
+  'Sphynx',
+  'Munchkin',
+  'Norwegian Forest Cat',
+  'Mixed Breed',
+  'Other'
+];
+
 const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
   <button
     onClick={onClick}
@@ -61,31 +102,127 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
 );
 
 const inputBase =
-  'mt-1 block w-full rounded-md border-2 border-gray-400 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500';
+  'mt-1 block w-full rounded-md border-2 border-gray-400 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-600 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500';
+
+const selectBase = 
+  'mt-1 block w-full rounded-md border-2 border-gray-400 bg-white px-3 py-2 pr-10 text-base text-gray-900 placeholder-gray-600 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative z-10';
+
+const selectBaseWithIcon = 
+  'mt-1 block w-full rounded-md border-2 border-gray-400 bg-white pl-10 pr-10 py-2 text-base text-gray-900 placeholder-gray-600 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative z-10';
 
 const labelBase = 'block text-sm font-medium text-gray-800';
 
-const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSubmit }) => (
-  <form onSubmit={onSubmit} className="space-y-4">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="max-w-md">
-        <label className={labelBase}>Pet Name</label>
-        <input
-          className={inputBase}
-          value={adoptionForm.petName}
-          onChange={(e) => setAdoptionForm((p) => ({ ...p, petName: e.target.value }))}
-          required
-        />
-      </div>
-      <div className="max-w-md">
-        <label className={labelBase}>Breed</label>
-        <input
-          className={inputBase}
-          value={adoptionForm.breed}
-          onChange={(e) => setAdoptionForm((p) => ({ ...p, breed: e.target.value }))}
-          required
-        />
-      </div>
+const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSubmit }) => {
+  // Get breeds based on pet type
+  const availableBreeds = adoptionForm.petType === 'dog' ? DOG_BREEDS : CAT_BREEDS;
+  
+  // Reset breed when pet type changes
+  const handlePetTypeChange = (e) => {
+    const newPetType = e.target.value;
+    setAdoptionForm((p) => ({ 
+      ...p, 
+      petType: newPetType,
+      breed: '', // Reset breed when changing pet type
+      showBreedDropdown: false // Close dropdown when changing pet type
+    }));
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (adoptionForm.showBreedDropdown && !event.target.closest('.breed-dropdown-container')) {
+        setAdoptionForm((p) => ({ ...p, showBreedDropdown: false }));
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [adoptionForm.showBreedDropdown]);
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="max-w-md">
+          <label className={labelBase}>Pet Name</label>
+          <input
+            className={inputBase}
+            value={adoptionForm.petName}
+            onChange={(e) => setAdoptionForm((p) => ({ ...p, petName: e.target.value }))}
+            required
+          />
+        </div>
+        <div className="max-w-md relative">
+          <label className={labelBase}>Pet Type</label>
+          <div className="relative">
+            <select
+              className={selectBase}
+              value={adoptionForm.petType}
+              onChange={handlePetTypeChange}
+              required
+              style={{ 
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                backgroundImage: 'none'
+              }}
+            >
+              <option value="">Select pet type</option>
+              <option value="dog">Dog</option>
+              <option value="cat">Cat</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+              <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div className="max-w-md">
+          <label className={labelBase}>Breed</label>
+          <div className="relative breed-dropdown-container">
+            <button
+              type="button"
+              className={`${selectBase} ${!adoptionForm.petType ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'cursor-pointer'}`}
+              onClick={() => {
+                if (adoptionForm.petType) {
+                  setAdoptionForm((p) => ({ ...p, showBreedDropdown: !p.showBreedDropdown }));
+                }
+              }}
+              disabled={!adoptionForm.petType}
+              style={{ 
+                textAlign: 'left'
+              }}
+            >
+              {!adoptionForm.petType ? 'Select pet type first' : (adoptionForm.breed || 'Select a breed')}
+            </button>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+              <svg className={`w-5 h-5 ${!adoptionForm.petType ? 'text-gray-400' : 'text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </div>
+            {adoptionForm.showBreedDropdown && adoptionForm.petType && (
+              <div className="absolute top-full left-0 right-0 bg-white border-2 border-gray-400 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                <div
+                  className="px-3 py-2 text-gray-900 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => setAdoptionForm((p) => ({ ...p, breed: '', showBreedDropdown: false }))}
+                >
+                  Select a breed
+                </div>
+                {availableBreeds.map((breed) => (
+                  <div
+                    key={breed}
+                    className="px-3 py-2 text-gray-900 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => setAdoptionForm((p) => ({ ...p, breed: breed, showBreedDropdown: false }))}
+                  >
+                    {breed}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       <div className="max-w-md">
         <label className={labelBase}>Age</label>
         <input
@@ -95,56 +232,138 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
           placeholder="e.g., 2 years"
         />
       </div>
-      <div className="max-w-md">
+      <div className="max-w-md relative">
         <label className={labelBase}>Gender</label>
-        <select
-          className={inputBase}
-          value={adoptionForm.gender}
-          onChange={(e) => setAdoptionForm((p) => ({ ...p, gender: e.target.value }))}
-        >
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-        </select>
+        <div className="relative">
+          <select
+            className={selectBase}
+            value={adoptionForm.gender}
+            onChange={(e) => setAdoptionForm((p) => ({ ...p, gender: e.target.value }))}
+            required
+            style={{ 
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              MozAppearance: 'none',
+              backgroundImage: 'none'
+            }}
+          >
+            <option value="">Select gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+            <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
       </div>
-      <div className="max-w-md">
-        <label className={labelBase}>Health Status</label>
-        <input
-          className={inputBase}
-          value={adoptionForm.healthStatus}
-          onChange={(e) => setAdoptionForm((p) => ({ ...p, healthStatus: e.target.value }))}
-        />
-      </div>
-      <div className="max-w-md">
+      <div className="md:col-span-2 max-w-md">
         <label className={labelBase}>Description</label>
         <textarea
           className={inputBase}
           rows={3}
           value={adoptionForm.description || ''}
           onChange={(e) => setAdoptionForm((p) => ({ ...p, description: e.target.value }))}
-          placeholder="Add notes about the pet’s personality, behavior, and needs"
+          placeholder="Add notes about the pet's personality, behavior, and needs"
         />
       </div>
       <div className="md:col-span-2 max-w-md">
-        <label className={labelBase}>Image</label>
+        <label className={labelBase}>Pet Image *</label>
         <input
           type="file"
           accept="image/*"
           className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white px-3 py-2 text-base text-gray-900 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:text-indigo-700 hover:file:bg-indigo-100"
           onChange={(e) => setAdoptionForm((p) => ({ ...p, imageFile: e.target.files?.[0] || null }))}
+          required
         />
+        <p className="mt-1 text-sm text-gray-600">Please upload a clear photo of the pet</p>
       </div>
-      <div className="flex items-center space-x-3 md:col-span-2 max-w-md">
-        <div className="flex items-center space-x-2">
-          <input id="vaccinated" type="checkbox" checked={!!adoptionForm.vaccinated} onChange={(e) => setAdoptionForm((p) => ({ ...p, vaccinated: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
-          <label htmlFor="vaccinated" className="text-base text-gray-800">Vaccine</label>
+      {/* Medical treatments section */}
+      <div className="md:col-span-2">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="flex items-center space-x-2">
+            <input 
+              id="vaccinated" 
+              type="checkbox" 
+              checked={!!adoptionForm.vaccinated} 
+              onChange={(e) => setAdoptionForm((p) => ({ 
+                ...p, 
+                vaccinated: e.target.checked,
+                vaccinatedDate: e.target.checked ? p.vaccinatedDate : ''
+              }))} 
+              className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+            />
+            <label htmlFor="vaccinated" className="text-base text-gray-800">Vaccine</label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <input 
+              id="dewormed" 
+              type="checkbox" 
+              checked={!!adoptionForm.dewormed} 
+              onChange={(e) => setAdoptionForm((p) => ({ 
+                ...p, 
+                dewormed: e.target.checked,
+                dewormedDate: e.target.checked ? p.dewormedDate : ''
+              }))} 
+              className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+            />
+            <label htmlFor="dewormed" className="text-base text-gray-800">Deworm</label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <input 
+              id="antiRabies" 
+              type="checkbox" 
+              checked={!!adoptionForm.antiRabies} 
+              onChange={(e) => setAdoptionForm((p) => ({ 
+                ...p, 
+                antiRabies: e.target.checked,
+                antiRabiesDate: e.target.checked ? p.antiRabiesDate : ''
+              }))} 
+              className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+            />
+            <label htmlFor="antiRabies" className="text-base text-gray-800">Anti-rabies</label>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <input id="dewormed" type="checkbox" checked={!!adoptionForm.dewormed} onChange={(e) => setAdoptionForm((p) => ({ ...p, dewormed: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
-          <label htmlFor="dewormed" className="text-base text-gray-800">Deworm</label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <input id="antiRabies" type="checkbox" checked={!!adoptionForm.antiRabies} onChange={(e) => setAdoptionForm((p) => ({ ...p, antiRabies: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
-          <label htmlFor="antiRabies" className="text-base text-gray-800">Anti-rabies</label>
+        
+        {/* Date fields for checked treatments */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {adoptionForm.vaccinated && (
+            <div>
+              <label className={labelBase}>Vaccine Date</label>
+              <input
+                type="date"
+                className={inputBase}
+                value={adoptionForm.vaccinatedDate}
+                onChange={(e) => setAdoptionForm((p) => ({ ...p, vaccinatedDate: e.target.value }))}
+                required
+              />
+            </div>
+          )}
+          {adoptionForm.dewormed && (
+            <div>
+              <label className={labelBase}>Deworm Date</label>
+              <input
+                type="date"
+                className={inputBase}
+                value={adoptionForm.dewormedDate}
+                onChange={(e) => setAdoptionForm((p) => ({ ...p, dewormedDate: e.target.value }))}
+                required
+              />
+            </div>
+          )}
+          {adoptionForm.antiRabies && (
+            <div>
+              <label className={labelBase}>Anti-rabies Date</label>
+              <input
+                type="date"
+                className={inputBase}
+                value={adoptionForm.antiRabiesDate}
+                onChange={(e) => setAdoptionForm((p) => ({ ...p, antiRabiesDate: e.target.value }))}
+                required
+              />
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center space-x-2 md:col-span-2 max-w-md">
@@ -158,17 +377,18 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
         <label htmlFor="readyForAdoption" className="text-base text-gray-800">Ready for Adoption</label>
       </div>
     </div>
-    <div className="flex justify-end">
-      <button
-        type="submit"
-        disabled={submittingAdoption}
-        className="px-4 py-2 rounded-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-      >
-        {submittingAdoption ? 'Submitting...' : 'Post for Adoption'}
-      </button>
-    </div>
-  </form>
-);
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={submittingAdoption}
+            className="px-4 py-2 rounded-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {submittingAdoption ? 'Submitting...' : 'Post for Adoption'}
+          </button>
+        </div>
+      </form>
+    );
+  };
 
 const ImpoundDashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -190,14 +410,17 @@ const ImpoundDashboard = () => {
   const [showEditAdoptableModal, setShowEditAdoptableModal] = useState(false);
   const [editAdoptForm, setEditAdoptForm] = useState({
     petName: '',
+    petType: '',
     breed: '',
     age: '',
-    gender: 'male',
-    healthStatus: '',
+    gender: '',
     description: '',
     vaccinated: false,
+    vaccinatedDate: '',
     dewormed: false,
+    dewormedDate: '',
     antiRabies: false,
+    antiRabiesDate: '',
     readyForAdoption: true,
     imageFile: null,
   });
@@ -218,16 +441,20 @@ const ImpoundDashboard = () => {
   const [showAppModal, setShowAppModal] = useState(false);
   const [adoptionForm, setAdoptionForm] = useState({
     petName: '',
+    petType: '',
     breed: '',
     age: '',
-    gender: 'male',
-    healthStatus: '',
+    gender: '',
     description: '',
     vaccinated: false,
+    vaccinatedDate: '',
     dewormed: false,
+    dewormedDate: '',
     antiRabies: false,
+    antiRabiesDate: '',
     readyForAdoption: true,
-    imageFile: null
+    imageFile: null,
+    showBreedDropdown: false
   });
 
   // Real-time feed for reports
@@ -329,14 +556,17 @@ const ImpoundDashboard = () => {
     if (editingAdoptable && showEditAdoptableModal) {
       setEditAdoptForm({
         petName: editingAdoptable.petName || '',
+        petType: editingAdoptable.petType || '',
         breed: editingAdoptable.breed || '',
         age: editingAdoptable.age || '',
-        gender: editingAdoptable.gender || 'male',
-        healthStatus: editingAdoptable.healthStatus || '',
+        gender: editingAdoptable.gender || '',
         description: editingAdoptable.description || '',
         vaccinated: !!editingAdoptable.vaccinated,
+        vaccinatedDate: editingAdoptable.vaccinatedDate || '',
         dewormed: !!editingAdoptable.dewormed,
+        dewormedDate: editingAdoptable.dewormedDate || '',
         antiRabies: !!editingAdoptable.antiRabies,
+        antiRabiesDate: editingAdoptable.antiRabiesDate || '',
         readyForAdoption: editingAdoptable.readyForAdoption !== false,
         imageFile: null,
       });
@@ -346,6 +576,27 @@ const ImpoundDashboard = () => {
   const handleSaveEditAdoptable = async (e) => {
     e.preventDefault();
     if (!editingAdoptable) return;
+    
+    // Validate required fields
+    if (!editAdoptForm.petName || !editAdoptForm.petType || !editAdoptForm.breed || !editAdoptForm.gender) {
+      toast.error('Please fill in all required fields (Pet Name, Pet Type, Breed, Gender)');
+      return;
+    }
+
+    // Validate medical treatment dates if treatments are checked
+    if (editAdoptForm.vaccinated && !editAdoptForm.vaccinatedDate) {
+      toast.error('Please provide vaccination date');
+      return;
+    }
+    if (editAdoptForm.dewormed && !editAdoptForm.dewormedDate) {
+      toast.error('Please provide deworm date');
+      return;
+    }
+    if (editAdoptForm.antiRabies && !editAdoptForm.antiRabiesDate) {
+      toast.error('Please provide anti-rabies date');
+      return;
+    }
+
     try {
       setSavingAdoptable(true);
       let imageUrl = editingAdoptable.imageUrl || null;
@@ -357,23 +608,26 @@ const ImpoundDashboard = () => {
       }
       await updateDoc(doc(db, 'adoptable_pets', editingAdoptable.id), {
         petName: editAdoptForm.petName,
+        petType: editAdoptForm.petType,
         breed: editAdoptForm.breed,
         age: editAdoptForm.age,
         gender: editAdoptForm.gender,
-        healthStatus: editAdoptForm.healthStatus,
         description: editAdoptForm.description,
         vaccinated: !!editAdoptForm.vaccinated,
+        vaccinatedDate: editAdoptForm.vaccinatedDate || '',
         dewormed: !!editAdoptForm.dewormed,
+        dewormedDate: editAdoptForm.dewormedDate || '',
         antiRabies: !!editAdoptForm.antiRabies,
+        antiRabiesDate: editAdoptForm.antiRabiesDate || '',
         readyForAdoption: !!editAdoptForm.readyForAdoption,
         ...(imageUrl ? { imageUrl } : {}),
       });
-      toast.success('Pet updated');
+      toast.success('Pet updated successfully');
       setShowEditAdoptableModal(false);
       setEditingAdoptable(null);
-    } catch (e2) {
-      console.error(e2);
-      toast.error('Failed to update pet');
+    } catch (error) {
+      console.error('Error updating pet:', error);
+      toast.error('Failed to update pet: ' + (error.message || 'Unknown error'));
     } finally {
       setSavingAdoptable(false);
     }
@@ -583,10 +837,33 @@ const ImpoundDashboard = () => {
   // Adoption submit
   const handleAdoptionSubmit = async (e) => {
     e.preventDefault();
-    if (!adoptionForm.petName || !adoptionForm.gender || !adoptionForm.breed) {
-      toast.error('Please fill in required fields');
+    
+    // Validate required fields
+    if (!adoptionForm.petName || !adoptionForm.petType || !adoptionForm.breed || !adoptionForm.gender) {
+      toast.error('Please fill in all required fields (Pet Name, Pet Type, Breed, Gender)');
       return;
     }
+
+    // Validate image is required
+    if (!adoptionForm.imageFile) {
+      toast.error('Please upload a pet image');
+      return;
+    }
+
+    // Validate medical treatment dates if treatments are checked
+    if (adoptionForm.vaccinated && !adoptionForm.vaccinatedDate) {
+      toast.error('Please provide vaccination date');
+      return;
+    }
+    if (adoptionForm.dewormed && !adoptionForm.dewormedDate) {
+      toast.error('Please provide deworm date');
+      return;
+    }
+    if (adoptionForm.antiRabies && !adoptionForm.antiRabiesDate) {
+      toast.error('Please provide anti-rabies date');
+      return;
+    }
+
     setSubmittingAdoption(true);
     try {
       let imageUrl = '';
@@ -600,64 +877,109 @@ const ImpoundDashboard = () => {
 
       await addDoc(collection(db, 'adoptable_pets'), {
         petName: adoptionForm.petName,
+        petType: adoptionForm.petType,
         breed: adoptionForm.breed,
         age: adoptionForm.age,
         gender: adoptionForm.gender,
-        healthStatus: adoptionForm.healthStatus,
         description: adoptionForm.description,
         vaccinated: !!adoptionForm.vaccinated,
+        vaccinatedDate: adoptionForm.vaccinatedDate || '',
         dewormed: !!adoptionForm.dewormed,
+        dewormedDate: adoptionForm.dewormedDate || '',
         antiRabies: !!adoptionForm.antiRabies,
+        antiRabiesDate: adoptionForm.antiRabiesDate || '',
         imageUrl,
         readyForAdoption: !!adoptionForm.readyForAdoption,
         createdAt: serverTimestamp(),
         createdBy: currentUser?.email || 'impound_admin'
       });
 
-      toast.success('Adoptable pet posted');
+      toast.success('Adoptable pet posted successfully');
+      
+      // Reset form to match the current state structure
       setAdoptionForm({
         petName: '',
+        petType: '',
         breed: '',
         age: '',
-        gender: 'male',
-        healthStatus: '',
+        gender: '',
         description: '',
         vaccinated: false,
+        vaccinatedDate: '',
         dewormed: false,
+        dewormedDate: '',
         antiRabies: false,
+        antiRabiesDate: '',
         readyForAdoption: true,
         imageFile: null
       });
-    } catch (e) {
-      toast.error('Failed to post adoptable pet');
+    } catch (error) {
+      console.error('Error posting adoptable pet:', error);
+      toast.error('Failed to post adoptable pet: ' + (error.message || 'Unknown error'));
     } finally {
       setSubmittingAdoption(false);
     }
   };
 
-  // Fetch registered users from adoption applications
+  // Fetch all registered users from users collection
   const fetchRegisteredUsers = async () => {
     setLoadingUsers(true);
     try {
-      // Get all adoption applications to extract user information
-      const appsQuery = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
-      const appsSnapshot = await getDocs(appsQuery);
+      // Get all users from users collection
+      const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+      const usersSnapshot = await getDocs(usersQuery);
       
       const usersMap = new Map();
-      appsSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.userId && data.applicant) {
-          usersMap.set(data.userId, {
-            uid: data.userId,
-            displayName: data.applicant.fullName,
-            email: data.applicant.email,
-            phone: data.applicant.phone,
-            address: data.applicant.address
+      
+      // Get all users from users collection
+      usersSnapshot.docs.forEach(doc => {
+        const userData = doc.data();
+        // Only include regular users, not admin users
+        const role = userData.role || 'user';
+        if (role === 'user' || role === 'regular') {
+          usersMap.set(doc.id, {
+            uid: doc.id,
+            displayName: userData.name || userData.displayName || 'Unknown User',
+            email: userData.email || 'No email',
+            phone: userData.phone || 'No phone',
+            address: userData.address || 'No address',
+            status: userData.status || 'active',
+            role: role,
+            emailVerified: userData.emailVerified || false
           });
         }
       });
+      
+      // Enhance with adoption application data if available
+      try {
+        const appsQuery = query(collection(db, 'adoption_applications'));
+        const appsSnapshot = await getDocs(appsQuery);
+        
+        appsSnapshot.docs.forEach(doc => {
+          const appData = doc.data();
+          if (appData.userId && usersMap.has(appData.userId) && appData.applicant) {
+            const existingUser = usersMap.get(appData.userId);
+            usersMap.set(appData.userId, {
+              ...existingUser,
+              // Override with more detailed info from adoption application if available
+              displayName: appData.applicant.fullName || existingUser.displayName,
+              phone: appData.applicant.phone || existingUser.phone,
+              address: appData.applicant.address || existingUser.address,
+              hasAdoptionApplication: true
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching adoption applications:', error);
+      }
 
-      setRegisteredUsers(Array.from(usersMap.values()));
+      const allUsers = Array.from(usersMap.values());
+      console.log('Fetched users for transfer:', allUsers.length);
+      setRegisteredUsers(allUsers);
+      
+      if (allUsers.length === 0) {
+        toast.info('No registered users found. Users need to register in the mobile app to appear here.');
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load registered users');
@@ -1000,7 +1322,7 @@ const ImpoundDashboard = () => {
                   <div className="p-4 flex flex-col items-center text-center flex-1">
                     <p className="text-base font-semibold text-gray-900 truncate w-full">{p.petName || 'Unnamed Pet'}</p>
                     <div className="mt-4 grid grid-cols-3 gap-2 w-full">
-                      <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium text-white bg-green-600 hover:bg-green-700">Transfer</button>
+                      <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); fetchRegisteredUsers(); }} className="px-3 py-2 text-sm rounded-md border font-medium text-white bg-green-600 hover:bg-green-700">Transfer</button>
                       <button onClick={() => { setEditingAdoptable(p); setShowEditAdoptableModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Edit</button>
                       <button onClick={async () => { if (window.confirm('Delete this pet?')) { await deleteDoc(doc(db, 'adoptable_pets', p.id)); toast.success('Deleted'); } }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-red-50 text-red-600 border-red-200">Delete</button>
                 </div>
@@ -1299,21 +1621,96 @@ const ImpoundDashboard = () => {
                     <label className={labelBase}>Pet Name</label>
                     <input className={inputBase} value={editAdoptForm.petName} onChange={(e) => setEditAdoptForm((p) => ({ ...p, petName: e.target.value }))} required />
                   </div>
-                  <div className="max-w-md">
+                  <div className="max-w-md relative">
+                    <label className={labelBase}>Pet Type</label>
+                    <div className="relative">
+                      <select
+                        className={selectBase}
+                        value={editAdoptForm.petType}
+                        onChange={(e) => {
+                          const newPetType = e.target.value;
+                          setEditAdoptForm((p) => ({ 
+                            ...p, 
+                            petType: newPetType,
+                            breed: '' // Reset breed when changing pet type
+                          }));
+                        }}
+                        required
+                        style={{ 
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          backgroundImage: 'none'
+                        }}
+                      >
+                        <option value="">Select pet type</option>
+                        <option value="dog">Dog</option>
+                        <option value="cat">Cat</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                        <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-600"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="max-w-md relative">
                     <label className={labelBase}>Breed</label>
-                    <input className={inputBase} value={editAdoptForm.breed} onChange={(e) => setEditAdoptForm((p) => ({ ...p, breed: e.target.value }))} required />
+                    <div className="relative">
+                      <select
+                        className={selectBase}
+                        value={editAdoptForm.breed}
+                        onChange={(e) => setEditAdoptForm((p) => ({ ...p, breed: e.target.value }))}
+                        required
+                        style={{ 
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          backgroundImage: 'none'
+                        }}
+                      >
+                        <option value="">Select a breed</option>
+                        {(editAdoptForm.petType === 'dog' ? DOG_BREEDS : CAT_BREEDS).map((breed) => (
+                          <option key={breed} value={breed}>
+                            {breed}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+                        <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                   <div className="max-w-md">
                     <label className={labelBase}>Age</label>
                     <input className={inputBase} value={editAdoptForm.age} onChange={(e) => setEditAdoptForm((p) => ({ ...p, age: e.target.value }))} />
                 </div>
-                  <div className="max-w-md">
+                  <div className="max-w-md relative">
                     <label className={labelBase}>Gender</label>
-                    <select className={inputBase} value={editAdoptForm.gender} onChange={(e) => setEditAdoptForm((p) => ({ ...p, gender: e.target.value }))}>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                    </select>
-              </div>
+                    <div className="relative">
+                      <select 
+                        className={selectBase} 
+                        value={editAdoptForm.gender} 
+                        onChange={(e) => setEditAdoptForm((p) => ({ ...p, gender: e.target.value }))} 
+                        required
+                        style={{ 
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          backgroundImage: 'none'
+                        }}
+                      >
+                        <option value="">Select gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+                        <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
                   <div className="max-w-md">
                     <label className={labelBase}>Health Status</label>
                     <input className={inputBase} value={editAdoptForm.healthStatus} onChange={(e) => setEditAdoptForm((p) => ({ ...p, healthStatus: e.target.value }))} />
@@ -1322,18 +1719,91 @@ const ImpoundDashboard = () => {
                     <label className={labelBase}>Description</label>
                     <textarea className={inputBase} rows={3} value={editAdoptForm.description} onChange={(e) => setEditAdoptForm((p) => ({ ...p, description: e.target.value }))} />
                   </div>
-                  <div className="flex items-center space-x-3 md:col-span-2 max-w-md">
-                    <div className="flex items-center space-x-2">
-                      <input id="editVaccinated" type="checkbox" checked={!!editAdoptForm.vaccinated} onChange={(e) => setEditAdoptForm((p) => ({ ...p, vaccinated: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
-                      <label htmlFor="editVaccinated" className="text-base text-gray-800">Vaccine</label>
+                  {/* Medical treatments section for edit form */}
+                  <div className="md:col-span-2">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="flex items-center space-x-2">
+                        <input 
+                          id="editVaccinated" 
+                          type="checkbox" 
+                          checked={!!editAdoptForm.vaccinated} 
+                          onChange={(e) => setEditAdoptForm((p) => ({ 
+                            ...p, 
+                            vaccinated: e.target.checked,
+                            vaccinatedDate: e.target.checked ? p.vaccinatedDate : ''
+                          }))} 
+                          className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+                        />
+                        <label htmlFor="editVaccinated" className="text-base text-gray-800">Vaccine</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input 
+                          id="editDewormed" 
+                          type="checkbox" 
+                          checked={!!editAdoptForm.dewormed} 
+                          onChange={(e) => setEditAdoptForm((p) => ({ 
+                            ...p, 
+                            dewormed: e.target.checked,
+                            dewormedDate: e.target.checked ? p.dewormedDate : ''
+                          }))} 
+                          className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+                        />
+                        <label htmlFor="editDewormed" className="text-base text-gray-800">Deworm</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input 
+                          id="editAntiRabies" 
+                          type="checkbox" 
+                          checked={!!editAdoptForm.antiRabies} 
+                          onChange={(e) => setEditAdoptForm((p) => ({ 
+                            ...p, 
+                            antiRabies: e.target.checked,
+                            antiRabiesDate: e.target.checked ? p.antiRabiesDate : ''
+                          }))} 
+                          className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+                        />
+                        <label htmlFor="editAntiRabies" className="text-base text-gray-800">Anti-rabies</label>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <input id="editDewormed" type="checkbox" checked={!!editAdoptForm.dewormed} onChange={(e) => setEditAdoptForm((p) => ({ ...p, dewormed: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
-                      <label htmlFor="editDewormed" className="text-base text-gray-800">Deworm</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input id="editAntiRabies" type="checkbox" checked={!!editAdoptForm.antiRabies} onChange={(e) => setEditAdoptForm((p) => ({ ...p, antiRabies: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
-                      <label htmlFor="editAntiRabies" className="text-base text-gray-800">Anti-rabies</label>
+                    
+                    {/* Date fields for checked treatments in edit form */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {editAdoptForm.vaccinated && (
+                        <div>
+                          <label className={labelBase}>Vaccine Date</label>
+                          <input
+                            type="date"
+                            className={inputBase}
+                            value={editAdoptForm.vaccinatedDate}
+                            onChange={(e) => setEditAdoptForm((p) => ({ ...p, vaccinatedDate: e.target.value }))}
+                            required
+                          />
+                        </div>
+                      )}
+                      {editAdoptForm.dewormed && (
+                        <div>
+                          <label className={labelBase}>Deworm Date</label>
+                          <input
+                            type="date"
+                            className={inputBase}
+                            value={editAdoptForm.dewormedDate}
+                            onChange={(e) => setEditAdoptForm((p) => ({ ...p, dewormedDate: e.target.value }))}
+                            required
+                          />
+                        </div>
+                      )}
+                      {editAdoptForm.antiRabies && (
+                        <div>
+                          <label className={labelBase}>Anti-rabies Date</label>
+                          <input
+                            type="date"
+                            className={inputBase}
+                            value={editAdoptForm.antiRabiesDate}
+                            onChange={(e) => setEditAdoptForm((p) => ({ ...p, antiRabiesDate: e.target.value }))}
+                            required
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="md:col-span-2 max-w-md">

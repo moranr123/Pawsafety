@@ -13,11 +13,11 @@ import {
   TextInput,
   Alert
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { auth, db } from '../../services/firebase';
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
-import { MaterialIcons } from '@expo/vector-icons';
 
 const AdoptScreen = () => {
   const { colors: COLORS } = useTheme();
@@ -153,6 +153,14 @@ const AdoptScreen = () => {
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: '#FFFFFF',
+    },
+    petType: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: '#FFFFFF',
+      opacity: 0.95,
+      marginBottom: SPACING.xs,
     },
     genderBadge: {
       backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -570,7 +578,123 @@ const AdoptScreen = () => {
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.semiBold,
       color: COLORS.white,
-    }
+    },
+    // Medical Section Styles
+    medicalSection: {
+      backgroundColor: COLORS.cardBackground,
+      borderRadius: RADIUS.large,
+      padding: SPACING.lg,
+      marginTop: SPACING.md,
+      marginBottom: SPACING.md,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      ...SHADOWS.light,
+    },
+    sectionTitle: {
+      fontSize: FONTS.sizes.large,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      marginBottom: SPACING.md,
+      textAlign: 'center',
+    },
+    treatmentContainer: {
+      gap: SPACING.md,
+    },
+    treatmentItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      backgroundColor: COLORS.background,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
+    treatmentInfo: {
+      flex: 1,
+      marginLeft: SPACING.md,
+    },
+    treatmentLabel: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    treatmentStatus: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      marginBottom: SPACING.xs,
+    },
+    treatmentStatusActive: {
+      color: '#4CAF50',
+      fontWeight: FONTS.weights.medium,
+    },
+    treatmentDate: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      fontStyle: 'italic',
+    },
+    // Medical Info Card Styles (for adoption cards)
+    medicalInfoCard: {
+      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+      borderRadius: RADIUS.medium,
+      padding: SPACING.sm,
+      marginTop: SPACING.sm,
+      marginBottom: SPACING.xs,
+    },
+    medicalTitle: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: '#FFFFFF',
+      marginBottom: SPACING.xs,
+      textAlign: 'center',
+    },
+    medicalBadges: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: SPACING.xs,
+    },
+    medicalBadge: {
+      flex: 1,
+      alignItems: 'center',
+      borderRadius: RADIUS.small,
+      padding: SPACING.xs,
+      minHeight: 40,
+      justifyContent: 'center',
+    },
+    medicalBadgeActive: {
+      backgroundColor: 'rgba(76, 175, 80, 0.3)',
+      borderWidth: 1,
+      borderColor: 'rgba(76, 175, 80, 0.6)',
+    },
+    medicalBadgeInactive: {
+      backgroundColor: 'rgba(158, 158, 158, 0.2)',
+      borderWidth: 1,
+      borderColor: 'rgba(158, 158, 158, 0.4)',
+    },
+    medicalBadgeText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.medium,
+      color: '#FFFFFF',
+      opacity: 0.8,
+    },
+    medicalBadgeTextActive: {
+      opacity: 1,
+      color: '#FFFFFF',
+    },
+    medicalDate: {
+      fontSize: 10,
+      fontFamily: FONTS.family,
+      color: '#FFFFFF',
+      opacity: 0.9,
+      marginTop: 2,
+      textAlign: 'center',
+    },
   }), [COLORS]);
 
   const AdoptionCard = ({ pet, onPressDetails, onPressAdopt }) => (
@@ -595,9 +719,43 @@ const AdoptScreen = () => {
           </View>
         </View>
         
+        <Text style={styles.petType}>{pet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}</Text>
         <Text style={styles.petBreed}>{pet.breed} • {pet.age}</Text>
         <Text style={styles.petLocation}>📍 {pet.location || 'Unknown location'}</Text>
         <Text style={styles.petDescription}>{pet.description}</Text>
+        
+        {/* Medical Information */}
+        <View style={styles.medicalInfoCard}>
+          <Text style={styles.medicalTitle}>Medical Info</Text>
+          <View style={styles.medicalBadges}>
+            <View style={[styles.medicalBadge, pet.vaccinated ? styles.medicalBadgeActive : styles.medicalBadgeInactive]}>
+              <Text style={[styles.medicalBadgeText, pet.vaccinated && styles.medicalBadgeTextActive]}>
+                💉 {pet.vaccinated ? '✓' : '✗'}
+              </Text>
+              {pet.vaccinated && pet.vaccinatedDate && (
+                <Text style={styles.medicalDate}>{pet.vaccinatedDate}</Text>
+              )}
+            </View>
+            
+            <View style={[styles.medicalBadge, pet.dewormed ? styles.medicalBadgeActive : styles.medicalBadgeInactive]}>
+              <Text style={[styles.medicalBadgeText, pet.dewormed && styles.medicalBadgeTextActive]}>
+                🪱 {pet.dewormed ? '✓' : '✗'}
+              </Text>
+              {pet.dewormed && pet.dewormedDate && (
+                <Text style={styles.medicalDate}>{pet.dewormedDate}</Text>
+              )}
+            </View>
+            
+            <View style={[styles.medicalBadge, pet.antiRabies ? styles.medicalBadgeActive : styles.medicalBadgeInactive]}>
+              <Text style={[styles.medicalBadgeText, pet.antiRabies && styles.medicalBadgeTextActive]}>
+                🏥 {pet.antiRabies ? '✓' : '✗'}
+              </Text>
+              {pet.antiRabies && pet.antiRabiesDate && (
+                <Text style={styles.medicalDate}>{pet.antiRabiesDate}</Text>
+              )}
+            </View>
+          </View>
+        </View>
         
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.adoptButton} onPress={onPressAdopt}>
@@ -868,19 +1026,63 @@ const AdoptScreen = () => {
                   </View>
                 )}
 
-                {selectedPet?.healthStatus && (
-                  <View style={styles.infoCard}>
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoIconContainer}>
-                        <MaterialIcons name="favorite" size={20} color="#E91E63" />
+                {/* Medical Treatments Section */}
+                <View style={styles.medicalSection}>
+                  <Text style={styles.sectionTitle}>Medical Information</Text>
+                  
+                  <View style={styles.treatmentContainer}>
+                    <View style={styles.treatmentItem}>
+                      <MaterialIcons 
+                        name="vaccines" 
+                        size={20} 
+                        color={selectedPet?.vaccinated ? "#4CAF50" : "#9E9E9E"} 
+                      />
+                      <View style={styles.treatmentInfo}>
+                        <Text style={styles.treatmentLabel}>Vaccine</Text>
+                        <Text style={[styles.treatmentStatus, selectedPet?.vaccinated && styles.treatmentStatusActive]}>
+                          {selectedPet?.vaccinated ? '✓ Vaccinated' : '✗ Not Vaccinated'}
+                        </Text>
+                        {selectedPet?.vaccinated && selectedPet?.vaccinatedDate && (
+                          <Text style={styles.treatmentDate}>Date: {selectedPet.vaccinatedDate}</Text>
+                        )}
                       </View>
-                      <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Health Status</Text>
-                        <Text style={styles.infoValue}>{selectedPet.healthStatus}</Text>
+                    </View>
+
+                    <View style={styles.treatmentItem}>
+                      <MaterialIcons 
+                        name="healing" 
+                        size={20} 
+                        color={selectedPet?.dewormed ? "#4CAF50" : "#9E9E9E"} 
+                      />
+                      <View style={styles.treatmentInfo}>
+                        <Text style={styles.treatmentLabel}>Deworm</Text>
+                        <Text style={[styles.treatmentStatus, selectedPet?.dewormed && styles.treatmentStatusActive]}>
+                          {selectedPet?.dewormed ? '✓ Dewormed' : '✗ Not Dewormed'}
+                        </Text>
+                        {selectedPet?.dewormed && selectedPet?.dewormedDate && (
+                          <Text style={styles.treatmentDate}>Date: {selectedPet.dewormedDate}</Text>
+                        )}
+                      </View>
+                    </View>
+
+                    <View style={styles.treatmentItem}>
+                      <MaterialIcons 
+                        name="local-hospital" 
+                        size={20} 
+                        color={selectedPet?.antiRabies ? "#4CAF50" : "#9E9E9E"} 
+                      />
+                      <View style={styles.treatmentInfo}>
+                        <Text style={styles.treatmentLabel}>Anti-rabies</Text>
+                        <Text style={[styles.treatmentStatus, selectedPet?.antiRabies && styles.treatmentStatusActive]}>
+                          {selectedPet?.antiRabies ? '✓ Anti-rabies' : '✗ No Anti-rabies'}
+                        </Text>
+                        {selectedPet?.antiRabies && selectedPet?.antiRabiesDate && (
+                          <Text style={styles.treatmentDate}>Date: {selectedPet.antiRabiesDate}</Text>
+                        )}
                       </View>
                     </View>
                   </View>
-                )}
+                </View>
 
                 {selectedPet?.temperament && (
                   <View style={styles.infoCard}>

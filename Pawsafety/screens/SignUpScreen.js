@@ -16,8 +16,9 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import { createUserDocument } from '../services/userService';
 import { useTheme } from '../contexts/ThemeContext';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 
 const SignUpScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -67,10 +68,17 @@ const SignUpScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
       // Update the user's display name
       await updateProfile(userCredential.user, {
         displayName: fullName.trim()
       });
+      
+      // Create user document in Firestore
+      const userDocCreated = await createUserDocument(userCredential.user);
+      if (!userDocCreated) {
+        console.warn('Failed to create user document in Firestore');
+      }
       
       // Send email verification
       await sendEmailVerification(userCredential.user);
