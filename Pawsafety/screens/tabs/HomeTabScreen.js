@@ -32,10 +32,11 @@ const HomeTabScreen = ({ navigation }) => {
   const [petNotifs, setPetNotifs] = useState([]);
   const [transferNotifs, setTransferNotifs] = useState([]);
   const [registrationNotifs, setRegistrationNotifs] = useState([]);
-  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration
+  const [incidentNotifs, setIncidentNotifs] = useState([]);
+  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents
   const [notifMenu, setNotifMenu] = useState(null); // { type: 'app'|'pet', id: string } | null
   const [showBanner, setShowBanner] = useState(false);
-  const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0 });
+  const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0 });
   const [selectedNotif, setSelectedNotif] = useState(null); // { id, type, ts, title, sub, data }
   const [selectedPetDetails, setSelectedPetDetails] = useState(null);
   const [selectedReportDetails, setSelectedReportDetails] = useState(null);
@@ -43,33 +44,37 @@ const HomeTabScreen = ({ navigation }) => {
   const [hiddenPetIds, setHiddenPetIds] = useState(new Set());
   const [hiddenTransferIds, setHiddenTransferIds] = useState(new Set());
   const [hiddenRegistrationIds, setHiddenRegistrationIds] = useState(new Set());
+  const [hiddenIncidentIds, setHiddenIncidentIds] = useState(new Set());
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
 
   // Load hidden notifications from storage
   useEffect(() => {
     (async () => {
       try {
-        const [appJson, petJson, transferJson, registrationJson] = await Promise.all([
+        const [appJson, petJson, transferJson, registrationJson, incidentJson] = await Promise.all([
           AsyncStorage.getItem('PAW_HIDDEN_APP_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_PET_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_TRANSFER_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_REGISTRATION_NOTIFS'),
+          AsyncStorage.getItem('PAW_HIDDEN_INCIDENT_NOTIFS'),
         ]);
         if (appJson) setHiddenAppIds(new Set(JSON.parse(appJson)));
         if (petJson) setHiddenPetIds(new Set(JSON.parse(petJson)));
         if (transferJson) setHiddenTransferIds(new Set(JSON.parse(transferJson)));
         if (registrationJson) setHiddenRegistrationIds(new Set(JSON.parse(registrationJson)));
+        if (incidentJson) setHiddenIncidentIds(new Set(JSON.parse(incidentJson)));
       } catch (_) {}
     })();
   }, []);
 
-  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet) => {
+  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet, nextIncidentSet) => {
     try {
       await Promise.all([
         AsyncStorage.setItem('PAW_HIDDEN_APP_NOTIFS', JSON.stringify(Array.from(nextAppSet || hiddenAppIds))),
         AsyncStorage.setItem('PAW_HIDDEN_PET_NOTIFS', JSON.stringify(Array.from(nextPetSet || hiddenPetIds))),
         AsyncStorage.setItem('PAW_HIDDEN_TRANSFER_NOTIFS', JSON.stringify(Array.from(nextTransferSet || hiddenTransferIds))),
         AsyncStorage.setItem('PAW_HIDDEN_REGISTRATION_NOTIFS', JSON.stringify(Array.from(nextRegistrationSet || hiddenRegistrationIds))),
+        AsyncStorage.setItem('PAW_HIDDEN_INCIDENT_NOTIFS', JSON.stringify(Array.from(nextIncidentSet || hiddenIncidentIds))),
       ]);
     } catch (_) {}
   };
@@ -80,7 +85,7 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenAppIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(next, null, null, null);
+        persistHiddenSets(next, null, null, null, null);
         return next;
       });
     } else if (type === 'transfer') {
@@ -88,7 +93,7 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenTransferIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, null, next, null);
+        persistHiddenSets(null, null, next, null, null);
         return next;
       });
     } else if (type === 'registration') {
@@ -96,7 +101,15 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenRegistrationIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, null, null, next);
+        persistHiddenSets(null, null, null, next, null);
+        return next;
+      });
+    } else if (type === 'incident') {
+      setIncidentNotifs((prev) => prev.filter((i) => i.id !== id));
+      setHiddenIncidentIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        persistHiddenSets(null, null, null, null, next);
         return next;
       });
     } else {
@@ -104,7 +117,7 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenPetIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, next, null, null);
+        persistHiddenSets(null, next, null, null, null);
         return next;
       });
     }
@@ -241,11 +254,29 @@ const HomeTabScreen = ({ navigation }) => {
       setRegistrationNotifs([]);
     }
 
+    // Incident report notifications for current user
+    let unsubIncident = () => {};
+    if (user?.uid) {
+      const incidentQ = query(
+        collection(db, 'user_notifications'),
+        where('userId', '==', user.uid),
+        where('type', 'in', ['incident_resolved', 'incident_declined']),
+        orderBy('createdAt', 'desc')
+      );
+      unsubIncident = onSnapshot(incidentQ, (snap) => {
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setIncidentNotifs(items.slice(0, 20));
+      });
+    } else {
+      setIncidentNotifs([]);
+    }
+
     return () => {
       unsubApp && unsubApp();
       unsubPets && unsubPets();
       unsubTransfer && unsubTransfer();
       unsubRegistration && unsubRegistration();
+      unsubIncident && unsubIncident();
     };
   }, [user?.uid]);
 
@@ -253,26 +284,29 @@ const HomeTabScreen = ({ navigation }) => {
   useEffect(() => {
     (async () => {
       try {
-        const [lastAppStr, lastPetStr, lastTransferStr, lastRegistrationStr] = await Promise.all([
+        const [lastAppStr, lastPetStr, lastTransferStr, lastRegistrationStr, lastIncidentStr] = await Promise.all([
           AsyncStorage.getItem('PAW_LAST_SEEN_APP_NOTIF'),
           AsyncStorage.getItem('PAW_LAST_SEEN_PET_NOTIF'),
           AsyncStorage.getItem('PAW_LAST_SEEN_TRANSFER_NOTIF'),
           AsyncStorage.getItem('PAW_LAST_SEEN_REGISTRATION_NOTIF'),
+          AsyncStorage.getItem('PAW_LAST_SEEN_INCIDENT_NOTIF'),
         ]);
         const lastApp = lastAppStr ? Number(lastAppStr) : 0;
         const lastPet = lastPetStr ? Number(lastPetStr) : 0;
         const lastTransfer = lastTransferStr ? Number(lastTransferStr) : 0;
         const lastRegistration = lastRegistrationStr ? Number(lastRegistrationStr) : 0;
-        try { globalThis.__PAW_LAST_APP__ = lastApp; globalThis.__PAW_LAST_PET__ = lastPet; globalThis.__PAW_LAST_TRANSFER__ = lastTransfer; globalThis.__PAW_LAST_REGISTRATION__ = lastRegistration; } catch (_) {}
+        const lastIncident = lastIncidentStr ? Number(lastIncidentStr) : 0;
+        try { globalThis.__PAW_LAST_APP__ = lastApp; globalThis.__PAW_LAST_PET__ = lastPet; globalThis.__PAW_LAST_TRANSFER__ = lastTransfer; globalThis.__PAW_LAST_REGISTRATION__ = lastRegistration; globalThis.__PAW_LAST_INCIDENT__ = lastIncident; } catch (_) {}
         const appsNew = (appNotifs || []).filter((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp).length;
         const petsNew = (petNotifs || []).filter((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet).length;
         const transfersNew = (transferNotifs || []).filter((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0) > lastTransfer).length;
         const registrationsNew = (registrationNotifs || []).filter((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0) > lastRegistration).length;
-        setBannerCounts({ apps: appsNew, pets: petsNew, transfers: transfersNew, registrations: registrationsNew });
-        setShowBanner((appsNew + petsNew + transfersNew + registrationsNew) > 0);
+        const incidentsNew = (incidentNotifs || []).filter((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident).length;
+        setBannerCounts({ apps: appsNew, pets: petsNew, transfers: transfersNew, registrations: registrationsNew, incidents: incidentsNew });
+        setShowBanner((appsNew + petsNew + transfersNew + registrationsNew + incidentsNew) > 0);
       } catch (e) {}
     })();
-  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, lastReadUpdate]);
+  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, lastReadUpdate]);
 
   const updateLastSeenAndOpen = async () => {
     try {
@@ -280,10 +314,12 @@ const HomeTabScreen = ({ navigation }) => {
       const latestPet = Math.max(0, ...petNotifs.map((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0)));
       const latestTransfer = Math.max(0, ...transferNotifs.map((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0)));
       const latestRegistration = Math.max(0, ...registrationNotifs.map((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0)));
+      const latestIncident = Math.max(0, ...incidentNotifs.map((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0)));
       if (latestApp) await AsyncStorage.setItem('PAW_LAST_SEEN_APP_NOTIF', String(latestApp));
       if (latestPet) await AsyncStorage.setItem('PAW_LAST_SEEN_PET_NOTIF', String(latestPet));
       if (latestTransfer) await AsyncStorage.setItem('PAW_LAST_SEEN_TRANSFER_NOTIF', String(latestTransfer));
       if (latestRegistration) await AsyncStorage.setItem('PAW_LAST_SEEN_REGISTRATION_NOTIF', String(latestRegistration));
+      if (latestIncident) await AsyncStorage.setItem('PAW_LAST_SEEN_INCIDENT_NOTIF', String(latestIncident));
     } catch (e) {}
     setShowBanner(false);
     setNotifVisible(true);
@@ -295,11 +331,13 @@ const HomeTabScreen = ({ navigation }) => {
       const latestPet = Math.max(0, ...petNotifs.map((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0)));
       const latestTransfer = Math.max(0, ...transferNotifs.map((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0)));
       const latestRegistration = Math.max(0, ...registrationNotifs.map((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0)));
+      const latestIncident = Math.max(0, ...incidentNotifs.map((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0)));
       if (latestApp) await AsyncStorage.setItem('PAW_LAST_SEEN_APP_NOTIF', String(latestApp));
       if (latestPet) await AsyncStorage.setItem('PAW_LAST_SEEN_PET_NOTIF', String(latestPet));
       if (latestTransfer) await AsyncStorage.setItem('PAW_LAST_SEEN_TRANSFER_NOTIF', String(latestTransfer));
       if (latestRegistration) await AsyncStorage.setItem('PAW_LAST_SEEN_REGISTRATION_NOTIF', String(latestRegistration));
-      try { globalThis.__PAW_LAST_APP__ = latestApp; globalThis.__PAW_LAST_PET__ = latestPet; globalThis.__PAW_LAST_TRANSFER__ = latestTransfer; globalThis.__PAW_LAST_REGISTRATION__ = latestRegistration; } catch (_) {}
+      if (latestIncident) await AsyncStorage.setItem('PAW_LAST_SEEN_INCIDENT_NOTIF', String(latestIncident));
+      try { globalThis.__PAW_LAST_APP__ = latestApp; globalThis.__PAW_LAST_PET__ = latestPet; globalThis.__PAW_LAST_TRANSFER__ = latestTransfer; globalThis.__PAW_LAST_REGISTRATION__ = latestRegistration; globalThis.__PAW_LAST_INCIDENT__ = latestIncident; } catch (_) {}
     } catch (e) {}
   };
 
@@ -320,21 +358,28 @@ const HomeTabScreen = ({ navigation }) => {
               const allIds = new Set(hiddenAppIds);
               for (const a of prev) allIds.add(a.id);
               setHiddenAppIds(allIds);
-              persistHiddenSets(allIds, null, null, null);
+              persistHiddenSets(allIds, null, null, null, null);
               return [];
             });
             setPetNotifs((prev) => {
               const allIds = new Set(hiddenPetIds);
               for (const p of prev) allIds.add(p.id);
               setHiddenPetIds(allIds);
-              persistHiddenSets(null, allIds, null, null);
+              persistHiddenSets(null, allIds, null, null, null);
               return [];
             });
             setRegistrationNotifs((prev) => {
               const allIds = new Set(hiddenRegistrationIds);
               for (const r of prev) allIds.add(r.id);
               setHiddenRegistrationIds(allIds);
-              persistHiddenSets(null, null, null, allIds);
+              persistHiddenSets(null, null, null, allIds, null);
+              return [];
+            });
+            setIncidentNotifs((prev) => {
+              const allIds = new Set(hiddenIncidentIds);
+              for (const i of prev) allIds.add(i.id);
+              setHiddenIncidentIds(allIds);
+              persistHiddenSets(null, null, null, null, allIds);
               return [];
             });
           },
@@ -348,6 +393,7 @@ const HomeTabScreen = ({ navigation }) => {
       const key = notif.type === 'app' ? 'PAW_LAST_SEEN_APP_NOTIF' : 
                   notif.type === 'transfer' ? 'PAW_LAST_SEEN_TRANSFER_NOTIF' :
                   notif.type === 'registration' ? 'PAW_LAST_SEEN_REGISTRATION_NOTIF' :
+                  notif.type === 'incident' ? 'PAW_LAST_SEEN_INCIDENT_NOTIF' :
                   'PAW_LAST_SEEN_PET_NOTIF';
       const prevStr = await AsyncStorage.getItem(key);
       const prev = prevStr ? Number(prevStr) : 0;
@@ -759,7 +805,7 @@ const HomeTabScreen = ({ navigation }) => {
               <MaterialIcons name="notifications-active" size={20} color="#ffffff" />
               <View>
                 <Text style={{ color: '#ffffff', fontWeight: '800' }}>
-                  {bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations} new notification{(bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations) > 1 ? 's' : ''}
+                  {bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents} new notification{(bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents) > 1 ? 's' : ''}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
                   {bannerCounts.apps > 0 ? (
@@ -780,6 +826,11 @@ const HomeTabScreen = ({ navigation }) => {
                   {bannerCounts.registrations > 0 ? (
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
                       <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Registrations: {bannerCounts.registrations}</Text>
+                    </View>
+                  ) : null}
+                  {bannerCounts.incidents > 0 ? (
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
+                      <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Incidents: {bannerCounts.incidents}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -1050,38 +1101,45 @@ const HomeTabScreen = ({ navigation }) => {
               </View>
               
                             {/* Filter Tabs */}
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {['All', 'Apps', 'Pets', 'Transfers', 'Registration'].map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
-                    style={{
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      borderRadius: 25,
-                      borderWidth: 1.5,
-                      borderColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : '#d1d5db',
-                      backgroundColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : 'rgba(255, 255, 255, 0.95)',
-                      flex: 1,
-                      alignItems: 'center',
-                      shadowColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : 'transparent',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.2,
-                      shadowRadius: 4,
-                      elevation: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? 3 : 0
-                    }}
-                  >
-                    <Text style={{
-                      color: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#ffffff' : '#374151',
-                      fontWeight: '700',
-                      fontSize: 10,
-                      textAlign: 'center'
-                    }}>
-                      {opt}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 4 }}
+                style={{ marginHorizontal: -4 }}
+              >
+                <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 4 }}>
+                  {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents'].map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 25,
+                        borderWidth: 1.5,
+                        borderColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : '#d1d5db',
+                        backgroundColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : 'rgba(255, 255, 255, 0.95)',
+                        alignItems: 'center',
+                        shadowColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : 'transparent',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 4,
+                        elevation: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? 3 : 0,
+                        minWidth: 80
+                      }}
+                    >
+                      <Text style={{
+                        color: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#ffffff' : '#374151',
+                        fontWeight: '700',
+                        fontSize: 11,
+                        textAlign: 'center'
+                      }}>
+                        {opt}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
             </View>
 
             {/* Content */}
@@ -1101,9 +1159,11 @@ const HomeTabScreen = ({ navigation }) => {
                     disabled={(() => {
                       const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
                       const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
+                      const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
                       const hasUnreadApp = (appNotifs || []).some((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp);
                       const hasUnreadPet = (petNotifs || []).some((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet);
-                      return !(hasUnreadApp || hasUnreadPet);
+                      const hasUnreadIncident = (incidentNotifs || []).some((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident);
+                      return !(hasUnreadApp || hasUnreadPet || hasUnreadIncident);
                     })()}
                     style={{ 
                       paddingHorizontal: 12, 
@@ -1115,9 +1175,11 @@ const HomeTabScreen = ({ navigation }) => {
                       opacity: (() => {
                         const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
                         const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
+                        const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
                         const hasUnreadApp = (appNotifs || []).some((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp);
                         const hasUnreadPet = (petNotifs || []).some((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet);
-                        return (hasUnreadApp || hasUnreadPet) ? 1 : 0.5;
+                        const hasUnreadIncident = (incidentNotifs || []).some((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident);
+                        return (hasUnreadApp || hasUnreadPet || hasUnreadIncident) ? 1 : 0.5;
                       })()
                     }}
                   >
@@ -1193,11 +1255,22 @@ const HomeTabScreen = ({ navigation }) => {
                   sub: `${r.petName || 'Pet'} • ${r.message || 'Registration status updated'}`,
                   data: r,
                 }));
-                let list = [...apps, ...pets, ...transfers, ...registrations].sort((a, b) => b.ts - a.ts);
+                const incidents = (incidentNotifs || [])
+                  .filter((i) => !hiddenIncidentIds.has(i.id))
+                  .map((i) => ({
+                  id: i.id,
+                  type: 'incident',
+                  ts: i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0,
+                  title: i.type === 'incident_resolved' ? 'Incident Report Resolved' : 'Incident Report Declined',
+                  sub: `${i.location || 'Unknown location'} • ${i.message || 'Incident report status updated'}`,
+                  data: i,
+                }));
+                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents].sort((a, b) => b.ts - a.ts);
                 if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
                 if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                 if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
                 if (notifFilter === 'Registration') list = list.filter((n) => n.type === 'registration');
+                if (notifFilter === 'Incidents') list = list.filter((n) => n.type === 'incident');
                 if (list.length === 0) return <Text style={{ color: '#64748b' }}>No notifications yet.</Text>;
                 return list.map((n) => (
                   <View key={`${n.type}-${n.id}`} style={{ 
@@ -1419,10 +1492,21 @@ const HomeTabScreen = ({ navigation }) => {
                       sub: `${t.petName || 'Pet'} • ${t.petBreed || 'Unknown breed'} • From Impound`,
                       data: t,
                     }));
-                  let list = [...apps, ...pets, ...transfers].sort((a, b) => b.ts - a.ts);
+                  const incidents = (incidentNotifs || [])
+                    .filter((i) => !hiddenIncidentIds.has(i.id))
+                    .map((i) => ({
+                      id: i.id,
+                      type: 'incident',
+                      ts: i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0,
+                      title: i.type === 'incident_resolved' ? 'Incident Report Resolved' : 'Incident Report Declined',
+                      sub: `${i.location || 'Unknown location'} • ${i.message || 'Incident report status updated'}`,
+                      data: i,
+                    }));
+                  let list = [...apps, ...pets, ...transfers, ...incidents].sort((a, b) => b.ts - a.ts);
                   if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
                   if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                   if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
+                  if (notifFilter === 'Incidents') list = list.filter((n) => n.type === 'incident');
                   return `${list.length} notification${list.length !== 1 ? 's' : ''}`;
                 })()}
               </Text>
@@ -1484,6 +1568,7 @@ const HomeTabScreen = ({ navigation }) => {
                   {selectedNotif.type === 'app' ? 'Application Update' : 
                    selectedNotif.type === 'transfer' ? 'Pet Transfer Notification' : 
                    selectedNotif.type === 'registration' ? 'Pet Registration Update' :
+                   selectedNotif.type === 'incident' ? 'Incident Report Update' :
                    'New Pet Available'}
                 </Text>
               </View>
@@ -1755,6 +1840,107 @@ const HomeTabScreen = ({ navigation }) => {
                         • Review your pet registration information{'\n'}
                         • Ensure all required documents are complete{'\n'}
                         • You may resubmit your registration if needed
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : selectedNotif.type === 'incident' ? (
+                <>
+                  {/* Incident Status Card */}
+                  <View style={{
+                    backgroundColor: selectedNotif.data?.type === 'incident_resolved' ? '#dcfce7' : '#fee2e2',
+                    padding: 16,
+                    borderRadius: 12,
+                    marginBottom: 20,
+                    borderLeftWidth: 4,
+                    borderLeftColor: selectedNotif.data?.type === 'incident_resolved' ? '#16a34a' : '#dc2626'
+                  }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>
+                      {selectedNotif.data?.type === 'incident_resolved' ? '✅ Incident Report Resolved' : '❌ Incident Report Declined'}
+                    </Text>
+                    <Text style={{ color: '#374151', fontSize: 14 }}>
+                      {selectedNotif.data?.message || (selectedNotif.data?.type === 'incident_resolved' 
+                        ? 'Your incident report has been resolved by the animal impound facility. Thank you for reporting this incident.' 
+                        : 'Your incident report has been declined. Please see the reason below.')}
+                    </Text>
+                  </View>
+
+                  {/* Incident Information */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                      Incident Details
+                    </Text>
+                    <Text style={{ fontSize: 16, color: '#374151', marginBottom: 8 }}>
+                      <Text style={{ fontWeight: '700' }}>Location:</Text> {selectedNotif.data?.location || 'Unknown location'}
+                    </Text>
+                    <Text style={{ fontSize: 16, color: '#374151', marginBottom: 8 }}>
+                      <Text style={{ fontWeight: '700' }}>Report ID:</Text> {selectedNotif.data?.reportId || 'N/A'}
+                    </Text>
+                  </View>
+
+                  {/* Decline Reason (if declined) */}
+                  {selectedNotif.data?.type === 'incident_declined' && selectedNotif.data?.declineReason && (
+                    <View style={{ marginBottom: 20 }}>
+                      <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                        Reason for Decline
+                      </Text>
+                      <View style={{
+                        backgroundColor: '#fef2f2',
+                        padding: 16,
+                        borderRadius: 12,
+                        borderLeftWidth: 4,
+                        borderLeftColor: '#dc2626'
+                      }}>
+                        <Text style={{ fontSize: 14, color: '#374151', lineHeight: 20 }}>
+                          {selectedNotif.data.declineReason}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Report Date */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                      Report Date
+                    </Text>
+                    <Text style={{ fontSize: 16, color: '#374151' }}>
+                      {selectedNotif.ts ? new Date(selectedNotif.ts).toLocaleDateString() + ' at ' + new Date(selectedNotif.ts).toLocaleTimeString() : 'Unknown'}
+                    </Text>
+                  </View>
+
+                  {/* Next Steps */}
+                  {selectedNotif.data?.type === 'incident_resolved' ? (
+                    <View style={{ 
+                      backgroundColor: '#FEF3C7', 
+                      padding: 16, 
+                      borderRadius: 12, 
+                      marginBottom: 16 
+                    }}>
+                      <Text style={{ fontSize: 12, color: '#D97706', fontWeight: '600', marginBottom: 8 }}>
+                        THANK YOU
+                      </Text>
+                      <Text style={{ fontSize: 14, color: '#374151', lineHeight: 20 }}>
+                        • Thank you for reporting this incident{'\n'}
+                        • The impound facility has taken appropriate action{'\n'}
+                        • Continue to report any animal-related incidents{'\n'}
+                        • Your reports help keep the community safe
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ 
+                      backgroundColor: '#FEE2E2', 
+                      padding: 16, 
+                      borderRadius: 12, 
+                      marginBottom: 16 
+                    }}>
+                      <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600', marginBottom: 8 }}>
+                        WHAT CAN YOU DO?
+                      </Text>
+                      <Text style={{ fontSize: 14, color: '#374151', lineHeight: 20 }}>
+                        • Review the reason for decline above{'\n'}
+                        • Contact the impound facility for clarification{'\n'}
+                        • Ensure your report contains accurate information{'\n'}
+                        • You may submit a new incident report if needed
                       </Text>
                     </View>
                   )}

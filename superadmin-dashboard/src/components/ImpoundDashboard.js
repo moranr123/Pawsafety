@@ -395,6 +395,7 @@ const ImpoundDashboard = () => {
   const [activeTab, setActiveTab] = useState('analytics');
   const [strayReports, setStrayReports] = useState([]);
   const [lostReports, setLostReports] = useState([]);
+  const [incidentReports, setIncidentReports] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [adoptionApplications, setAdoptionApplications] = useState([]);
   const [adoptablePets, setAdoptablePets] = useState([]);
@@ -404,6 +405,9 @@ const ImpoundDashboard = () => {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [selectedIncidentForDecline, setSelectedIncidentForDecline] = useState(null);
+  const [declineReason, setDeclineReason] = useState('');
   const [selectedAdoptable, setSelectedAdoptable] = useState(null);
   const [showAdoptableModal, setShowAdoptableModal] = useState(false);
   const [editingAdoptable, setEditingAdoptable] = useState(null);
@@ -472,8 +476,9 @@ const ImpoundDashboard = () => {
       setUnreadCount(filteredNotifications.filter((n) => !n.impoundRead).length);
       setStrayReports(rows.filter((r) => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'));
       setLostReports(rows.filter((r) => (r.status || '').toLowerCase() === 'lost'));
+      setIncidentReports(rows.filter((r) => (r.status || '').toLowerCase() === 'incident'));
 
-      // Push notifications for new reports (stray or lost)
+      // Push notifications for new reports (stray, lost, or incident)
       if (!initialReportsLoadedRef.current) {
         // seed seen ids on first load (no notifications)
         reportsSeenRef.current = new Set(rows.map((r) => r.id));
@@ -485,7 +490,7 @@ const ImpoundDashboard = () => {
             const id = docSnap.doc.id;
             if (!reportsSeenRef.current.has(id)) {
               const statusLower = (data.status || '').toLowerCase();
-              const kind = statusLower === 'lost' ? 'Lost pet report' : 'Stray report';
+              const kind = statusLower === 'lost' ? 'Lost pet report' : statusLower === 'incident' ? 'Incident report' : 'Stray report';
               const location = data.locationName || 'Unknown location';
               const desc = (data.description || '').toString();
               const body = `${desc ? desc.substring(0, 80) : 'New report received'} • ${location}`;
@@ -782,6 +787,87 @@ const ImpoundDashboard = () => {
       printWindow.document.close();
     } catch (e) {
       // ignore
+    }
+  };
+
+  // Incident report: resolve
+  const handleResolveIncident = async (report) => {
+    try {
+      await updateDoc(doc(db, 'stray_reports', report.id), {
+        status: 'Resolved',
+        resolvedAt: serverTimestamp(),
+        resolvedBy: currentUser?.email || 'Unknown'
+      });
+
+      // Create notification for the user who reported the incident
+      if (report.userId) {
+        await addDoc(collection(db, 'user_notifications'), {
+          userId: report.userId,
+          type: 'incident_resolved',
+          title: 'Incident Report Resolved',
+          message: `Your incident report has been resolved by the animal impound facility. Thank you for reporting this incident.`,
+          reportId: report.id,
+          reportType: 'incident',
+          location: report.locationName || 'Unknown location',
+          read: false,
+          createdAt: serverTimestamp(),
+          createdBy: currentUser?.email || 'impound_admin'
+        });
+      }
+
+      toast.success('Incident report resolved successfully');
+    } catch (error) {
+      console.error('Error resolving incident report:', error);
+      toast.error('Failed to resolve incident report');
+    }
+  };
+
+  // Incident report: decline
+  const handleDeclineIncident = (report) => {
+    setSelectedIncidentForDecline(report);
+    setDeclineReason('');
+    setShowDeclineModal(true);
+  };
+
+  // Incident report: confirm decline with reason
+  const handleConfirmDeclineIncident = async () => {
+    if (!declineReason.trim()) {
+      toast.error('Please provide a reason for declining the incident report');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'stray_reports', selectedIncidentForDecline.id), {
+        status: 'Declined',
+        declinedAt: serverTimestamp(),
+        declinedBy: currentUser?.email || 'Unknown',
+        declineReason: declineReason.trim()
+      });
+
+      // Create notification for the user who reported the incident
+      if (selectedIncidentForDecline.userId) {
+        await addDoc(collection(db, 'user_notifications'), {
+          userId: selectedIncidentForDecline.userId,
+          type: 'incident_declined',
+          title: 'Incident Report Declined',
+          message: `Your incident report has been declined. Reason: ${declineReason.trim()}`,
+          reportId: selectedIncidentForDecline.id,
+          reportType: 'incident',
+          location: selectedIncidentForDecline.locationName || 'Unknown location',
+          declineReason: declineReason.trim(),
+          read: false,
+          createdAt: serverTimestamp(),
+          createdBy: currentUser?.email || 'impound_admin'
+        });
+      }
+
+      toast.success('Incident report declined successfully');
+      setShowDeclineModal(false);
+      setSelectedIncidentForDecline(null);
+      setDeclineReason('');
+    } catch (error) {
+      console.error('Error declining incident report:', error);
+      toast.error('Failed to decline incident report');
     }
   };
 
@@ -1212,6 +1298,13 @@ const ImpoundDashboard = () => {
             badge={(lostReports || []).length}
             onClick={() => setActiveTab('lost')}
           />
+          <TabButton
+            active={activeTab === 'incident'}
+            label="Incident Reports"
+            icon={FileText}
+            badge={(incidentReports || []).length}
+            onClick={() => setActiveTab('incident')}
+          />
           <TabButton active={activeTab === 'adoption'} label="Adoption" icon={Heart} onClick={() => setActiveTab('adoption')} />
           <TabButton active={activeTab === 'adoptionList'} label="Adoption List" icon={List} badge={(adoptablePets || []).length} onClick={() => setActiveTab('adoptionList')} />
           <TabButton active={activeTab === 'applications'} label="Applications" icon={List} badge={(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length} onClick={() => setActiveTab('applications')} />
@@ -1292,6 +1385,40 @@ const ImpoundDashboard = () => {
               ))}
               {lostReports.length === 0 && (
                 <div className="col-span-full text-center text-sm text-gray-500 py-8">No lost pet reports</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'incident' && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Incident Reports</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {incidentReports.map((r) => (
+                <div key={r.id} className="border rounded-lg overflow-hidden bg-white flex flex-col h-full">
+                  {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
+                    <img src={r.imageUrl} alt="Incident" className="w-full h-40 object-cover" />
+                  ) : (
+                    <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                      <span className="text-gray-500 text-sm">No image</span>
+                    </div>
+                  )}
+                  <div className="p-4 flex-1 flex flex-col">
+                    <p className="text-sm font-medium text-gray-900 mb-2">
+                      {r.description ? r.description.substring(0, 100) + (r.description.length > 100 ? '...' : '') : 'No description'}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-1">{r.locationName || 'N/A'}</p>
+                    <p className="text-sm text-gray-600 mb-3">{r.contactNumber || 'N/A'}</p>
+                    <div className="grid grid-cols-3 gap-2 w-full">
+                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">View</button>
+                      <button onClick={() => handleResolveIncident(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-green-50 text-green-700 border-green-200">Resolve</button>
+                      <button onClick={() => handleDeclineIncident(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-red-50 text-red-700 border-red-200">Decline</button>
+                </div>
+              </div>
+                </div>
+              ))}
+              {incidentReports.length === 0 && (
+                <div className="col-span-full text-center text-sm text-gray-500 py-8">No incident reports</div>
               )}
             </div>
           </div>
@@ -1416,6 +1543,18 @@ const ImpoundDashboard = () => {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-500">Lost Pet Reports</p>
                     <p className="text-2xl font-semibold text-gray-900">{(lostReports || []).length}</p>
+              </div>
+            </div>
+          </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <FileText className="h-8 w-8 text-orange-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500">Incident Reports</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(incidentReports || []).length}</p>
               </div>
             </div>
           </div>
@@ -2128,6 +2267,75 @@ const ImpoundDashboard = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {transferring ? 'Transferring...' : 'Transfer Pet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Incident Report Modal */}
+      {showDeclineModal && selectedIncidentForDecline && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Decline Incident Report</h3>
+              <button 
+                onClick={() => {
+                  setShowDeclineModal(false);
+                  setSelectedIncidentForDecline(null);
+                  setDeclineReason('');
+                }} 
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Please provide a reason for declining this incident report:
+                </p>
+                <p className="text-sm text-gray-500 mb-3">
+                  <strong>Location:</strong> {selectedIncidentForDecline.locationName || 'N/A'}
+                </p>
+                <p className="text-sm text-gray-500 mb-4">
+                  <strong>Description:</strong> {selectedIncidentForDecline.description ? 
+                    (selectedIncidentForDecline.description.length > 100 ? 
+                      selectedIncidentForDecline.description.substring(0, 100) + '...' : 
+                      selectedIncidentForDecline.description) : 'No description'}
+                </p>
+              </div>
+              <div>
+                <label htmlFor="declineReason" className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Decline *
+                </label>
+                <textarea
+                  id="declineReason"
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  placeholder="Please explain why this incident report is being declined..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  rows={4}
+                  required
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end space-x-3">
+              <button 
+                onClick={() => {
+                  setShowDeclineModal(false);
+                  setSelectedIncidentForDecline(null);
+                  setDeclineReason('');
+                }} 
+                className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmDeclineIncident}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700"
+              >
+                Decline Report
               </button>
             </div>
           </div>
