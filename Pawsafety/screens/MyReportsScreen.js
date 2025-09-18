@@ -87,7 +87,11 @@ const MyReportsScreen = ({ navigation }) => {
       case 'Lost': return '#FF6B6B';
       case 'Found': return '#4ECDC4';
       case 'Stray': return '#45B7D1';
+      case 'Incident': return '#DC2626';
+      case 'In Progress': return '#F59E0B';
       case 'Resolved': return '#10B981';
+      case 'Declined': return '#EF4444';
+      case 'Invalid': return '#6B7280';
       default: return '#45B7D1';
     }
   };
@@ -95,26 +99,26 @@ const MyReportsScreen = ({ navigation }) => {
   // Filter reports based on active tab
   const getFilteredReports = () => {
     if (activeTab === 'archived') {
-      // Show completed reports (excluding Resolved status)
+      // Show completed reports (Resolved, Declined, Invalid)
       return userReports.filter(report => {
         const status = report.status;
-        // Exclude resolved status and found reports from MyPetsScreen
-        if (status === 'Resolved' || (status === 'Found' && report.foundBy === 'owner')) {
+        // Exclude found reports from MyPetsScreen
+        if (status === 'Found' && report.foundBy === 'owner') {
           return false;
         }
-        // Show other completed statuses like Declined, Invalid, etc.
-        return ['Declined', 'Invalid'].includes(status);
+        // Show completed statuses: Resolved, Declined, Invalid
+        return ['Resolved', 'Declined', 'Invalid'].includes(status);
       });
     } else {
-      // Show all active reports (Lost, Stray, and Found from form) - exclude found reports from MyPetsScreen
+      // Show all active reports (Lost, Stray, Found from form, In Progress) - exclude found reports from MyPetsScreen
       return userReports.filter(report => {
         const status = report.status;
         // Exclude found reports that came from MyPetsScreen
         if (status === 'Found' && report.foundBy === 'owner') {
           return false;
         }
-        // Include all active statuses: Lost, Stray, and Found (from form)
-        return status === 'Lost' || status === 'Stray' || status === 'Found';
+        // Include all active statuses: Lost, Stray, Found (from form), In Progress, Incident
+        return ['Lost', 'Stray', 'Found', 'In Progress', 'Incident'].includes(status);
       });
     }
   };
@@ -126,17 +130,17 @@ const MyReportsScreen = ({ navigation }) => {
       if (status === 'Found' && report.foundBy === 'owner') {
         return false;
       }
-      // Include all active statuses: Lost, Stray, and Found (from form)
-      return status === 'Lost' || status === 'Stray' || status === 'Found';
+      // Include all active statuses: Lost, Stray, Found (from form), In Progress, Incident
+      return ['Lost', 'Stray', 'Found', 'In Progress', 'Incident'].includes(status);
     });
     const archivedReports = userReports.filter(report => {
       const status = report.status;
-      // Exclude resolved status and found reports from MyPetsScreen
-      if (status === 'Resolved' || (status === 'Found' && report.foundBy === 'owner')) {
+      // Exclude found reports from MyPetsScreen
+      if (status === 'Found' && report.foundBy === 'owner') {
         return false;
       }
-      // Show other completed statuses like Declined, Invalid, etc.
-      return ['Declined', 'Invalid'].includes(status);
+      // Show completed statuses: Resolved, Declined, Invalid
+      return ['Resolved', 'Declined', 'Invalid'].includes(status);
     });
     
     return {
@@ -474,7 +478,12 @@ const MyReportsScreen = ({ navigation }) => {
   const ReportCard = ({ report }) => {
     // Consider reports as archived if they are Declined, Invalid, Resolved, or Found reports from MyPetsScreen
     const isArchived = ['Declined', 'Invalid', 'Resolved'].includes(report.status) || (report.status === 'Found' && report.foundBy === 'owner');
-    const reportType = report.status === 'Lost' ? 'Lost Pet Report' : report.status === 'Found' ? 'Found Pet Report' : 'Stray Report';
+    
+    // Use originalType for completed reports, otherwise use current status
+    const displayType = report.originalType || report.status;
+    const reportType = displayType === 'Lost' ? 'Lost Pet Report' : 
+                      displayType === 'Found' ? 'Found Pet Report' : 
+                      displayType === 'Incident' ? 'Incident Report' : 'Stray Report';
     
     return (
       <View style={styles.reportCard}>
@@ -488,7 +497,12 @@ const MyReportsScreen = ({ navigation }) => {
             </View>
           )}
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(report.status) }]}>
-            <Text style={styles.statusText}>{report.status || 'Stray'}</Text>
+            <Text style={styles.statusText}>
+              {report.status === 'Resolved' ? 'Resolved' :
+               report.status === 'Declined' ? 'Declined' :
+               report.status === 'Invalid' ? 'Invalid' :
+               report.status || 'Stray'}
+            </Text>
           </View>
         </View>
         
@@ -620,7 +634,7 @@ const MyReportsScreen = ({ navigation }) => {
             </Text>
             <Text style={styles.emptyDescription}>
               {activeTab === 'archived' 
-                ? 'You don\'t have any completed reports yet. Completed reports are resolved stray reports.'
+                ? 'You don\'t have any completed reports yet. Completed reports include resolved, declined, or invalid reports.'
                 : 'You don\'t have any active reports yet. Help reunite pets with their families by reporting strays you find or lost pets.'
               }
             </Text>

@@ -824,6 +824,7 @@ const ImpoundDashboard = () => {
     try {
       await updateDoc(doc(db, 'stray_reports', report.id), {
         status: 'Resolved',
+        originalType: report.status, // Preserve the original report type
         resolvedAt: serverTimestamp(),
         resolvedBy: currentUser?.email || 'Unknown'
       });
@@ -868,6 +869,7 @@ const ImpoundDashboard = () => {
     try {
       await updateDoc(doc(db, 'stray_reports', selectedIncidentForDecline.id), {
         status: 'Declined',
+        originalType: selectedIncidentForDecline.status, // Preserve the original report type
         declinedAt: serverTimestamp(),
         declinedBy: currentUser?.email || 'Unknown',
         declineReason: declineReason.trim()
