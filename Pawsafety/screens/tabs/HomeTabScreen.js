@@ -10,9 +10,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
-  Image,
   Alert
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
@@ -33,10 +33,10 @@ const HomeTabScreen = ({ navigation }) => {
   const [transferNotifs, setTransferNotifs] = useState([]);
   const [registrationNotifs, setRegistrationNotifs] = useState([]);
   const [incidentNotifs, setIncidentNotifs] = useState([]);
-  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents
+  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays
   const [notifMenu, setNotifMenu] = useState(null); // { type: 'app'|'pet', id: string } | null
   const [showBanner, setShowBanner] = useState(false);
-  const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0 });
+  const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0, strays: 0 });
   const [selectedNotif, setSelectedNotif] = useState(null); // { id, type, ts, title, sub, data }
   const [selectedPetDetails, setSelectedPetDetails] = useState(null);
   const [selectedReportDetails, setSelectedReportDetails] = useState(null);
@@ -153,15 +153,15 @@ const HomeTabScreen = ({ navigation }) => {
     
     const reportsUnsubscribe = onSnapshot(reportsQuery, (snapshot) => {
       const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Filter out found reports from MyPetsScreen (foundBy: 'owner') and resolved reports
+      // Filter out found reports from MyPetsScreen (foundBy: 'owner'), resolved, declined, and invalid reports
       const filteredReports = reports.filter(report => {
         const status = (report.status || 'Stray').toLowerCase();
         // Exclude found reports that came from MyPetsScreen
         if (status === 'found' && report.foundBy === 'owner') {
           return false;
         }
-        // Exclude resolved reports
-        if (status === 'resolved') {
+        // Exclude resolved, declined, and invalid reports
+        if (['resolved', 'declined', 'invalid'].includes(status)) {
           return false;
         }
         return true;
@@ -260,7 +260,7 @@ const HomeTabScreen = ({ navigation }) => {
       const incidentQ = query(
         collection(db, 'user_notifications'),
         where('userId', '==', user.uid),
-        where('type', 'in', ['incident_resolved', 'incident_declined']),
+        where('type', 'in', ['incident_resolved', 'incident_declined', 'stray_resolved', 'stray_declined']),
         orderBy('createdAt', 'desc')
       );
       unsubIncident = onSnapshot(incidentQ, (snap) => {
@@ -302,8 +302,9 @@ const HomeTabScreen = ({ navigation }) => {
         const transfersNew = (transferNotifs || []).filter((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0) > lastTransfer).length;
         const registrationsNew = (registrationNotifs || []).filter((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0) > lastRegistration).length;
         const incidentsNew = (incidentNotifs || []).filter((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident).length;
-        setBannerCounts({ apps: appsNew, pets: petsNew, transfers: transfersNew, registrations: registrationsNew, incidents: incidentsNew });
-        setShowBanner((appsNew + petsNew + transfersNew + registrationsNew + incidentsNew) > 0);
+        const straysNew = (incidentNotifs || []).filter((i) => i.type && i.type.includes('stray') && (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident).length;
+        setBannerCounts({ apps: appsNew, pets: petsNew, transfers: transfersNew, registrations: registrationsNew, incidents: incidentsNew, strays: straysNew });
+        setShowBanner((appsNew + petsNew + transfersNew + registrationsNew + incidentsNew + straysNew) > 0);
       } catch (e) {}
     })();
   }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, lastReadUpdate]);
@@ -805,7 +806,7 @@ const HomeTabScreen = ({ navigation }) => {
               <MaterialIcons name="notifications-active" size={20} color="#ffffff" />
               <View>
                 <Text style={{ color: '#ffffff', fontWeight: '800' }}>
-                  {bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents} new notification{(bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents) > 1 ? 's' : ''}
+                  {bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays} new notification{(bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays) > 1 ? 's' : ''}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
                   {bannerCounts.apps > 0 ? (
@@ -826,11 +827,6 @@ const HomeTabScreen = ({ navigation }) => {
                   {bannerCounts.registrations > 0 ? (
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
                       <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Registrations: {bannerCounts.registrations}</Text>
-                    </View>
-                  ) : null}
-                  {bannerCounts.incidents > 0 ? (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
-                      <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Incidents: {bannerCounts.incidents}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -1108,7 +1104,7 @@ const HomeTabScreen = ({ navigation }) => {
                 style={{ marginHorizontal: -4 }}
               >
                 <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 4 }}>
-                  {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents'].map((opt) => (
+                  {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays'].map((opt) => (
                     <TouchableOpacity
                       key={opt}
                       onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
@@ -1259,10 +1255,12 @@ const HomeTabScreen = ({ navigation }) => {
                   .filter((i) => !hiddenIncidentIds.has(i.id))
                   .map((i) => ({
                   id: i.id,
-                  type: 'incident',
+                  type: i.type.includes('stray') ? 'stray' : 'incident',
                   ts: i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0,
-                  title: i.type === 'incident_resolved' ? 'Incident Report Resolved' : 'Incident Report Declined',
-                  sub: `${i.location || 'Unknown location'} • ${i.message || 'Incident report status updated'}`,
+                  title: i.type === 'incident_resolved' ? 'Incident Report Resolved' : 
+                         i.type === 'incident_declined' ? 'Incident Report Declined' :
+                         i.type === 'stray_resolved' ? 'Stray Report Resolved' : 'Stray Report Declined',
+                  sub: `${i.location || 'Unknown location'} • ${i.message || (i.type.includes('stray') ? 'Stray report status updated' : 'Incident report status updated')}`,
                   data: i,
                 }));
                 let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents].sort((a, b) => b.ts - a.ts);
@@ -1271,6 +1269,7 @@ const HomeTabScreen = ({ navigation }) => {
                 if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
                 if (notifFilter === 'Registration') list = list.filter((n) => n.type === 'registration');
                 if (notifFilter === 'Incidents') list = list.filter((n) => n.type === 'incident');
+                if (notifFilter === 'Strays') list = list.filter((n) => n.type === 'stray');
                 if (list.length === 0) return <Text style={{ color: '#64748b' }}>No notifications yet.</Text>;
                 return list.map((n) => (
                   <View key={`${n.type}-${n.id}`} style={{ 
@@ -1496,10 +1495,12 @@ const HomeTabScreen = ({ navigation }) => {
                     .filter((i) => !hiddenIncidentIds.has(i.id))
                     .map((i) => ({
                       id: i.id,
-                      type: 'incident',
+                      type: i.type.includes('stray') ? 'stray' : 'incident',
                       ts: i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0,
-                      title: i.type === 'incident_resolved' ? 'Incident Report Resolved' : 'Incident Report Declined',
-                      sub: `${i.location || 'Unknown location'} • ${i.message || 'Incident report status updated'}`,
+                      title: i.type === 'incident_resolved' ? 'Incident Report Resolved' : 
+                             i.type === 'incident_declined' ? 'Incident Report Declined' :
+                             i.type === 'stray_resolved' ? 'Stray Report Resolved' : 'Stray Report Declined',
+                      sub: `${i.location || 'Unknown location'} • ${i.message || (i.type.includes('stray') ? 'Stray report status updated' : 'Incident report status updated')}`,
                       data: i,
                     }));
                   let list = [...apps, ...pets, ...transfers, ...incidents].sort((a, b) => b.ts - a.ts);
@@ -1507,6 +1508,7 @@ const HomeTabScreen = ({ navigation }) => {
                   if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                   if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
                   if (notifFilter === 'Incidents') list = list.filter((n) => n.type === 'incident');
+                  if (notifFilter === 'Strays') list = list.filter((n) => n.type === 'stray');
                   return `${list.length} notification${list.length !== 1 ? 's' : ''}`;
                 })()}
               </Text>
@@ -1569,6 +1571,7 @@ const HomeTabScreen = ({ navigation }) => {
                    selectedNotif.type === 'transfer' ? 'Pet Transfer Notification' : 
                    selectedNotif.type === 'registration' ? 'Pet Registration Update' :
                    selectedNotif.type === 'incident' ? 'Incident Report Update' :
+                   selectedNotif.type === 'stray' ? 'Stray Report Update' :
                    'New Pet Available'}
                 </Text>
               </View>
@@ -1941,6 +1944,103 @@ const HomeTabScreen = ({ navigation }) => {
                         • Contact the impound facility for clarification{'\n'}
                         • Ensure your report contains accurate information{'\n'}
                         • You may submit a new incident report if needed
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : selectedNotif.type === 'stray' ? (
+                <>
+                  {/* Stray Status Card */}
+                  <View style={{
+                    backgroundColor: selectedNotif.data?.type === 'stray_resolved' ? '#dcfce7' : '#fee2e2',
+                    padding: 16,
+                    borderRadius: 12,
+                    marginBottom: 20,
+                    borderLeftWidth: 4,
+                    borderLeftColor: selectedNotif.data?.type === 'stray_resolved' ? '#16a34a' : '#dc2626'
+                  }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>
+                      {selectedNotif.data?.type === 'stray_resolved' ? '✅ Stray Report Resolved' : '❌ Stray Report Declined'}
+                    </Text>
+                    <Text style={{ color: '#374151', fontSize: 14 }}>
+                      {selectedNotif.data?.message || (selectedNotif.data?.type === 'stray_resolved' 
+                        ? 'Your stray report has been resolved by the animal impound facility. Thank you for reporting this stray animal.' 
+                        : 'Your stray report has been declined. Please see the reason below.')}
+                    </Text>
+                  </View>
+
+                  {/* Stray Information */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                      Report Information
+                    </Text>
+                    <Text style={{ color: '#6b7280', fontSize: 14, marginBottom: 4 }}>
+                      <Text style={{ fontWeight: '700' }}>Location:</Text> {selectedNotif.data?.location || 'Unknown location'}
+                    </Text>
+                    <Text style={{ color: '#6b7280', fontSize: 14, marginBottom: 4 }}>
+                      <Text style={{ fontWeight: '700' }}>Report ID:</Text> {selectedNotif.data?.reportId || 'N/A'}
+                    </Text>
+                  </View>
+
+                  {/* Decline Reason (if declined) */}
+                  {selectedNotif.data?.type === 'stray_declined' && selectedNotif.data?.declineReason && (
+                    <View style={{ marginBottom: 20 }}>
+                      <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                        Reason for Decline
+                      </Text>
+                      <View style={{
+                        backgroundColor: '#fef2f2',
+                        borderWidth: 1,
+                        borderColor: '#fecaca',
+                        borderRadius: 8,
+                        padding: 12
+                      }}>
+                        <Text style={{ color: '#dc2626', fontSize: 14, lineHeight: 20 }}>
+                          {selectedNotif.data.declineReason}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Timestamp */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ color: '#6b7280', fontSize: 12 }}>
+                      <Text style={{ fontWeight: '700' }}>Updated:</Text>{' '}
+                      {selectedNotif.ts ? new Date(selectedNotif.ts).toLocaleDateString() + ' at ' + new Date(selectedNotif.ts).toLocaleTimeString() : 'Unknown'}
+                    </Text>
+                  </View>
+
+                  {/* Next Steps */}
+                  {selectedNotif.data?.type === 'stray_resolved' ? (
+                    <View style={{ 
+                      backgroundColor: '#FEF3C7', 
+                      padding: 16, 
+                      borderRadius: 12, 
+                      marginBottom: 16
+                    }}>
+                      <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#92400e' }}>
+                        What happens next?
+                      </Text>
+                      <Text style={{ color: '#92400e', fontSize: 14, lineHeight: 20 }}>
+                        • The stray animal has been safely handled by our impound facility{'\n'}
+                        • The animal will be cared for and may be made available for adoption{'\n'}
+                        • Thank you for helping keep our community safe
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ 
+                      backgroundColor: '#FEF3C7', 
+                      padding: 16, 
+                      borderRadius: 12, 
+                      marginBottom: 16
+                    }}>
+                      <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#92400e' }}>
+                        What can you do?
+                      </Text>
+                      <Text style={{ color: '#92400e', fontSize: 14, lineHeight: 20 }}>
+                        • Review the reason for decline above{'\n'}
+                        • You may submit a new stray report if needed{'\n'}
+                        • Contact the impound facility for more information
                       </Text>
                     </View>
                   )}

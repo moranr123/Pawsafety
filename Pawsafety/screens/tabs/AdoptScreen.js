@@ -9,10 +9,10 @@ import {
   ImageBackground,
   RefreshControl,
   Modal,
-  Image,
   TextInput,
   Alert
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';

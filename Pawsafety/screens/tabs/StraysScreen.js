@@ -6,11 +6,11 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Image,
   ImageBackground,
   Modal,
   RefreshControl
 } from 'react-native';
+import { Image } from 'expo-image';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { db } from '../../services/firebase';
@@ -87,14 +87,14 @@ const StraysScreen = ({ navigation }) => {
 
   let filteredReports = reports;
   if (filter === 'All') {
-    // Exclude reports marked as "Found" (from MyPetsScreen) or "Resolved" from the "All" filter
+    // Exclude reports marked as "Found" (from MyPetsScreen), "Resolved", "Declined", or "Invalid" from the "All" filter
     filteredReports = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
       // Exclude found reports that came from MyPetsScreen (foundBy: 'owner')
       if (status === 'found' && r.foundBy === 'owner') {
         return false;
       }
-      return status !== 'resolved';
+      return !['resolved', 'declined', 'invalid'].includes(status);
     });
   } else if (filter === 'Found') {
     // Only show "Found" reports that came from the File a Report form (not from MyPetsScreen)
@@ -103,14 +103,14 @@ const StraysScreen = ({ navigation }) => {
       return status === 'found' && r.foundBy !== 'owner';
     });
   } else if (['Stray', 'Lost', 'Incident'].includes(filter)) {
-    // Only show reports with the specific status, but exclude found reports from MyPetsScreen
+    // Only show reports with the specific status, but exclude found reports from MyPetsScreen, declined, and invalid
     filteredReports = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
       // Exclude found reports that came from MyPetsScreen
       if (status === 'found' && r.foundBy === 'owner') {
         return false;
       }
-      return status === filter.toLowerCase() && status !== 'resolved';
+      return status === filter.toLowerCase() && !['resolved', 'declined', 'invalid'].includes(status);
     });
   }
 

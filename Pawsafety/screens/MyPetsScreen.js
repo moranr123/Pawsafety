@@ -7,12 +7,12 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
-  Image,
   Modal,
   ActivityIndicator,
   TextInput,
   Dimensions
 } from 'react-native';
+import { Image } from 'expo-image';
 import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
 import * as MediaLibrary from 'expo-media-library';

@@ -408,6 +408,9 @@ const ImpoundDashboard = () => {
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedIncidentForDecline, setSelectedIncidentForDecline] = useState(null);
   const [declineReason, setDeclineReason] = useState('');
+  const [showStrayDeclineModal, setShowStrayDeclineModal] = useState(false);
+  const [selectedStrayForDecline, setSelectedStrayForDecline] = useState(null);
+  const [strayDeclineReason, setStrayDeclineReason] = useState('');
   const [selectedAdoptable, setSelectedAdoptable] = useState(null);
   const [showAdoptableModal, setShowAdoptableModal] = useState(false);
   const [editingAdoptable, setEditingAdoptable] = useState(null);
@@ -734,7 +737,33 @@ const ImpoundDashboard = () => {
   // Stray report actions
   const updateStrayStatus = async (reportId, newStatus) => {
     try {
-      await updateDoc(doc(db, 'stray_reports', reportId), { status: newStatus });
+      await updateDoc(doc(db, 'stray_reports', reportId), { 
+        status: newStatus,
+        ...(newStatus === 'Resolved' && {
+          resolvedAt: serverTimestamp(),
+          resolvedBy: currentUser?.email || 'Unknown'
+        })
+      });
+
+      // Create notification for resolved stray reports
+      if (newStatus === 'Resolved') {
+        const report = strayReports.find(r => r.id === reportId);
+        if (report && report.userId) {
+          await addDoc(collection(db, 'user_notifications'), {
+            userId: report.userId,
+            type: 'stray_resolved',
+            title: 'Stray Report Resolved',
+            message: `Your stray report has been resolved by the animal impound facility. Thank you for reporting this stray animal.`,
+            reportId: report.id,
+            reportType: 'stray',
+            location: report.locationName || 'Unknown location',
+            read: false,
+            createdAt: serverTimestamp(),
+            createdBy: currentUser?.email || 'impound_admin'
+          });
+        }
+      }
+
       toast.success(`Report marked as ${newStatus}`);
     } catch (e) {
       toast.error('Failed to update status');
@@ -868,6 +897,55 @@ const ImpoundDashboard = () => {
     } catch (error) {
       console.error('Error declining incident report:', error);
       toast.error('Failed to decline incident report');
+    }
+  };
+
+  // Stray report: decline
+  const handleDeclineStray = (report) => {
+    setSelectedStrayForDecline(report);
+    setStrayDeclineReason('');
+    setShowStrayDeclineModal(true);
+  };
+
+  // Stray report: confirm decline with reason
+  const handleConfirmDeclineStray = async () => {
+    if (!strayDeclineReason.trim()) {
+      toast.error('Please provide a reason for declining the stray report');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'stray_reports', selectedStrayForDecline.id), {
+        status: 'Declined',
+        declinedAt: serverTimestamp(),
+        declinedBy: currentUser?.email || 'Unknown',
+        declineReason: strayDeclineReason.trim()
+      });
+
+      // Create notification for the user who reported the stray
+      if (selectedStrayForDecline.userId) {
+        await addDoc(collection(db, 'user_notifications'), {
+          userId: selectedStrayForDecline.userId,
+          type: 'stray_declined',
+          title: 'Stray Report Declined',
+          message: `Your stray report has been declined. Reason: ${strayDeclineReason.trim()}`,
+          reportId: selectedStrayForDecline.id,
+          reportType: 'stray',
+          location: selectedStrayForDecline.locationName || 'Unknown location',
+          declineReason: strayDeclineReason.trim(),
+          read: false,
+          createdAt: serverTimestamp(),
+          createdBy: currentUser?.email || 'impound_admin'
+        });
+      }
+
+      toast.success('Stray report declined successfully');
+      setShowStrayDeclineModal(false);
+      setSelectedStrayForDecline(null);
+      setStrayDeclineReason('');
+    } catch (error) {
+      console.error('Error declining stray report:', error);
+      toast.error('Failed to decline stray report');
     }
   };
 
@@ -1317,41 +1395,33 @@ const ImpoundDashboard = () => {
         {activeTab === 'stray' && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Stray Reports</h2>
-            <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {strayReports.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-900 max-w-md truncate">{r.description || 'No description'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{r.locationName || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {r.status || 'Stray'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-right text-sm">
-                        <div className="inline-flex gap-2">
-                          <button onClick={() => openReportDetails(r)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">View</button>
-                          <button onClick={() => updateStrayStatus(r.id, 'In Progress')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">In Progress</button>
-                          <button onClick={() => updateStrayStatus(r.id, 'Resolved')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Resolved</button>
-                          <button onClick={() => updateStrayStatus(r.id, 'Invalid')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Invalid</button>
-                </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {strayReports.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">No stray reports</td></tr>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {strayReports.map((r) => (
+                <div key={r.id} className="border rounded-lg overflow-hidden bg-white flex flex-col h-full">
+                  {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
+                    <img src={r.imageUrl} alt="Stray Pet" className="w-full h-40 object-cover" />
+                  ) : (
+                    <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                      <span className="text-gray-500 text-sm">No image</span>
+                    </div>
                   )}
-                </tbody>
-              </table>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <p className="text-sm font-medium text-gray-900 mb-2">
+                      {r.description ? r.description.substring(0, 100) + (r.description.length > 100 ? '...' : '') : 'No description'}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-1">{r.locationName || 'N/A'}</p>
+                    <p className="text-sm text-gray-600 mb-3">{r.contactNumber || 'N/A'}</p>
+                    <div className="grid grid-cols-3 gap-2 w-full">
+                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">View</button>
+                      <button onClick={() => updateStrayStatus(r.id, 'Resolved')} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-green-50 text-green-700 border-green-200">Resolved</button>
+                      <button onClick={() => handleDeclineStray(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-red-50 text-red-700 border-red-200">Decline</button>
+                </div>
+              </div>
+                </div>
+              ))}
+              {strayReports.length === 0 && (
+                <div className="col-span-full text-center text-sm text-gray-500 py-8">No stray reports</div>
+              )}
             </div>
           </div>
         )}
@@ -2333,6 +2403,75 @@ const ImpoundDashboard = () => {
               </button>
               <button 
                 onClick={handleConfirmDeclineIncident}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700"
+              >
+                Decline Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Stray Report Modal */}
+      {showStrayDeclineModal && selectedStrayForDecline && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Decline Stray Report</h3>
+              <button 
+                onClick={() => {
+                  setShowStrayDeclineModal(false);
+                  setSelectedStrayForDecline(null);
+                  setStrayDeclineReason('');
+                }} 
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Please provide a reason for declining this stray report:
+                </p>
+                <p className="text-sm text-gray-500 mb-3">
+                  <strong>Location:</strong> {selectedStrayForDecline.locationName || 'N/A'}
+                </p>
+                <p className="text-sm text-gray-500 mb-4">
+                  <strong>Description:</strong> {selectedStrayForDecline.description ? 
+                    (selectedStrayForDecline.description.length > 100 ? 
+                      selectedStrayForDecline.description.substring(0, 100) + '...' : 
+                      selectedStrayForDecline.description) : 'No description'}
+                </p>
+              </div>
+              <div>
+                <label htmlFor="strayDeclineReason" className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Decline *
+                </label>
+                <textarea
+                  id="strayDeclineReason"
+                  value={strayDeclineReason}
+                  onChange={(e) => setStrayDeclineReason(e.target.value)}
+                  placeholder="Please explain why this stray report is being declined..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  rows={4}
+                  required
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end space-x-3">
+              <button 
+                onClick={() => {
+                  setShowStrayDeclineModal(false);
+                  setSelectedStrayForDecline(null);
+                  setStrayDeclineReason('');
+                }} 
+                className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmDeclineStray}
                 className="px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700"
               >
                 Decline Report

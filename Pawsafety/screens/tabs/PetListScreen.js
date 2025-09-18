@@ -6,13 +6,13 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Image,
   RefreshControl,
   Alert,
   Dimensions,
   FlatList,
   Modal
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';

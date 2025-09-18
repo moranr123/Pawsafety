@@ -6,11 +6,11 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Image,
   Alert,
   Modal,
   RefreshControl
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, auth } from '../services/firebase';
 import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -95,8 +95,16 @@ const MyReportsScreen = ({ navigation }) => {
   // Filter reports based on active tab
   const getFilteredReports = () => {
     if (activeTab === 'archived') {
-      // Show completed reports (Resolved)
-      return userReports.filter(report => report.status === 'Resolved');
+      // Show completed reports (excluding Resolved status)
+      return userReports.filter(report => {
+        const status = report.status;
+        // Exclude resolved status and found reports from MyPetsScreen
+        if (status === 'Resolved' || (status === 'Found' && report.foundBy === 'owner')) {
+          return false;
+        }
+        // Show other completed statuses like Declined, Invalid, etc.
+        return ['Declined', 'Invalid'].includes(status);
+      });
     } else {
       // Show all active reports (Lost, Stray, and Found from form) - exclude found reports from MyPetsScreen
       return userReports.filter(report => {
@@ -121,9 +129,15 @@ const MyReportsScreen = ({ navigation }) => {
       // Include all active statuses: Lost, Stray, and Found (from form)
       return status === 'Lost' || status === 'Stray' || status === 'Found';
     });
-    const archivedReports = userReports.filter(report => 
-      report.status === 'Resolved'
-    );
+    const archivedReports = userReports.filter(report => {
+      const status = report.status;
+      // Exclude resolved status and found reports from MyPetsScreen
+      if (status === 'Resolved' || (status === 'Found' && report.foundBy === 'owner')) {
+        return false;
+      }
+      // Show other completed statuses like Declined, Invalid, etc.
+      return ['Declined', 'Invalid'].includes(status);
+    });
     
     return {
       active: activeReports.length,
@@ -458,8 +472,8 @@ const MyReportsScreen = ({ navigation }) => {
   }), [COLORS]);
 
   const ReportCard = ({ report }) => {
-    // Only consider reports as archived if they are Resolved, or Found reports from MyPetsScreen
-    const isArchived = report.status === 'Resolved' || (report.status === 'Found' && report.foundBy === 'owner');
+    // Consider reports as archived if they are Declined, Invalid, Resolved, or Found reports from MyPetsScreen
+    const isArchived = ['Declined', 'Invalid', 'Resolved'].includes(report.status) || (report.status === 'Found' && report.foundBy === 'owner');
     const reportType = report.status === 'Lost' ? 'Lost Pet Report' : report.status === 'Found' ? 'Found Pet Report' : 'Stray Report';
     
     return (
@@ -512,22 +526,20 @@ const MyReportsScreen = ({ navigation }) => {
             </TouchableOpacity>
             
             {!isArchived && (
-              <>
-                <TouchableOpacity 
-                  style={[styles.actionButton, styles.editButton]}
-                  onPress={() => handleEditReport(report)}
-                >
-                  <Text style={[styles.buttonText, styles.editButtonText]}>Edit</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.actionButton, styles.deleteButton]}
-                  onPress={() => handleDeleteReport(report.id)}
-                >
-                  <Text style={[styles.buttonText, styles.deleteButtonText]}>Delete</Text>
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.editButton]}
+                onPress={() => handleEditReport(report)}
+              >
+                <Text style={[styles.buttonText, styles.editButtonText]}>Edit</Text>
+              </TouchableOpacity>
             )}
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => handleDeleteReport(report.id)}
+            >
+              <Text style={[styles.buttonText, styles.deleteButtonText]}>Delete</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
