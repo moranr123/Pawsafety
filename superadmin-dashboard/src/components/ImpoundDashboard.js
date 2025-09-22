@@ -32,7 +32,8 @@ import {
   BarChart3,
   TrendingUp,
   Users, 
-  FileText
+  FileText,
+  Archive
 } from 'lucide-react';
 
 // Breed options based on pet type
@@ -393,6 +394,7 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
 const ImpoundDashboard = () => {
   const { currentUser, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('analytics');
+  const [activeApplicationTab, setActiveApplicationTab] = useState('pending');
   const [strayReports, setStrayReports] = useState([]);
   const [lostReports, setLostReports] = useState([]);
   const [incidentReports, setIncidentReports] = useState([]);
@@ -511,8 +513,7 @@ const ImpoundDashboard = () => {
   useEffect(() => {
     const qApps = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(qApps, (snap) => {
-      setAdoptionApplications(snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        .filter((app) => !app.hiddenFromAdmin)); // Filter out declined applications hidden from admin
+      setAdoptionApplications(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
       // Push notifications for new applications
       if (!initialAppsLoadedRef.current) {
@@ -959,9 +960,12 @@ const ImpoundDashboard = () => {
 
   const handleUpdateApplicationStatus = async (appId, status) => {
     try {
-      await updateDoc(doc(db, 'adoption_applications', appId), { status });
-      // Optimistically remove from table
-      setAdoptionApplications((prev) => prev.filter((a) => a.id !== appId));
+      await updateDoc(doc(db, 'adoption_applications', appId), {
+        status,
+        processedDate: serverTimestamp(),
+        processedBy: currentUser?.email || 'impound_admin'
+      });
+      // Close modal if this application is currently selected
       if (selectedApplication?.id === appId) {
         setSelectedApplication(null);
         setShowAppModal(false);
@@ -986,10 +990,10 @@ const ImpoundDashboard = () => {
         notes: trimmed,
         declinedAt: serverTimestamp(),
         declinedBy: currentUser?.email || 'impound_admin',
-        hiddenFromAdmin: true, // Add this field to hide from admin view
+        processedDate: serverTimestamp(),
+        processedBy: currentUser?.email || 'impound_admin',
       });
-      // Remove from the admin's view immediately
-      setAdoptionApplications((prev) => prev.filter((a) => a.id !== app.id));
+      // Close modal if this application is currently selected
       if (selectedApplication?.id === app.id) {
         setSelectedApplication(null);
         setShowAppModal(false);
@@ -1541,6 +1545,55 @@ const ImpoundDashboard = () => {
         {activeTab === 'applications' && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Adoption Applications</h2>
+            
+            {/* Application Sub-tabs */}
+            <div className="mb-6">
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                  <button
+                    onClick={() => setActiveApplicationTab('pending')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeApplicationTab === 'pending'
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Pending Applications
+                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setActiveApplicationTab('approved')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeApplicationTab === 'approved'
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Approved Applications
+                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      {(adoptionApplications || []).filter(a => a.status === 'Approved').length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setActiveApplicationTab('declined')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeApplicationTab === 'declined'
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Declined Applications
+                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      {(adoptionApplications || []).filter(a => a.status === 'Declined').length}
+                    </span>
+                  </button>
+                </nav>
+              </div>
+            </div>
+
+            {/* Application Content */}
             <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -1549,35 +1602,74 @@ const ImpoundDashboard = () => {
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preferred Date</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    {activeApplicationTab !== 'pending' && (
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        {activeApplicationTab === 'approved' ? 'Date Approved' : 'Date Processed'}
+                      </th>
+                    )}
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {adoptionApplications.map((a) => (
+                  {adoptionApplications
+                    .filter(a => {
+                      if (activeApplicationTab === 'pending') return (a.status || 'Submitted') === 'Submitted';
+                      if (activeApplicationTab === 'approved') return a.status === 'Approved';
+                      if (activeApplicationTab === 'declined') return a.status === 'Declined';
+                      return false;
+                    })
+                    .map((a) => (
                     <tr key={a.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-sm text-gray-900">{a.applicant?.fullName || 'Unknown'}</td>
                       <td className="px-4 py-2 text-sm text-gray-700">{a.petName || a.petBreed || 'Pet'}</td>
                       <td className="px-4 py-2 text-sm text-gray-700">{a.preferredDate || 'N/A'}</td>
                       <td className="px-4 py-2 text-sm">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">{a.status || 'Submitted'}</span>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          a.status === 'Approved' 
+                            ? 'bg-green-100 text-green-800'
+                            : a.status === 'Declined'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {a.status || 'Submitted'}
+                        </span>
                       </td>
+                      {activeApplicationTab !== 'pending' && (
+                        <td className="px-4 py-2 text-sm text-gray-700">
+                          {a.processedDate ? new Date(a.processedDate.seconds * 1000).toLocaleDateString() : 'N/A'}
+                        </td>
+                      )}
                       <td className="px-4 py-2 text-right text-sm">
                         <div className="inline-flex flex-wrap gap-2">
                           <button onClick={() => openApplicationDetails(a)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">View</button>
-                          <button onClick={() => handleUpdateApplicationStatus(a.id, 'Approved')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Approve</button>
-                          <button onClick={() => handleDeclineApplication(a)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Decline</button>
-              </div>
+                          {activeApplicationTab === 'pending' && (
+                            <>
+                              <button onClick={() => handleUpdateApplicationStatus(a.id, 'Approved')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Approve</button>
+                              <button onClick={() => handleDeclineApplication(a)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Decline</button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
-                  {adoptionApplications.length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">No applications yet</td></tr>
+                  {adoptionApplications.filter(a => {
+                    if (activeApplicationTab === 'pending') return (a.status || 'Submitted') === 'Submitted';
+                    if (activeApplicationTab === 'approved') return a.status === 'Approved';
+                    if (activeApplicationTab === 'declined') return a.status === 'Declined';
+                    return false;
+                  }).length === 0 && (
+                    <tr>
+                      <td colSpan={activeApplicationTab === 'pending' ? 5 : 6} className="px-4 py-6 text-center text-sm text-gray-500">
+                        No {activeApplicationTab} applications found
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
+
 
         {activeTab === 'analytics' && (
           <div className="space-y-6">
@@ -2186,8 +2278,12 @@ const ImpoundDashboard = () => {
                   </div>
                 </div>
             <div className="p-4 border-t flex flex-wrap justify-end gap-2">
-              <button onClick={() => handleUpdateApplicationStatus(selectedApplication.id, 'Approved')} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-green-600 hover:bg-green-700">Approve</button>
-              <button onClick={() => handleDeclineApplication(selectedApplication)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700">Decline</button>
+              {(selectedApplication.status || 'Submitted') === 'Submitted' && (
+                <>
+                  <button onClick={() => handleUpdateApplicationStatus(selectedApplication.id, 'Approved')} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-green-600 hover:bg-green-700">Approve</button>
+                  <button onClick={() => handleDeclineApplication(selectedApplication)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700">Decline</button>
+                </>
+              )}
               <button onClick={() => setSelectedApplication(null)} className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800">Close</button>
               </div>
             </div>
