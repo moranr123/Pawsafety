@@ -82,10 +82,10 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
     onClick={onClick}
     role="tab"
     aria-selected={active}
-    className={`group flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+    className={`group flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition-all duration-300 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transform hover:scale-105 ${
       active
-        ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
-        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50'
+        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-indigo-600 hover:from-indigo-700 hover:to-purple-700'
+        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50'
     }`}
   >
     <Icon className="h-5 w-5 mr-2 text-current" />
@@ -1234,7 +1234,7 @@ const ImpoundDashboard = () => {
               <div className="relative notifications-container">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-all duration-300 transform hover:scale-105"
                 >
                   <Bell className="h-4 w-4" />
                   {unreadCount > 0 && (
@@ -1349,48 +1349,48 @@ const ImpoundDashboard = () => {
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </button>
             </div>
           </div>
-          
+
           {/* Tabs moved to header */}
           <div className="flex gap-2 flex-wrap mt-3 pb-4">
-            <TabButton
-              active={activeTab === 'analytics'}
-              label="Dashboard"
-              icon={BarChart3}
-              onClick={() => setActiveTab('analytics')}
-            />
-            <TabButton
-              active={activeTab === 'stray'}
-              label="Stray Reports"
-              icon={Search}
-              badge={(strayReports || []).length}
-              onClick={() => setActiveTab('stray')}
-            />
-            <TabButton
-              active={activeTab === 'lost'}
-              label="Lost Pet Reports"
-              icon={ShieldCheck}
-              badge={(lostReports || []).length}
-              onClick={() => setActiveTab('lost')}
-            />
-            <TabButton
-              active={activeTab === 'incident'}
-              label="Incident Reports"
-              icon={FileText}
-              badge={(incidentReports || []).length}
-              onClick={() => setActiveTab('incident')}
-            />
-            <TabButton active={activeTab === 'adoption'} label="Adoption" icon={Heart} onClick={() => setActiveTab('adoption')} />
-            <TabButton active={activeTab === 'adoptionList'} label="Adoption List" icon={List} badge={(adoptablePets || []).length} onClick={() => setActiveTab('adoptionList')} />
-            <TabButton active={activeTab === 'applications'} label="Applications" icon={List} badge={(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length} onClick={() => setActiveTab('applications')} />
+          <TabButton
+            active={activeTab === 'analytics'}
+            label="Dashboard"
+            icon={BarChart3}
+            onClick={() => setActiveTab('analytics')}
+          />
+          <TabButton
+            active={activeTab === 'stray'}
+            label="Stray Reports"
+            icon={Search}
+            badge={(strayReports || []).length}
+            onClick={() => setActiveTab('stray')}
+          />
+          <TabButton
+            active={activeTab === 'lost'}
+            label="Lost Pet Reports"
+            icon={ShieldCheck}
+            badge={(lostReports || []).length}
+            onClick={() => setActiveTab('lost')}
+          />
+          <TabButton
+            active={activeTab === 'incident'}
+            label="Incident Reports"
+            icon={FileText}
+            badge={(incidentReports || []).length}
+            onClick={() => setActiveTab('incident')}
+          />
+          <TabButton active={activeTab === 'adoption'} label="Adoption" icon={Heart} onClick={() => setActiveTab('adoption')} />
+          <TabButton active={activeTab === 'adoptionList'} label="Adoption List" icon={List} badge={(adoptablePets || []).length} onClick={() => setActiveTab('adoptionList')} />
+          <TabButton active={activeTab === 'applications'} label="Applications" icon={List} badge={(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length} onClick={() => setActiveTab('applications')} />
+            </div>
           </div>
-        </div>
       </header>
 
       {/* Content */}
@@ -1676,13 +1676,13 @@ const ImpoundDashboard = () => {
               <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
                           <FileText className="h-6 w-6 text-white" />
                         </div>
-                      </div>
-                      <div className="ml-4">
+                </div>
+                  <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Total Reports</p>
                         <p className="text-2xl font-bold text-gray-900">{(notifications || []).length}</p>
                       </div>
@@ -1690,20 +1690,20 @@ const ImpoundDashboard = () => {
                     <div className="text-right">
                       <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                     </div>
-                  </div>
-                </div>
               </div>
+            </div>
+          </div>
 
               <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
                           <Search className="h-6 w-6 text-white" />
                         </div>
-                      </div>
-                      <div className="ml-4">
+                </div>
+                  <div className="ml-4">
                         <p className="text-sm font-medium text-green-600">Stray Reports</p>
                         <p className="text-2xl font-bold text-gray-900">{(strayReports || []).length}</p>
                       </div>
@@ -1711,20 +1711,20 @@ const ImpoundDashboard = () => {
                     <div className="text-right">
                       <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                     </div>
-                  </div>
-                </div>
-              </div>
+            </div>
+          </div>
+        </div>
 
               <div className="bg-gradient-to-br from-purple-50 to-pink-100 border border-purple-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
                           <ShieldCheck className="h-6 w-6 text-white" />
                         </div>
-                      </div>
-                      <div className="ml-4">
+                  </div>
+                  <div className="ml-4">
                         <p className="text-sm font-medium text-purple-600">Lost Pet Reports</p>
                         <p className="text-2xl font-bold text-gray-900">{(lostReports || []).length}</p>
                       </div>
@@ -1732,20 +1732,20 @@ const ImpoundDashboard = () => {
                     <div className="text-right">
                       <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
                     </div>
-                  </div>
-                </div>
               </div>
+            </div>
+          </div>
 
               <div className="bg-gradient-to-br from-orange-50 to-red-100 border border-orange-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
                           <FileText className="h-6 w-6 text-white" />
                         </div>
-                      </div>
-                      <div className="ml-4">
+                  </div>
+                  <div className="ml-4">
                         <p className="text-sm font-medium text-orange-600">Incident Reports</p>
                         <p className="text-2xl font-bold text-gray-900">{(incidentReports || []).length}</p>
                       </div>
@@ -1753,20 +1753,20 @@ const ImpoundDashboard = () => {
                     <div className="text-right">
                       <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
                     </div>
-                  </div>
-                </div>
               </div>
+            </div>
+          </div>
 
               <div className="bg-gradient-to-br from-pink-50 to-rose-100 border border-pink-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center">
                           <Heart className="h-6 w-6 text-white" />
                         </div>
-                      </div>
-                      <div className="ml-4">
+                  </div>
+                  <div className="ml-4">
                         <p className="text-sm font-medium text-pink-600">Adoption Applications</p>
                         <p className="text-2xl font-bold text-gray-900">{(adoptionApplications || []).length}</p>
                       </div>
@@ -1774,20 +1774,20 @@ const ImpoundDashboard = () => {
                     <div className="text-right">
                       <div className="w-3 h-3 bg-pink-500 rounded-full animate-pulse"></div>
                     </div>
-                  </div>
-                </div>
               </div>
+            </div>
+          </div>
 
               <div className="bg-gradient-to-br from-teal-50 to-cyan-100 border border-teal-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center">
                           <CheckCircle2 className="h-6 w-6 text-white" />
                         </div>
-                      </div>
-                      <div className="ml-4">
+                  </div>
+                  <div className="ml-4">
                         <p className="text-sm font-medium text-teal-600">Adopted Pets</p>
                         <p className="text-2xl font-bold text-gray-900">{(adoptedPets || []).length}</p>
                       </div>

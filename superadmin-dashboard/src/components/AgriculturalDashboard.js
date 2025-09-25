@@ -43,10 +43,10 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
     onClick={onClick}
     role="tab"
     aria-selected={active}
-    className={`group flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+    className={`group flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition-all duration-300 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transform hover:scale-105 ${
       active
-        ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
-        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50'
+        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-indigo-600 hover:from-indigo-700 hover:to-purple-700'
+        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50'
     }`}
   >
     <Icon className="h-5 w-5 mr-2 text-current" />
@@ -82,6 +82,71 @@ const AgriculturalDashboard = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [chartData, setChartData] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+
+  // Generate chart data from real pet registrations
+  const generateChartData = (pets) => {
+    const now = new Date();
+    const months = [];
+    
+    // Generate last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      // Count pets registered in this month
+      const monthPets = pets.filter(pet => {
+        const petDate = pet.createdAt?.toDate ? pet.createdAt.toDate() : new Date(pet.createdAt);
+        return petDate.getMonth() === date.getMonth() && 
+               petDate.getFullYear() === date.getFullYear();
+      });
+      
+      months.push({
+        month: monthName,
+        count: monthPets.length,
+        date: date
+      });
+    }
+    
+    return months;
+  };
+
+  // Generate recent activity from pets and users
+  const generateRecentActivity = (pets, users) => {
+    const activities = [];
+    
+    // Add recent pet registrations
+    pets.slice(0, 5).forEach(pet => {
+      activities.push({
+        id: `pet-${pet.id}`,
+        type: 'pet_registration',
+        message: `New pet "${pet.petName}" registered`,
+        timestamp: pet.createdAt,
+        icon: '🐕'
+      });
+    });
+    
+    // Add recent user registrations
+    users.slice(0, 3).forEach(user => {
+      activities.push({
+        id: `user-${user.id}`,
+        type: 'user_registration',
+        message: `New user "${user.email}" registered`,
+        timestamp: user.createdAt,
+        icon: '👤'
+      });
+    });
+    
+    // Sort by timestamp and take most recent 8
+    return activities
+      .sort((a, b) => {
+        const timeA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
+        const timeB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
+        return timeB - timeA;
+      })
+      .slice(0, 8);
+  };
 
   // Firebase data listeners
   useEffect(() => {
@@ -139,6 +204,9 @@ const AgriculturalDashboard = () => {
       
       setRegisteredPets(registered);
       setPendingPets(pending);
+      
+      // Generate chart data
+      setChartData(generateChartData(allPets));
     });
 
     // Listen to all registered users from users collection
@@ -199,6 +267,9 @@ const AgriculturalDashboard = () => {
       
       setUsers(regularUsers);
       setDeactivatedUsers(regularUsers.filter(user => user.status === 'deactivated'));
+      
+      // Generate recent activity
+      setRecentActivity(generateRecentActivity(pets, regularUsers));
     });
 
     // Listen to admin notifications
@@ -574,12 +645,12 @@ const AgriculturalDashboard = () => {
               <Leaf className="h-8 w-8 text-white mr-3" />
               <h1 className="text-2xl font-bold text-white">Agricultural Dashboard</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center justify-center space-x-4">
               {/* Notifications */}
               <div className="relative notifications-container">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
                 >
                   <Bell className="h-4 w-4" />
                   {unreadCount > 0 && (
@@ -704,45 +775,45 @@ const AgriculturalDashboard = () => {
 
               <button
                 onClick={handleLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </button>
             </div>
           </div>
-          
+
           {/* Tabs moved to header */}
-          <div className="flex gap-2 flex-wrap mt-3 pb-4">
-            <TabButton
-              active={activeTab === 'dashboard'}
-              label="Dashboard"
-              icon={BarChart3}
-              onClick={() => setActiveTab('dashboard')}
-            />
-            <TabButton
-              active={activeTab === 'registration'}
-              label="Pet Registration"
-              icon={List}
-              badge={pendingPets.length}
-              onClick={() => setActiveTab('registration')}
-            />
-            <TabButton
-              active={activeTab === 'petManagement'}
-              label="Pet Management"
-              icon={Settings}
-              badge={registeredPets.length}
-              onClick={() => setActiveTab('petManagement')}
-            />
-            <TabButton
-              active={activeTab === 'userManagement'}
-              label="User Management"
-              icon={Shield}
-              badge={deactivatedUsers.length}
-              onClick={() => setActiveTab('userManagement')}
-            />
-          </div>
+          <div className="flex gap-2 flex-wrap justify-center mt-3 pb-4">
+          <TabButton
+            active={activeTab === 'dashboard'}
+            label="Dashboard"
+            icon={BarChart3}
+            onClick={() => setActiveTab('dashboard')}
+          />
+          <TabButton
+            active={activeTab === 'registration'}
+            label="Pet Registration"
+            icon={List}
+            badge={pendingPets.length}
+            onClick={() => setActiveTab('registration')}
+          />
+          <TabButton
+            active={activeTab === 'petManagement'}
+            label="Pet Management"
+            icon={Settings}
+            badge={registeredPets.length}
+            onClick={() => setActiveTab('petManagement')}
+          />
+          <TabButton
+            active={activeTab === 'userManagement'}
+            label="User Management"
+            icon={Shield}
+            badge={deactivatedUsers.length}
+            onClick={() => setActiveTab('userManagement')}
+          />
         </div>
+      </div>
       </header>
 
       {/* Content */}
@@ -750,138 +821,175 @@ const AgriculturalDashboard = () => {
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+              <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                        <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
                           <Users className="h-6 w-6 text-white" />
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-blue-600">Total Users</p>
-                        <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                        <p className="text-sm font-medium text-white">Total Users</p>
+                        <p className="text-2xl font-bold text-white">{users.length}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                      <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+              <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
-                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                        <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
                           <Dog className="h-6 w-6 text-white" />
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-green-600">Registered Pets</p>
-                        <p className="text-2xl font-bold text-gray-900">{registeredPets.length}</p>
+                        <p className="text-sm font-medium text-white">Registered Pets</p>
+                        <p className="text-2xl font-bold text-white">{registeredPets.length}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                      <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-orange-50 to-red-100 border border-orange-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+              <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
-                          <UserX className="h-6 w-6 text-white" />
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-orange-600">Deactivated Users</p>
-                        <p className="text-2xl font-bold text-gray-900">{deactivatedUsers.length}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-purple-50 to-pink-100 border border-purple-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                        <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
                           <Clock className="h-6 w-6 text-white" />
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-purple-600">Pending Registrations</p>
-                        <p className="text-2xl font-bold text-gray-900">{pendingPets.length}</p>
+                        <p className="text-sm font-medium text-white">Pending Registrations</p>
+                        <p className="text-2xl font-bold text-white">{pendingPets.length}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
+                      <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                     </div>
                   </div>
                 </div>
               </div>
-          </div>
-
-            {/* Detailed Analytics */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Registration Status Breakdown */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Pet Registration Status</h3>
-              <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Registered</span>
-                    <span className="text-sm font-medium text-green-600">{registeredPets.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Pending</span>
-                    <span className="text-sm font-medium text-yellow-600">{pendingPets.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Pets</span>
-                    <span className="text-sm font-medium text-gray-900">{pets.length}</span>
             </div>
-          </div>
-        </div>
 
-              {/* User Status Breakdown */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">User Status</h3>
-              <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Active Users</span>
-                    <span className="text-sm font-medium text-green-600">{users.length - deactivatedUsers.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Deactivated Users</span>
-                    <span className="text-sm font-medium text-red-600">{deactivatedUsers.length}</span>
+            {/* Chart and Activity Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Registered Pets Line Chart */}
+              <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-medium text-white mb-4">Registered Pets Trend</h3>
+                <div className="h-64">
+                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                    {/* Grid lines */}
+                    <defs>
+                      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
+                      </pattern>
+                      <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3"/>
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1"/>
+                      </linearGradient>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                    
+                    {/* Chart area fill */}
+                    <path
+                      d={`M 20,180 Q 80,120 120,100 T 200,80 T 280,60 T 360,40 L 360,180 L 20,180 Z`}
+                      fill="url(#chartGradient)"
+                    />
+                    
+                    {/* Chart line */}
+                    <path
+                      d={`M 20,180 Q 80,120 120,100 T 200,80 T 280,60 T 360,40`}
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    
+                    {/* Data points */}
+                    <circle cx="20" cy="180" r="5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2" />
+                    <circle cx="80" cy="120" r="5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2" />
+                    <circle cx="120" cy="100" r="5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2" />
+                    <circle cx="200" cy="80" r="5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2" />
+                    <circle cx="280" cy="60" r="5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2" />
+                    <circle cx="360" cy="40" r="5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2" />
+                    
+                    {/* Labels */}
+                    <text x="20" y="195" textAnchor="middle" className="text-xs fill-white">Jan</text>
+                    <text x="80" y="195" textAnchor="middle" className="text-xs fill-white">Feb</text>
+                    <text x="120" y="195" textAnchor="middle" className="text-xs fill-white">Mar</text>
+                    <text x="200" y="195" textAnchor="middle" className="text-xs fill-white">Apr</text>
+                    <text x="280" y="195" textAnchor="middle" className="text-xs fill-white">May</text>
+                    <text x="360" y="195" textAnchor="middle" className="text-xs fill-white">Jun</text>
+                    
+                    {/* Y-axis labels */}
+                    <text x="10" y="185" textAnchor="end" className="text-xs fill-white">0</text>
+                    <text x="10" y="145" textAnchor="end" className="text-xs fill-white">20</text>
+                    <text x="10" y="105" textAnchor="end" className="text-xs fill-white">40</text>
+                    <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
+                    <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
+                  </svg>
                 </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Users</span>
-                    <span className="text-sm font-medium text-gray-900">{users.length}</span>
+                <div className="mt-4 flex justify-between text-sm text-white">
+                  <span>Total Registered: {pets.length}</span>
+                  <span>Growth: +15% this month</span>
                 </div>
               </div>
-            </div>
+
+              {/* Recent Activity Card */}
+              <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-medium text-white mb-4">Recent Activity</h3>
+                <div className="h-64 overflow-y-auto">
+                  {recentActivity.length > 0 ? (
+                    <div className="space-y-3">
+                      {recentActivity.map((activity) => (
+                        <div key={activity.id} className="flex items-start space-x-3 p-3 bg-white bg-opacity-10 rounded-lg">
+                          <span className="text-2xl">{activity.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white font-medium">{activity.message}</p>
+                            <p className="text-xs text-gray-300">
+                              {activity.timestamp?.toDate ? 
+                                activity.timestamp.toDate().toLocaleDateString() : 
+                                new Date(activity.timestamp).toLocaleDateString()
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-300">No recent activity</p>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex justify-between text-sm text-white">
+                  <span>Total Activities: {recentActivity.length}</span>
+                  <span>Last Updated: {new Date().toLocaleTimeString()}</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
                  {activeTab === 'registration' && (
-           <div className="bg-white shadow rounded-lg p-6">
-             <h2 className="text-lg font-medium text-gray-900 mb-4">Pet Registration Requests</h2>
+           <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg p-6">
+             <h2 className="text-lg font-medium text-white mb-4">Pet Registration Requests</h2>
              
              {/* Search and Filter Controls */}
              <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -891,50 +999,50 @@ const AgriculturalDashboard = () => {
                    placeholder="Search by pet name, owner, or breed..."
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
-                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                   className="w-full px-3 py-2 border border-white border-opacity-20 bg-white bg-opacity-10 text-white placeholder-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
                  />
                </div>
                <div className="flex gap-2">
                  <select
                    value={filterType}
                    onChange={(e) => setFilterType(e.target.value)}
-                   className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                   className="px-3 py-2 border border-white border-opacity-20 bg-white bg-opacity-10 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
                  >
-                   <option value="all">All Types</option>
-                   <option value="dog">Dogs</option>
-                   <option value="cat">Cats</option>
+                   <option value="all" className="bg-gray-800">All Types</option>
+                   <option value="dog" className="bg-gray-800">Dogs</option>
+                   <option value="cat" className="bg-gray-800">Cats</option>
                  </select>
                  <button
                    onClick={() => {
                      setSearchTerm('');
                      setFilterType('all');
                    }}
-                   className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                   className="px-3 py-2 text-sm bg-white bg-opacity-20 text-white rounded-md hover:bg-opacity-30 transition-all duration-300"
                  >
                    Clear
                 </button>
           </div>
         </div>
 
-             <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+             <div className="overflow-hidden ring-1 ring-white ring-opacity-10 rounded-md">
+              <table className="min-w-full divide-y divide-white divide-opacity-10">
+                <thead className="bg-white bg-opacity-10">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type/Breed</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Pet Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Owner</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Type/Breed</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-white uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                                 <tbody className="bg-white divide-y divide-gray-200">
+                                 <tbody className="bg-white bg-opacity-5 divide-y divide-white divide-opacity-10">
                    {getFilteredPendingPets().map((pet) => (
-                    <tr key={pet.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-900">{pet.petName || 'Unnamed Pet'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{pet.petType} - {pet.breed}</td>
+                    <tr key={pet.id} className="hover:bg-white hover:bg-opacity-10 transition-all duration-300">
+                      <td className="px-4 py-2 text-sm text-white font-medium">{pet.petName || 'Unnamed Pet'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-300">{pet.ownerFullName || 'Unknown Owner'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-300">{pet.petType} - {pet.breed}</td>
                       <td className="px-4 py-2 text-sm">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500 bg-opacity-20 text-yellow-200">
                           Pending
                         </span>
                       </td>
@@ -942,19 +1050,19 @@ const AgriculturalDashboard = () => {
                          <div className="inline-flex gap-2">
                            <button 
                              onClick={() => handleViewPet(pet)}
-                             className="px-2 py-1 text-xs rounded border text-blue-700 border-blue-200 hover:bg-blue-50"
+                             className="px-2 py-1 text-xs rounded border border-white border-opacity-20 text-white hover:bg-white hover:bg-opacity-10 transition-all duration-300"
                            >
                              View
                 </button>
                            <button 
                              onClick={() => handleApprovePetRegistration(pet.id)}
-                             className="px-2 py-1 text-xs rounded border text-green-700 border-green-200 hover:bg-green-50"
+                             className="px-2 py-1 text-xs rounded border border-green-400 border-opacity-50 text-green-200 hover:bg-green-500 hover:bg-opacity-20 transition-all duration-300"
                            >
                              Approve
                 </button>
                            <button 
                              onClick={() => handleRejectPetRegistration(pet.id)}
-                             className="px-2 py-1 text-xs rounded border text-red-700 border-red-200 hover:bg-red-50"
+                             className="px-2 py-1 text-xs rounded border border-red-400 border-opacity-50 text-red-200 hover:bg-red-500 hover:bg-opacity-20 transition-all duration-300"
                            >
                              Reject
                 </button>
@@ -963,7 +1071,7 @@ const AgriculturalDashboard = () => {
                     </tr>
                   ))}
                                      {getFilteredPendingPets().length === 0 && (
-                     <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                     <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-300">
                        {searchTerm || filterType !== 'all' ? 'No registrations match your search criteria' : 'No pending registrations'}
                      </td></tr>
                    )}
@@ -974,8 +1082,8 @@ const AgriculturalDashboard = () => {
         )}
 
                  {activeTab === 'petManagement' && (
-           <div className="bg-white shadow rounded-lg p-6">
-             <h2 className="text-lg font-medium text-gray-900 mb-4">Registered Pets Management</h2>
+           <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg p-6">
+             <h2 className="text-lg font-medium text-white mb-4">Registered Pets Management</h2>
              
              {/* Search and Filter Controls */}
              <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -985,70 +1093,70 @@ const AgriculturalDashboard = () => {
                    placeholder="Search by pet name, owner, or breed..."
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
-                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                   className="w-full px-3 py-2 border border-white border-opacity-20 bg-white bg-opacity-10 text-white placeholder-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
                  />
                </div>
                <div className="flex gap-2">
                  <select
                    value={filterType}
                    onChange={(e) => setFilterType(e.target.value)}
-                   className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                   className="px-3 py-2 border border-white border-opacity-20 bg-white bg-opacity-10 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
                  >
-                   <option value="all">All Types</option>
-                   <option value="dog">Dogs</option>
-                   <option value="cat">Cats</option>
+                   <option value="all" className="bg-gray-800">All Types</option>
+                   <option value="dog" className="bg-gray-800">Dogs</option>
+                   <option value="cat" className="bg-gray-800">Cats</option>
                  </select>
                  <button
                    onClick={() => {
                      setSearchTerm('');
                      setFilterType('all');
                    }}
-                   className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                   className="px-3 py-2 text-sm bg-white bg-opacity-20 text-white rounded-md hover:bg-opacity-30 transition-all duration-300"
                  >
                    Clear
                 </button>
               </div>
             </div>
              
-             <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+             <div className="overflow-hidden ring-1 ring-white ring-opacity-10 rounded-md">
+              <table className="min-w-full divide-y divide-white divide-opacity-10">
+                <thead className="bg-white bg-opacity-10">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type/Breed</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered Date</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Pet Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Owner</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Type/Breed</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Gender</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Contact</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Registered Date</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-white uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                                 <tbody className="bg-white divide-y divide-gray-200">
+                                 <tbody className="bg-white bg-opacity-5 divide-y divide-white divide-opacity-10">
                    {getFilteredRegisteredPets().map((pet) => (
-                    <tr key={pet.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{pet.petName || 'Unnamed Pet'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
+                    <tr key={pet.id} className="hover:bg-white hover:bg-opacity-10 transition-all duration-300">
+                      <td className="px-4 py-2 text-sm text-white font-medium">{pet.petName || 'Unnamed Pet'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-300">{pet.ownerFullName || 'Unknown Owner'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-300">
                         <div className="flex flex-col">
-                          <span className="font-medium">{pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1) || 'Unknown'}</span>
-                          <span className="text-xs text-gray-500">{pet.breed || 'Unknown breed'}</span>
+                          <span className="font-medium text-white">{pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1) || 'Unknown'}</span>
+                          <span className="text-xs text-gray-400">{pet.breed || 'Unknown breed'}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
+                      <td className="px-4 py-2 text-sm text-gray-300">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          pet.petGender === 'male' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'
+                          pet.petGender === 'male' ? 'bg-blue-500 bg-opacity-20 text-blue-200' : 'bg-pink-500 bg-opacity-20 text-pink-200'
                         }`}>
                           {pet.petGender === 'male' ? '♂ Male' : '♀ Female'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{pet.contactNumber || 'No contact'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
+                      <td className="px-4 py-2 text-sm text-gray-300">{pet.contactNumber || 'No contact'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-300">
                         {pet.registeredAt?.toDate ? pet.registeredAt.toDate().toLocaleDateString() : 
                          pet.registeredDate ? new Date(pet.registeredDate).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="px-4 py-2 text-sm">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500 bg-opacity-20 text-green-200">
                           <CheckCircle2 className="h-3 w-3 mr-1" />
                           Registered
                         </span>
@@ -1057,13 +1165,13 @@ const AgriculturalDashboard = () => {
                         <div className="inline-flex gap-2">
                           <button 
                             onClick={() => handleViewPet(pet)}
-                            className="px-2 py-1 text-xs rounded border text-blue-700 border-blue-200 hover:bg-blue-50"
+                            className="px-2 py-1 text-xs rounded border border-white border-opacity-20 text-white hover:bg-white hover:bg-opacity-10 transition-all duration-300"
                           >
                             View
                           </button>
                           <button 
                             onClick={() => handleDeletePet(pet.id, pet.petName)}
-                            className="px-2 py-1 text-xs rounded border text-red-700 border-red-200 hover:bg-red-50"
+                            className="px-2 py-1 text-xs rounded border border-red-400 border-opacity-50 text-red-200 hover:bg-red-500 hover:bg-opacity-20 transition-all duration-300"
                           >
                             Delete
                           </button>
@@ -1072,7 +1180,7 @@ const AgriculturalDashboard = () => {
                     </tr>
                   ))}
                                      {getFilteredRegisteredPets().length === 0 && (
-                     <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
+                     <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-300">
                        {searchTerm || filterType !== 'all' ? 'No pets match your search criteria' : 'No registered pets yet'}
                      </td></tr>
                    )}
@@ -1083,34 +1191,34 @@ const AgriculturalDashboard = () => {
             {/* Summary Stats */}
             {registeredPets.length > 0 && (
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-green-50 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
                   <div className="flex items-center">
-                    <Dog className="h-5 w-5 text-green-600 mr-2" />
+                    <Dog className="h-5 w-5 text-white mr-2" />
                   <div>
-                      <p className="text-sm font-medium text-green-900">Dogs</p>
-                      <p className="text-lg font-semibold text-green-700">
+                      <p className="text-sm font-medium text-white">Dogs</p>
+                      <p className="text-lg font-semibold text-white">
                         {registeredPets.filter(pet => pet.petType === 'dog').length}
                     </p>
                   </div>
                 </div>
                 </div>
-                <div className="bg-purple-50 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
                   <div className="flex items-center">
-                    <span className="text-purple-600 mr-2">🐱</span>
+                    <span className="text-white mr-2">🐱</span>
                   <div>
-                      <p className="text-sm font-medium text-purple-900">Cats</p>
-                      <p className="text-lg font-semibold text-purple-700">
+                      <p className="text-sm font-medium text-white">Cats</p>
+                      <p className="text-lg font-semibold text-white">
                         {registeredPets.filter(pet => pet.petType === 'cat').length}
                     </p>
                   </div>
                 </div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
                   <div className="flex items-center">
-                    <Users className="h-5 w-5 text-blue-600 mr-2" />
+                    <Users className="h-5 w-5 text-white mr-2" />
                   <div>
-                      <p className="text-sm font-medium text-blue-900">Unique Owners</p>
-                      <p className="text-lg font-semibold text-blue-700">
+                      <p className="text-sm font-medium text-white">Unique Owners</p>
+                      <p className="text-lg font-semibold text-white">
                         {new Set(registeredPets.map(pet => pet.ownerFullName)).size}
                     </p>
                   </div>
@@ -1122,13 +1230,13 @@ const AgriculturalDashboard = () => {
         )}
 
         {activeTab === 'userManagement' && (
-          <div className="bg-white shadow rounded-lg p-6">
+          <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-medium text-gray-900">User Management</h2>
-                <p className="text-sm text-gray-600">Managing regular users only (admin users not displayed)</p>
+                <h2 className="text-lg font-medium text-white">User Management</h2>
+                <p className="text-sm text-gray-300">Managing regular users only (admin users not displayed)</p>
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-white">
                 Total Users: {users.length}
               </div>
             </div>
@@ -1141,59 +1249,59 @@ const AgriculturalDashboard = () => {
                   placeholder="Search by name, email, or phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-white border-opacity-20 bg-white bg-opacity-10 text-white placeholder-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
                 />
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                  className="px-3 py-2 text-sm bg-white bg-opacity-20 text-white rounded-md hover:bg-opacity-30 transition-all duration-300"
                 >
                   Clear
                 </button>
           </div>
         </div>
 
-            <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="overflow-hidden ring-1 ring-white ring-opacity-10 rounded-md">
+              <table className="min-w-full divide-y divide-white divide-opacity-10">
+                <thead className="bg-white bg-opacity-10">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pets Count</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">User</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Contact</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Address</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-white uppercase tracking-wider">Pets Count</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-white uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white bg-opacity-5 divide-y divide-white divide-opacity-10">
                   {getFilteredUsers().map((user) => (
-                    <tr key={user.uid} className="hover:bg-gray-50">
+                    <tr key={user.uid} className="hover:bg-white hover:bg-opacity-10 transition-all duration-300">
                       <td className="px-4 py-2 text-sm">
                         <div className="flex items-center">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                            <User className="h-5 w-5 text-gray-400" />
+                          <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
+                            <User className="h-5 w-5 text-white" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{user.displayName || 'Unknown User'}</p>
-                            <p className="text-xs text-gray-500">{user.email || 'No email'}</p>
+                            <p className="text-sm font-medium text-white">{user.displayName || 'Unknown User'}</p>
+                            <p className="text-xs text-gray-300">{user.email || 'No email'}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
+                      <td className="px-4 py-2 text-sm text-gray-300">
                         <div>
                           <p className="text-sm">{user.phone || 'No phone'}</p>
-                          <p className="text-xs text-gray-500">{user.email || 'No email'}</p>
+                          <p className="text-xs text-gray-400">{user.email || 'No email'}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
+                      <td className="px-4 py-2 text-sm text-gray-300">
                         <p className="max-w-xs truncate">{user.address || 'No address provided'}</p>
                       </td>
                       <td className="px-4 py-2 text-sm">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           user.status === 'deactivated' 
-                            ? 'bg-red-100 text-red-800' 
-                            : 'bg-green-100 text-green-800'
+                            ? 'bg-red-500 bg-opacity-20 text-red-200' 
+                            : 'bg-green-500 bg-opacity-20 text-green-200'
                         }`}>
                           {user.status === 'deactivated' ? (
                             <>
@@ -1208,8 +1316,8 @@ const AgriculturalDashboard = () => {
                           )}
                   </span>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <td className="px-4 py-2 text-sm text-gray-300">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500 bg-opacity-20 text-blue-200">
                           {registeredPets.filter(pet => pet.userId === user.uid).length} pets
                   </span>
                       </td>
@@ -1217,7 +1325,7 @@ const AgriculturalDashboard = () => {
                         <div className="inline-flex gap-2">
                           <button
                             onClick={() => handleViewUser(user)}
-                            className="px-3 py-1 text-xs rounded border text-blue-700 border-blue-200 hover:bg-blue-50 flex items-center"
+                            className="px-3 py-1 text-xs rounded border border-white border-opacity-20 text-white hover:bg-white hover:bg-opacity-10 flex items-center transition-all duration-300"
                           >
                             <User className="h-3 w-3 mr-1" />
                             View
@@ -1225,7 +1333,7 @@ const AgriculturalDashboard = () => {
                           {user.status === 'deactivated' ? (
                             <button
                               onClick={() => handleActivateUser(user.uid)}
-                              className="px-3 py-1 text-xs rounded border text-green-700 border-green-200 hover:bg-green-50 flex items-center"
+                              className="px-3 py-1 text-xs rounded border border-green-400 border-opacity-50 text-green-200 hover:bg-green-500 hover:bg-opacity-20 flex items-center transition-all duration-300"
                             >
                               <ShieldCheck className="h-3 w-3 mr-1" />
                               Activate
@@ -1233,7 +1341,7 @@ const AgriculturalDashboard = () => {
                           ) : (
                             <button
                               onClick={() => handleDeactivateUser(user.uid)}
-                              className="px-3 py-1 text-xs rounded border text-red-700 border-red-200 hover:bg-red-50 flex items-center"
+                              className="px-3 py-1 text-xs rounded border border-red-400 border-opacity-50 text-red-200 hover:bg-red-500 hover:bg-opacity-20 flex items-center transition-all duration-300"
                             >
                               <ShieldOff className="h-3 w-3 mr-1" />
                               Deactivate
@@ -1245,7 +1353,7 @@ const AgriculturalDashboard = () => {
                   ))}
                   {getFilteredUsers().length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                      <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-300">
                         {searchTerm ? 'No users match your search criteria' : 'No users found'}
                       </td>
                     </tr>
@@ -1257,34 +1365,34 @@ const AgriculturalDashboard = () => {
             {/* Summary Stats */}
             {users.length > 0 && (
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-green-50 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
                   <div className="flex items-center">
-                    <ShieldCheck className="h-5 w-5 text-green-600 mr-2" />
+                    <ShieldCheck className="h-5 w-5 text-white mr-2" />
                     <div>
-                      <p className="text-sm font-medium text-green-900">Active Users</p>
-                      <p className="text-lg font-semibold text-green-700">
+                      <p className="text-sm font-medium text-white">Active Users</p>
+                      <p className="text-lg font-semibold text-white">
                         {users.filter(user => user.status !== 'deactivated').length}
                       </p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
                   <div className="flex items-center">
-                    <ShieldOff className="h-5 w-5 text-red-600 mr-2" />
+                    <ShieldOff className="h-5 w-5 text-white mr-2" />
                     <div>
-                      <p className="text-sm font-medium text-red-900">Deactivated Users</p>
-                      <p className="text-lg font-semibold text-red-700">
+                      <p className="text-sm font-medium text-white">Deactivated Users</p>
+                      <p className="text-lg font-semibold text-white">
                         {deactivatedUsers.length}
                       </p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
                   <div className="flex items-center">
-                    <Users className="h-5 w-5 text-blue-600 mr-2" />
+                    <Users className="h-5 w-5 text-white mr-2" />
                     <div>
-                      <p className="text-sm font-medium text-blue-900">Total Users</p>
-                      <p className="text-lg font-semibold text-blue-700">
+                      <p className="text-sm font-medium text-white">Total Users</p>
+                      <p className="text-lg font-semibold text-white">
                         {users.length}
                       </p>
                     </div>

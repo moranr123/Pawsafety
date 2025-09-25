@@ -193,7 +193,7 @@ const SuperAdminDashboard = () => {
               </span>
                <button
                  onClick={handleLogout}
-                 className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                 className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
                >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -207,7 +207,7 @@ const SuperAdminDashboard = () => {
        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pt-32">
          {/* Stats Cards */}
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-           <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+           <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
              <div className="p-6">
                <div className="flex items-center justify-between">
                  <div className="flex items-center">
@@ -228,7 +228,7 @@ const SuperAdminDashboard = () => {
              </div>
            </div>
 
-           <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+           <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
              <div className="p-6">
                <div className="flex items-center justify-between">
                  <div className="flex items-center">
@@ -251,7 +251,7 @@ const SuperAdminDashboard = () => {
              </div>
            </div>
 
-           <div className="bg-gradient-to-br from-orange-50 to-red-100 border border-orange-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+           <div className="bg-gradient-to-br from-orange-50 to-red-100 border border-orange-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
              <div className="p-6">
                <div className="flex items-center justify-between">
                  <div className="flex items-center">
