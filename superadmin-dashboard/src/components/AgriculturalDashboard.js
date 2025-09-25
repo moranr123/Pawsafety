@@ -43,10 +43,10 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
     onClick={onClick}
     role="tab"
     aria-selected={active}
-    className={`group flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 ${
+    className={`group flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
       active
-        ? 'bg-green-600 text-white border-green-600 hover:bg-green-600'
-        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+        ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
+        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50'
     }`}
   >
     <Icon className="h-5 w-5 mr-2 text-current" />
@@ -54,7 +54,7 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
     {badge > 0 && (
       <span
         className={`ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs ${
-          active ? 'bg-white text-green-700' : 'bg-red-600 text-white'
+          active ? 'bg-white text-indigo-700' : 'bg-red-500 text-white'
         }`}
       >
         {badge > 99 ? '99+' : badge}
@@ -565,11 +565,11 @@ const AgriculturalDashboard = () => {
   }, [showNotifications]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-green-600 to-emerald-600 shadow-lg">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex justify-between items-center py-3">
             <div className="flex items-center">
               <Leaf className="h-8 w-8 text-white mr-3" />
               <h1 className="text-2xl font-bold text-white">Agricultural Dashboard</h1>
@@ -579,11 +579,11 @@ const AgriculturalDashboard = () => {
               <div className="relative notifications-container">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   <Bell className="h-4 w-4" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {unreadCount > 9 ? '9+' : unreadCount}
               </span>
                   )}
@@ -704,102 +704,136 @@ const AgriculturalDashboard = () => {
 
               <button
                 onClick={handleLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-green-600 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </button>
             </div>
           </div>
+          
+          {/* Tabs moved to header */}
+          <div className="flex gap-2 flex-wrap mt-3 pb-4">
+            <TabButton
+              active={activeTab === 'dashboard'}
+              label="Dashboard"
+              icon={BarChart3}
+              onClick={() => setActiveTab('dashboard')}
+            />
+            <TabButton
+              active={activeTab === 'registration'}
+              label="Pet Registration"
+              icon={List}
+              badge={pendingPets.length}
+              onClick={() => setActiveTab('registration')}
+            />
+            <TabButton
+              active={activeTab === 'petManagement'}
+              label="Pet Management"
+              icon={Settings}
+              badge={registeredPets.length}
+              onClick={() => setActiveTab('petManagement')}
+            />
+            <TabButton
+              active={activeTab === 'userManagement'}
+              label="User Management"
+              icon={Shield}
+              badge={deactivatedUsers.length}
+              onClick={() => setActiveTab('userManagement')}
+            />
+          </div>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex gap-2 flex-wrap">
-          <TabButton
-            active={activeTab === 'dashboard'}
-            label="Dashboard"
-            icon={BarChart3}
-            onClick={() => setActiveTab('dashboard')}
-          />
-          <TabButton
-            active={activeTab === 'registration'}
-            label="Pet Registration"
-            icon={List}
-            badge={pendingPets.length}
-            onClick={() => setActiveTab('registration')}
-          />
-          <TabButton
-            active={activeTab === 'petManagement'}
-            label="Pet Management"
-            icon={Settings}
-            badge={registeredPets.length}
-            onClick={() => setActiveTab('petManagement')}
-          />
-          <TabButton
-            active={activeTab === 'userManagement'}
-            label="User Management"
-            icon={Shield}
-            badge={deactivatedUsers.length}
-            onClick={() => setActiveTab('userManagement')}
-          />
-        </div>
-      </div>
-
       {/* Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pt-36">
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Overview Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                    <Users className="h-8 w-8 text-blue-600" />
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                          <Users className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-blue-600">Total Users</p>
+                        <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
                 </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Users</p>
-                    <p className="text-2xl font-semibold text-gray-900">{users.length}</p>
               </div>
-            </div>
-          </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                    <Dog className="h-8 w-8 text-green-600" />
+              <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                          <Dog className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-green-600">Registered Pets</p>
+                        <p className="text-2xl font-bold text-gray-900">{registeredPets.length}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
                 </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Registered Pets</p>
-                    <p className="text-2xl font-semibold text-gray-900">{registeredPets.length}</p>
               </div>
-            </div>
-          </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                    <UserX className="h-8 w-8 text-red-600" />
+              <div className="bg-gradient-to-br from-orange-50 to-red-100 border border-orange-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+                          <UserX className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-orange-600">Deactivated Users</p>
+                        <p className="text-2xl font-bold text-gray-900">{deactivatedUsers.length}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
                 </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Deactivated Users</p>
-                    <p className="text-2xl font-semibold text-gray-900">{deactivatedUsers.length}</p>
               </div>
-            </div>
-          </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                    <Clock className="h-8 w-8 text-yellow-600" />
-                </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Pending Registrations</p>
-                    <p className="text-2xl font-semibold text-gray-900">{pendingPets.length}</p>
+              <div className="bg-gradient-to-br from-purple-50 to-pink-100 border border-purple-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                          <Clock className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-purple-600">Pending Registrations</p>
+                        <p className="text-2xl font-bold text-gray-900">{pendingPets.length}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
           </div>
 
             {/* Detailed Analytics */}

@@ -166,35 +166,35 @@ const SuperAdminDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
+       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+         <div className="text-center">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+           <p className="mt-4 text-gray-600">Loading dashboard...</p>
+         </div>
+       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex justify-between items-center py-3">
             <div className="flex items-center">
-              <Shield className="h-8 w-8 text-indigo-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">
+              <Shield className="h-8 w-8 text-white mr-3" />
+              <h1 className="text-2xl font-bold text-white">
                 Super Admin Dashboard
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-300">
                 Welcome, {currentUser?.email}
               </span>
-              <button
-                onClick={handleLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
+               <button
+                 onClick={handleLogout}
+                 className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </button>
@@ -204,69 +204,76 @@ const SuperAdminDashboard = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <Users className="h-6 w-6 text-indigo-600" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
-                      Total Admins
-                    </dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      {admins.length}
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
+       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pt-32">
+         {/* Stats Cards */}
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+           <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+             <div className="p-6">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center">
+                   <div className="flex-shrink-0">
+                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                       <Users className="h-6 w-6 text-white" />
+                     </div>
+                   </div>
+                   <div className="ml-4">
+                     <p className="text-sm font-medium text-blue-600">Total Admins</p>
+                     <p className="text-2xl font-bold text-gray-900">{admins.length}</p>
+                   </div>
+                 </div>
+                 <div className="text-right">
+                   <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                 </div>
+               </div>
+             </div>
+           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <UserCheck className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
-                      Active Admins
-                    </dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      {admins.filter(admin => admin.status === 'active').length}
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
+           <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+             <div className="p-6">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center">
+                   <div className="flex-shrink-0">
+                     <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                       <UserCheck className="h-6 w-6 text-white" />
+                     </div>
+                   </div>
+                   <div className="ml-4">
+                     <p className="text-sm font-medium text-green-600">Active Admins</p>
+                     <p className="text-2xl font-bold text-gray-900">
+                       {admins.filter(admin => admin.status === 'active').length}
+                     </p>
+                   </div>
+                 </div>
+                 <div className="text-right">
+                   <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                 </div>
+               </div>
+             </div>
+           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <UserX className="h-6 w-6 text-red-600" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
-                      Inactive Admins
-                    </dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      {admins.filter(admin => admin.status === 'inactive').length}
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+           <div className="bg-gradient-to-br from-orange-50 to-red-100 border border-orange-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+             <div className="p-6">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center">
+                   <div className="flex-shrink-0">
+                     <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+                       <UserX className="h-6 w-6 text-white" />
+                     </div>
+                   </div>
+                   <div className="ml-4">
+                     <p className="text-sm font-medium text-orange-600">Inactive Admins</p>
+                     <p className="text-2xl font-bold text-gray-900">
+                       {admins.filter(admin => admin.status === 'inactive').length}
+                     </p>
+                   </div>
+                 </div>
+                 <div className="text-right">
+                   <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                 </div>
+               </div>
+             </div>
+           </div>
+         </div>
 
         {/* Admin Management Section */}
         <div className="bg-white shadow rounded-lg">
@@ -275,10 +282,10 @@ const SuperAdminDashboard = () => {
               <h2 className="text-lg font-medium text-gray-900">
                 Admin Management
               </h2>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
+               <button
+                 onClick={() => setShowCreateModal(true)}
+                 className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+               >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Admin
               </button>
