@@ -1165,13 +1165,13 @@ const AgriculturalDashboard = () => {
                         <div className="inline-flex gap-2">
                           <button 
                             onClick={() => handleViewPet(pet)}
-                            className="px-2 py-1 text-xs rounded border border-white border-opacity-20 text-white hover:bg-white hover:bg-opacity-10 transition-all duration-300"
+                            className="px-2 py-1 text-xs rounded bg-white text-gray-800 hover:bg-gray-100 transition-all duration-300"
                           >
                             View
                           </button>
                           <button 
                             onClick={() => handleDeletePet(pet.id, pet.petName)}
-                            className="px-2 py-1 text-xs rounded border border-red-400 border-opacity-50 text-red-200 hover:bg-red-500 hover:bg-opacity-20 transition-all duration-300"
+                            className="px-2 py-1 text-xs rounded bg-red-500 text-white hover:bg-red-600 transition-all duration-300"
                           >
                             Delete
                           </button>
@@ -1325,7 +1325,7 @@ const AgriculturalDashboard = () => {
                         <div className="inline-flex gap-2">
                           <button
                             onClick={() => handleViewUser(user)}
-                            className="px-3 py-1 text-xs rounded border border-white border-opacity-20 text-white hover:bg-white hover:bg-opacity-10 flex items-center transition-all duration-300"
+                            className="px-3 py-1 text-xs rounded bg-white text-gray-800 hover:bg-gray-100 flex items-center transition-all duration-300"
                           >
                             <User className="h-3 w-3 mr-1" />
                             View
@@ -1333,7 +1333,7 @@ const AgriculturalDashboard = () => {
                           {user.status === 'deactivated' ? (
                             <button
                               onClick={() => handleActivateUser(user.uid)}
-                              className="px-3 py-1 text-xs rounded border border-green-400 border-opacity-50 text-green-200 hover:bg-green-500 hover:bg-opacity-20 flex items-center transition-all duration-300"
+                              className="px-3 py-1 text-xs rounded bg-green-500 text-white hover:bg-green-600 flex items-center transition-all duration-300"
                             >
                               <ShieldCheck className="h-3 w-3 mr-1" />
                               Activate
@@ -1341,7 +1341,7 @@ const AgriculturalDashboard = () => {
                           ) : (
                             <button
                               onClick={() => handleDeactivateUser(user.uid)}
-                              className="px-3 py-1 text-xs rounded border border-red-400 border-opacity-50 text-red-200 hover:bg-red-500 hover:bg-opacity-20 flex items-center transition-all duration-300"
+                              className="px-3 py-1 text-xs rounded bg-red-500 text-white hover:bg-red-600 flex items-center transition-all duration-300"
                             >
                               <ShieldOff className="h-3 w-3 mr-1" />
                               Deactivate
