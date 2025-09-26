@@ -176,35 +176,40 @@ const SuperAdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-3">
-            <div className="flex items-center">
-              <Shield className="h-8 w-8 text-white mr-3" />
-              <h1 className="text-2xl font-bold text-white">
-                Super Admin Dashboard
-              </h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-300">
-                Welcome, {currentUser?.email}
-              </span>
-               <button
-                 onClick={handleLogout}
-                 className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
-               >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex">
+      {/* Sidebar */}
+      <aside className="w-64 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 shadow-lg flex flex-col">
+        <div className="p-6">
+          <div className="flex items-center">
+            <Shield className="h-8 w-8 text-white mr-3" />
+            <h1 className="text-xl font-bold text-white">
+              Super Admin
+            </h1>
+          </div>
+        </div>
+        
+        <div className="flex-1 px-6 pb-6">
+          <div className="space-y-2">
+            <div className="text-sm text-gray-300 mb-4">
+              Dashboard Overview
             </div>
           </div>
         </div>
-      </header>
+
+        <div className="p-6 border-t border-white border-opacity-20">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </button>
+        </div>
+      </aside>
 
       {/* Main Content */}
-       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pt-32">
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto py-6 px-6">
          {/* Stats Cards */}
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
            <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
@@ -298,6 +303,7 @@ const SuperAdminDashboard = () => {
               onDelete={handleDeleteAdmin}
             />
           </div>
+        </div>
         </div>
       </main>
 
