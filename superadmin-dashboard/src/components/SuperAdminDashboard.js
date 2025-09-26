@@ -144,7 +144,7 @@ const SuperAdminDashboard = () => {
         status: newStatus
       });
 
-      toast.success(`Admin ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`);
+      // Alert removed for activation/deactivation
     } catch (error) {
       console.error('Error updating admin status:', error);
       toast.error(error.message || 'Failed to update admin status');
@@ -212,68 +212,68 @@ const SuperAdminDashboard = () => {
         <div className="max-w-7xl mx-auto py-6 px-6">
          {/* Stats Cards */}
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-           <div className="bg-gradient-to-br from-blue-50 to-cyan-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
+           <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
              <div className="p-6">
                <div className="flex items-center justify-between">
                  <div className="flex items-center">
                    <div className="flex-shrink-0">
-                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                     <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
                        <Users className="h-6 w-6 text-white" />
                      </div>
                    </div>
                    <div className="ml-4">
-                     <p className="text-sm font-medium text-blue-600">Total Admins</p>
-                     <p className="text-2xl font-bold text-gray-900">{admins.length}</p>
+                     <p className="text-sm font-medium text-white text-opacity-90">Total Admins</p>
+                     <p className="text-2xl font-bold text-white">{admins.length}</p>
                    </div>
                  </div>
                  <div className="text-right">
-                   <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                   <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                  </div>
                </div>
              </div>
            </div>
 
-           <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
+           <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
              <div className="p-6">
                <div className="flex items-center justify-between">
                  <div className="flex items-center">
                    <div className="flex-shrink-0">
-                     <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                     <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
                        <UserCheck className="h-6 w-6 text-white" />
                      </div>
                    </div>
                    <div className="ml-4">
-                     <p className="text-sm font-medium text-green-600">Active Admins</p>
-                     <p className="text-2xl font-bold text-gray-900">
+                     <p className="text-sm font-medium text-white text-opacity-90">Active Admins</p>
+                     <p className="text-2xl font-bold text-white">
                        {admins.filter(admin => admin.status === 'active').length}
                      </p>
                    </div>
                  </div>
                  <div className="text-right">
-                   <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                   <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                  </div>
                </div>
              </div>
            </div>
 
-           <div className="bg-gradient-to-br from-orange-50 to-red-100 border border-orange-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
+           <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105">
              <div className="p-6">
                <div className="flex items-center justify-between">
                  <div className="flex items-center">
                    <div className="flex-shrink-0">
-                     <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+                     <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
                        <UserX className="h-6 w-6 text-white" />
                      </div>
                    </div>
                    <div className="ml-4">
-                     <p className="text-sm font-medium text-orange-600">Inactive Admins</p>
-                     <p className="text-2xl font-bold text-gray-900">
+                     <p className="text-sm font-medium text-white text-opacity-90">Inactive Admins</p>
+                     <p className="text-2xl font-bold text-white">
                        {admins.filter(admin => admin.status === 'inactive').length}
                      </p>
                    </div>
                  </div>
                  <div className="text-right">
-                   <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                   <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                  </div>
                </div>
              </div>
@@ -281,15 +281,15 @@ const SuperAdminDashboard = () => {
          </div>
 
         {/* Admin Management Section */}
-        <div className="bg-white shadow rounded-lg">
+        <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 shadow-lg rounded-xl">
           <div className="px-4 py-5 sm:p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-medium text-gray-900">
+              <h2 className="text-lg font-medium text-white">
                 Admin Management
               </h2>
                <button
                  onClick={() => setShowCreateModal(true)}
-                 className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                 className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-white bg-opacity-20 hover:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white focus:ring-opacity-50 transition-all duration-300"
                >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Admin
