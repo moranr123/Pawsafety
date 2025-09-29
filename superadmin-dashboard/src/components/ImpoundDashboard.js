@@ -82,18 +82,18 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
     onClick={onClick}
     role="tab"
     aria-selected={active}
-    className={`group flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition-all duration-300 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transform hover:scale-105 ${
+    className={`group flex items-center w-full px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
       active
-        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-indigo-600 hover:from-indigo-700 hover:to-purple-700'
-        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50'
+        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
     }`}
   >
-    <Icon className="h-5 w-5 mr-2 text-current" />
-    <span>{label}</span>
+    <Icon className="h-5 w-5 mr-3 text-current" />
+    <span className="flex-1 text-left">{label}</span>
     {badge > 0 && (
       <span
-        className={`ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs ${
-          active ? 'bg-white text-indigo-700' : 'bg-red-500 text-white'
+        className={`ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-medium ${
+          active ? 'bg-white/20 text-white' : 'bg-red-500 text-white'
         }`}
       >
         {badge > 99 ? '99+' : badge}
@@ -407,6 +407,16 @@ const ImpoundDashboard = () => {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+
+  // Debug useEffect for notification modal state
+  useEffect(() => {
+    console.log('showNotificationModal changed:', showNotificationModal);
+    console.log('selectedNotification changed:', selectedNotification);
+  }, [showNotificationModal, selectedNotification]);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedIncidentForDecline, setSelectedIncidentForDecline] = useState(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -476,7 +486,12 @@ const ImpoundDashboard = () => {
     const qReports = query(collection(db, 'stray_reports'), orderBy('reportTime', 'desc'));
     const unsubscribe = onSnapshot(qReports, (snap) => {
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const filteredNotifications = rows.filter((r) => !r.hiddenImpoundNotification);
+      const filteredNotifications = rows.filter((r) => 
+        !r.hiddenImpoundNotification && 
+        (r.status || '').toLowerCase() !== 'resolved' &&
+        (r.status || '').toLowerCase() !== 'completed' &&
+        (r.status || '').toLowerCase() !== 'declined'
+      );
       setNotifications(filteredNotifications);
       setUnreadCount(filteredNotifications.filter((n) => !n.impoundRead).length);
       setStrayReports(rows.filter((r) => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'));
@@ -705,21 +720,37 @@ const ImpoundDashboard = () => {
     }
   };
 
-  const handleNotificationClick = async (notification) => {
+  const handleNotificationClick = async (notification, event) => {
+    console.log('Notification clicked:', notification);
+    console.log('Event:', event);
+    
+    // Prevent event propagation to avoid closing the modal
+    event.stopPropagation();
+    event.preventDefault();
+    
+    try {
     // Mark notification as read
     if (!notification.impoundRead) {
       await markNotificationAsRead(notification.id);
+        console.log('Notification marked as read');
+      }
+      
+      // Show notification detail modal
+      setSelectedNotification(notification);
+      setShowNotificationModal(true);
+      console.log('Notification detail modal should open');
+      console.log('Selected notification:', notification);
+    } catch (error) {
+      console.error('Error in handleNotificationClick:', error);
     }
-    
-    // Open report details
-    openReportDetails(notification);
-    setShowNotifications(false);
   };
 
   // Close notifications dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (showNotifications && !event.target.closest('.notifications-container')) {
+      if (showNotifications && 
+          !event.target.closest('.notifications-container') && 
+          !event.target.closest('[data-notification-detail-modal]')) {
         setShowNotifications(false);
       }
     };
@@ -1220,145 +1251,91 @@ const ImpoundDashboard = () => {
   
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-3">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside 
+        className={`fixed left-0 top-0 h-full bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl z-50 overflow-y-auto transform transition-all duration-300 ease-in-out border-r border-slate-700 ${
+          sidebarOpen || sidebarHovered ? 'w-80 translate-x-0' : 'w-16 -translate-x-0'
+        } lg:${sidebarOpen || sidebarHovered ? 'w-80' : 'w-16'}`}
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+      >
+        <div className="p-4 h-full flex flex-col">
+          {/* Logo and Title */}
+          <div className="flex items-center justify-between mb-8">
             <div className="flex items-center">
-              <Dog className="h-8 w-8 text-white mr-3" />
-              <h1 className="text-2xl font-bold text-white">Impound Dashboard</h1>
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg">
+                <Dog className="h-6 w-6 text-white" />
             </div>
-            <div className="flex items-center space-x-4">
-              {/* Notifications */}
-              <div className="relative notifications-container">
+              {(sidebarOpen || sidebarHovered) && (
+                <div className="ml-3">
+                  <h1 className="text-xl font-bold text-white">Impound</h1>
+                  <p className="text-xs text-slate-400">Dashboard</p>
+                </div>
+              )}
+            </div>
+            {/* Close button for mobile */}
+            {(sidebarOpen || sidebarHovered) && (
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Notifications at the top */}
+          <div className="mb-6">
+            <div className="relative">
+              {(sidebarOpen || sidebarHovered) ? (
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-all duration-300 transform hover:scale-105"
+                  className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-xl bg-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-600/50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300"
                 >
-                  <Bell className="h-4 w-4" />
+                  <Bell className="h-4 w-4 mr-2" />
+                  <span>Notifications</span>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
                 </button>
+              ) : (
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 relative ${
+                    showNotifications 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <Bell className="h-6 w-6 mx-auto" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
                 
-                {/* Notifications Dropdown */}
-                {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl z-50 border border-gray-200">
-                    {/* Header */}
-                    <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <Bell className="h-5 w-5 text-gray-600 mr-2" />
-                          <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-                          {unreadCount > 0 && (
-                            <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                              {unreadCount}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {unreadCount > 0 && (
-                            <button
-                              onClick={markAllNotificationsAsRead}
-                              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              Mark all read
-                            </button>
-                          )}
-                          {notifications.length > 0 && (
-                            <button
-                              onClick={handleDeleteAllNotifications}
-                              className="text-sm text-red-600 hover:text-red-800 font-medium"
-                            >
-                              Delete all
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setShowNotifications(false)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Notifications List */}
-                    <div className="max-h-80 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <div className="p-8 text-center">
-                          <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                          <p className="text-gray-500">No notifications yet</p>
-                          <p className="text-sm text-gray-400">New reports will appear here</p>
-                        </div>
-                      ) : (
-                        notifications.slice(0, 10).map((notification) => (
-                          <div
-                            key={notification.id}
-                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                              !notification.impoundRead ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                            }`}
-                            onClick={() => handleNotificationClick(notification)}
-                          >
-                            <div className="flex items-start">
-                              <div className="flex-shrink-0 mr-3">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <FileText className="h-4 w-4 text-blue-600" />
-                                </div>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between">
-                                  <p className="text-sm font-semibold text-gray-900 truncate">
-                                    {(notification.status || 'Report')} report submitted
-                                  </p>
-                                  {!notification.impoundRead && (
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                  {notification.locationName || 'Unknown location'}
-                                </p>
-                                <div className="flex items-center justify-between mt-2">
-                                  <p className="text-xs text-gray-400">
-                                    {notification.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}
-                                  </p>
-                                  <span className="text-xs text-blue-600 font-medium">
-                                    Click to view details →
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    
-                    {/* Footer */}
-                    {notifications.length > 10 && (
-                      <div className="p-3 border-t border-gray-100 bg-gray-50 rounded-b-lg">
-                        <p className="text-sm text-gray-500 text-center">
-                          Showing 10 of {notifications.length} notifications
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
             </div>
           </div>
 
-          {/* Tabs moved to header */}
-          <div className="flex gap-2 flex-wrap mt-3 pb-4">
+          {/* Navigation Tabs */}
+          <div className="space-y-2 mb-8">
+            {(sidebarOpen || sidebarHovered) ? (
+              <>
           <TabButton
             active={activeTab === 'analytics'}
             label="Dashboard"
@@ -1386,15 +1363,337 @@ const ImpoundDashboard = () => {
             badge={(incidentReports || []).length}
             onClick={() => setActiveTab('incident')}
           />
-          <TabButton active={activeTab === 'adoption'} label="Adoption" icon={Heart} onClick={() => setActiveTab('adoption')} />
-          <TabButton active={activeTab === 'adoptionList'} label="Adoption List" icon={List} badge={(adoptablePets || []).length} onClick={() => setActiveTab('adoptionList')} />
-          <TabButton active={activeTab === 'applications'} label="Applications" icon={List} badge={(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length} onClick={() => setActiveTab('applications')} />
+                <TabButton 
+                  active={activeTab === 'adoption'} 
+                  label="Adoption" 
+                  icon={Heart} 
+                  onClick={() => setActiveTab('adoption')} 
+                />
+                <TabButton 
+                  active={activeTab === 'adoptionList'} 
+                  label="Adoption List" 
+                  icon={List} 
+                  badge={(adoptablePets || []).length} 
+                  onClick={() => setActiveTab('adoptionList')} 
+                />
+                <TabButton 
+                  active={activeTab === 'applications'} 
+                  label="Applications" 
+                  icon={List} 
+                  badge={(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length} 
+                  onClick={() => setActiveTab('applications')} 
+                />
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setActiveTab('analytics')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                    activeTab === 'analytics' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <BarChart3 className="h-6 w-6 mx-auto" />
+                </button>
+                <button
+                  onClick={() => setActiveTab('stray')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 relative ${
+                    activeTab === 'stray' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <Search className="h-6 w-6 mx-auto" />
+                  {(strayReports || []).length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                      {(strayReports || []).length > 9 ? '9+' : (strayReports || []).length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('lost')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 relative ${
+                    activeTab === 'lost' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <ShieldCheck className="h-6 w-6 mx-auto" />
+                  {(lostReports || []).length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                      {(lostReports || []).length > 9 ? '9+' : (lostReports || []).length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('incident')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 relative ${
+                    activeTab === 'incident' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <FileText className="h-6 w-6 mx-auto" />
+                  {(incidentReports || []).length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                      {(incidentReports || []).length > 9 ? '9+' : (incidentReports || []).length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('adoption')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                    activeTab === 'adoption' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <Heart className="h-6 w-6 mx-auto" />
+                </button>
+                <button
+                  onClick={() => setActiveTab('adoptionList')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 relative ${
+                    activeTab === 'adoptionList' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <List className="h-6 w-6 mx-auto" />
+                  {(adoptablePets || []).length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                      {(adoptablePets || []).length > 9 ? '9+' : (adoptablePets || []).length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('applications')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 relative ${
+                    activeTab === 'applications' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                >
+                  <List className="h-6 w-6 mx-auto" />
+                  {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                      {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 9 ? '9+' : (adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
+                    </span>
+                  )}
+                </button>
+              </>
+            )}
             </div>
+
+          {/* Logout Button */}
+          <div className="mt-auto">
+            {(sidebarOpen || sidebarHovered) ? (
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-xl bg-red-600/20 text-red-400 hover:bg-red-600/30 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-300"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </button>
+            ) : (
+              <button
+                onClick={handleLogout}
+                className="w-full p-3 rounded-xl transition-all duration-300 text-red-400 hover:text-red-300 hover:bg-red-600/20"
+              >
+                <LogOut className="h-6 w-6 mx-auto" />
+              </button>
+            )}
           </div>
-      </header>
+        </div>
+      </aside>
+
+      {/* Mobile menu button */}
+      <button
+        onClick={() => {
+          setSidebarOpen(!sidebarOpen);
+          setSidebarHovered(false);
+        }}
+        className="fixed top-4 left-4 z-50 lg:hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+      >
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Global Notifications Modal */}
+                {showNotifications && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50"
+            onClick={() => setShowNotifications(false)}
+          />
+          {/* Modal */}
+          <div 
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md max-h-[80vh] bg-white rounded-2xl shadow-2xl z-50 border border-gray-200 overflow-hidden notifications-container"
+            onClick={(e) => e.stopPropagation()}
+          >
+                    {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
+                    <Bell className="h-5 w-5" />
+                        </div>
+                  <div>
+                    <h3 className="text-xl font-bold">Notifications</h3>
+                    <p className="text-blue-100 text-sm">
+                      {notifications.length} total notifications
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center space-x-3">
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllNotificationsAsRead}
+                      className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              Mark all read
+                            </button>
+                          )}
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={handleDeleteAllNotifications}
+                      className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              Delete all
+                            </button>
+                          )}
+                        </div>
+                {unreadCount > 0 && (
+                  <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                    {unreadCount} unread
+                  </div>
+                )}
+                      </div>
+                    </div>
+                    
+                    {/* Notifications List */}
+            <div className="max-h-96 overflow-y-auto">
+              {notifications.filter((notification) => 
+                (notification.status || '').toLowerCase() !== 'resolved' &&
+                (notification.status || '').toLowerCase() !== 'completed' &&
+                (notification.status || '').toLowerCase() !== 'declined'
+              ).length === 0 ? (
+                        <div className="p-8 text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Bell className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No notifications yet</h3>
+                  <p className="text-gray-500">New reports will appear here when submitted</p>
+                        </div>
+                      ) : (
+                <div className="divide-y divide-gray-100">
+                  {notifications
+                    .filter((notification) => 
+                      (notification.status || '').toLowerCase() !== 'resolved' &&
+                      (notification.status || '').toLowerCase() !== 'completed' &&
+                      (notification.status || '').toLowerCase() !== 'declined'
+                    )
+                    .slice(0, 10)
+                    .map((notification) => (
+                          <div
+                            key={notification.id}
+                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-all duration-200 group ${
+                        !notification.impoundRead ? 'bg-blue-50/50 border-l-4 border-l-blue-500' : ''
+                      }`}
+                      onClick={(event) => handleNotificationClick(notification, event)}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            !notification.impoundRead 
+                              ? 'bg-blue-100 text-blue-600' 
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            <FileText className="h-5 w-5" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="text-sm font-semibold text-gray-900 truncate">
+                              {(notification.status || 'Report')} Report
+                            </h4>
+                            <div className="flex items-center space-x-2">
+                                  {!notification.impoundRead && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  )}
+                              <span className="text-xs text-gray-500">
+                                {notification.reportTime?.toDate?.()?.toLocaleDateString() || 'Recently'}
+                              </span>
+                                </div>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                                  {notification.locationName || 'Unknown location'}
+                                </p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                notification.status === 'Approved' 
+                                  ? 'bg-green-100 text-green-800'
+                                  : notification.status === 'Declined'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {notification.status || 'Pending'}
+                                  </span>
+                                </div>
+                            <span className="text-xs text-blue-600 font-medium group-hover:text-blue-700">
+                              View details →
+                            </span>
+                              </div>
+                            </div>
+                          </div>
+                    </div>
+                  ))}
+                </div>
+                      )}
+                    </div>
+                    
+                    {/* Footer */}
+            {notifications.filter((notification) => 
+              (notification.status || '').toLowerCase() !== 'resolved' &&
+              (notification.status || '').toLowerCase() !== 'completed' &&
+              (notification.status || '').toLowerCase() !== 'declined'
+            ).length > 10 && (
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Showing 10 of {notifications.filter((notification) => 
+                      (notification.status || '').toLowerCase() !== 'resolved' &&
+                      (notification.status || '').toLowerCase() !== 'completed' &&
+                      (notification.status || '').toLowerCase() !== 'declined'
+                    ).length} notifications
+                  </p>
+                  <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    View all
+                  </button>
+                      </div>
+                  </div>
+                )}
+              </div>
+        </>
+      )}
 
       {/* Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pt-36">
+      <main className={`flex-1 py-6 px-6 transition-all duration-300 ${
+        sidebarOpen || sidebarHovered ? 'lg:ml-80' : 'lg:ml-16'
+      }`}>
 
         {activeTab === 'stray' && (
           <div className="bg-white shadow rounded-lg p-6">
@@ -2629,6 +2928,175 @@ const ImpoundDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Notification Detail Modal */}
+      {showNotificationModal && selectedNotification && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-[60]"
+            onClick={() => {
+              setShowNotificationModal(false);
+              setSelectedNotification(null);
+              // Don't close the notification modal - keep it open
+            }}
+          />
+          {/* Modal */}
+          <div 
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl z-[60] border border-gray-200 overflow-hidden"
+            data-notification-detail-modal
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mr-4">
+                    <FileText className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Report Details</h2>
+                    <p className="text-blue-100 text-sm">
+                      {(selectedNotification.status || 'Report')} Report
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowNotificationModal(false);
+                    setSelectedNotification(null);
+                    // Don't close the notification modal - keep it open
+                  }}
+                  className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-6">
+                {/* Report Image */}
+                {selectedNotification.imageUrl && !selectedNotification.imageUrl.startsWith('file://') && (
+                  <div className="relative">
+                    <img 
+                      src={selectedNotification.imageUrl} 
+                      alt="Report Image" 
+                      className="w-full h-64 object-cover rounded-xl shadow-lg"
+                    />
+                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-700">
+                      Report Image
+                    </div>
+                  </div>
+                )}
+
+                {/* Report Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-gray-900 font-medium">
+                          {selectedNotification.locationName || 'Unknown location'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number</label>
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <span className="text-gray-900 font-medium">
+                          {selectedNotification.contactNumber || 'Not provided'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Report Time</label>
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-gray-900 font-medium">
+                          {selectedNotification.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${
+                          selectedNotification.status === 'Approved' ? 'bg-green-500' :
+                          selectedNotification.status === 'Declined' ? 'bg-red-500' :
+                          'bg-yellow-500'
+                        }`}></div>
+                        <span className="text-gray-900 font-medium">
+                          {selectedNotification.status || 'Pending Review'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedNotification.description && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-gray-900 leading-relaxed">
+                        {selectedNotification.description}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional Details */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <h4 className="text-sm font-semibold text-blue-900 mb-1">Report Information</h4>
+                      <p className="text-sm text-blue-700">
+                        This report has been submitted and is awaiting review. You can take action on this report from the main dashboard.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowNotificationModal(false);
+                    setSelectedNotification(null);
+                    // Don't close the notification modal - keep it open
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
