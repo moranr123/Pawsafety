@@ -411,12 +411,145 @@ const ImpoundDashboard = () => {
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const [chartData, setChartData] = useState([]);
+  const [strayChartData, setStrayChartData] = useState([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
+  const [adoptedPets, setAdoptedPets] = useState([]);
+
+  // Generate chart data for adopted pets
+  const generateAdoptedPetsChartData = (adoptedPets) => {
+    const now = new Date();
+    const months = [];
+    
+    // Generate last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      // Count adopted pets in this month
+      const monthPets = adoptedPets.filter(pet => {
+        const petDate = pet.adoptedAt?.toDate ? pet.adoptedAt.toDate() : new Date(pet.adoptedAt);
+        return petDate.getMonth() === date.getMonth() && 
+               petDate.getFullYear() === date.getFullYear();
+      });
+      
+      months.push({
+        month: monthName,
+        count: monthPets.length,
+        date: date
+      });
+    }
+    
+    return months;
+  };
+
+  // Generate chart data for stray reports
+  const generateStrayReportsChartData = (strayReports) => {
+    const now = new Date();
+    const months = [];
+    
+    // Generate last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      // Count stray reports in this month
+      const monthReports = strayReports.filter(report => {
+        const reportDate = report.reportTime?.toDate ? report.reportTime.toDate() : new Date(report.reportTime);
+        return reportDate.getMonth() === date.getMonth() && 
+               reportDate.getFullYear() === date.getFullYear();
+      });
+      
+      months.push({
+        month: monthName,
+        count: monthReports.length,
+        date: date
+      });
+    }
+    
+    return months;
+  };
+
+  // Calculate real growth percentage for adopted pets
+  const calculateAdoptedPetsGrowth = (chartData) => {
+    if (chartData.length < 2) return 0;
+    const currentMonth = chartData[chartData.length - 1]?.count || 0;
+    const previousMonth = chartData[chartData.length - 2]?.count || 0;
+    
+    if (previousMonth === 0) return currentMonth > 0 ? 100 : 0;
+    return Math.round(((currentMonth - previousMonth) / previousMonth) * 100);
+  };
+
+  // Calculate real growth percentage for stray reports
+  const calculateStrayReportsGrowth = (chartData) => {
+    if (chartData.length < 2) return 0;
+    const currentMonth = chartData[chartData.length - 1]?.count || 0;
+    const previousMonth = chartData[chartData.length - 2]?.count || 0;
+    
+    if (previousMonth === 0) return currentMonth > 0 ? 100 : 0;
+    return Math.round(((currentMonth - previousMonth) / previousMonth) * 100);
+  };
+
+  // Generate SVG path for chart line based on real data
+  const generateChartPath = (chartData, maxValue = 10) => {
+    if (!chartData || chartData.length === 0) return "M 20,180 L 20,180";
+    
+    const points = chartData.map((data, index) => {
+      const x = 20 + (index * 80);
+      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+      return `${x},${y}`;
+    });
+    
+    if (points.length === 1) {
+      return `M ${points[0]} L ${points[0]}`;
+    }
+    
+    return `M ${points[0]} L ${points.slice(1).join(' L ')}`;
+  };
+
+  // Generate SVG path for chart area fill
+  const generateChartAreaPath = (chartData, maxValue = 10) => {
+    if (!chartData || chartData.length === 0) return "M 20,180 L 20,180 L 20,180 Z";
+    
+    const points = chartData.map((data, index) => {
+      const x = 20 + (index * 80);
+      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+      return `${x},${y}`;
+    });
+    
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    
+    return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},180 L 20,180 Z`;
+  };
 
   // Debug useEffect for notification modal state
   useEffect(() => {
     console.log('showNotificationModal changed:', showNotificationModal);
     console.log('selectedNotification changed:', selectedNotification);
   }, [showNotificationModal, selectedNotification]);
+
+  // Generate chart data when data changes (real-time updates)
+  useEffect(() => {
+    if (adoptablePets && strayReports) {
+      setIsDataLoading(true);
+      const adoptedPets = adoptablePets.filter(pet => pet.adoptedAt);
+      setChartData(generateAdoptedPetsChartData(adoptedPets));
+      setStrayChartData(generateStrayReportsChartData(strayReports));
+      setLastDataUpdate(new Date());
+      setIsDataLoading(false);
+    }
+  }, [adoptablePets, strayReports]);
+
+  // Real-time chart data updates for better performance
+  useEffect(() => {
+    if (adoptedPets && strayReports) {
+      setChartData(generateAdoptedPetsChartData(adoptedPets));
+      setStrayChartData(generateStrayReportsChartData(strayReports));
+      setLastDataUpdate(new Date());
+    }
+  }, [adoptedPets, strayReports]);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedIncidentForDecline, setSelectedIncidentForDecline] = useState(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -449,7 +582,6 @@ const ImpoundDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [transferring, setTransferring] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [adoptedPets, setAdoptedPets] = useState([]);
   // Browser notifications helpers
   const reportsSeenRef = useRef(new Set());
   const initialReportsLoadedRef = useRef(false);
@@ -484,7 +616,10 @@ const ImpoundDashboard = () => {
     }
 
     const qReports = query(collection(db, 'stray_reports'), orderBy('reportTime', 'desc'));
-    const unsubscribe = onSnapshot(qReports, (snap) => {
+    const unsubscribe = onSnapshot(
+      qReports, 
+      (snap) => {
+        try {
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       const filteredNotifications = rows.filter((r) => 
         !r.hiddenImpoundNotification && 
@@ -492,6 +627,8 @@ const ImpoundDashboard = () => {
         (r.status || '').toLowerCase() !== 'completed' &&
         (r.status || '').toLowerCase() !== 'declined'
       );
+          
+          // Update all report types in real-time
       setNotifications(filteredNotifications);
       setUnreadCount(filteredNotifications.filter((n) => !n.impoundRead).length);
       setStrayReports(rows.filter((r) => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'));
@@ -520,7 +657,16 @@ const ImpoundDashboard = () => {
           }
         }
       }
-    });
+        } catch (error) {
+          console.error('Error processing reports data:', error);
+          toast.error('Failed to load reports data');
+        }
+      },
+      (error) => {
+        console.error('Error in reports listener:', error);
+        toast.error('Failed to connect to reports database');
+      }
+    );
     return unsubscribe;
   }, []);
 
@@ -805,49 +951,94 @@ const ImpoundDashboard = () => {
   // Lost report: print
   const handlePrintLostReport = (report) => {
     try {
-      const printWindow = window.open('', 'PRINT', 'height=650,width=900,top=100,left=150');
-      if (!printWindow) return;
       const reportedAt = report.reportTime?.toDate ? report.reportTime.toDate().toLocaleString() : '';
-      const html = `
-        <html>
-        <head>
-          <title>Lost Pet Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 16px; color: #111827; }
-            h1 { font-size: 20px; margin: 0 0 12px; }
-            .muted { color: #6B7280; font-size: 12px; }
-            .section { border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-            .row { display: flex; gap: 12px; }
-            .col { flex: 1; }
-            img { width: 100%; height: auto; border-radius: 8px; }
-            .label { font-size: 12px; color: #6B7280; }
-            .value { font-size: 14px; font-weight: 600; color: #111827; }
-          </style>
-        </head>
-        <body>
-          <h1>Lost Pet Report</h1>
-          <div class="muted">Printed: ${new Date().toLocaleString()}</div>
-          ${report.imageUrl ? `<div class="section"><img src="${report.imageUrl}" alt="pet" /></div>` : ''}
-          <div class="section">
-            <div class="row">
-              <div class="col"><div class="label">Pet</div><div class="value">${report.petName ? `${report.petName} (${report.breed || report.petType || 'Pet'})` : (report.breed || report.petType || 'Pet')}</div></div>
-              <div class="col"><div class="label">Reported At</div><div class="value">${reportedAt || 'N/A'}</div></div>
+      
+      // Create a temporary div with the print content
+      const printContent = document.createElement('div');
+      printContent.innerHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 8px; color: #111827; width: 100%; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box;">
+          <div style="text-align: center; margin-bottom: 8px;">
+            <h1 style="font-size: 32px; margin: 0; color: #DC2626; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">MISSING</h1>
+            <h2 style="font-size: 20px; margin: 2px 0 0; color: #111827; font-weight: 600;">Lost Pet Report</h2>
+            <div style="color: #6B7280; font-size: 9px; margin-top: 2px;">Printed: ${new Date().toLocaleString()}</div>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;">
+            ${report.imageUrl ? `
+              <div style="text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0;">
+                <img src="${report.imageUrl}" alt="Pet Image" style="max-width: 100%; max-height: 100%; height: auto; border-radius: 8px; border: 2px solid #DC2626; object-fit: contain;" />
+              </div>
+            ` : ''}
+            
+            <div style="border: 2px solid #DC2626; border-radius: 6px; padding: 8px; background-color: #FEF2F2; flex-shrink: 0;">
+              <div style="display: flex; gap: 12px; margin-bottom: 6px;">
+                <div style="flex: 1;">
+                  <div style="font-size: 10px; color: #DC2626; margin-bottom: 1px; font-weight: 600;">Pet Name</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #111827;">${report.petName ? `${report.petName} (${report.breed || report.petType || 'Pet'})` : (report.breed || report.petType || 'Pet')}</div>
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-size: 10px; color: #DC2626; margin-bottom: 1px; font-weight: 600;">Reported At</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #111827;">${reportedAt || 'N/A'}</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 12px;">
+                <div style="flex: 1;">
+                  <div style="font-size: 10px; color: #DC2626; margin-bottom: 1px; font-weight: 600;">Last Seen Location</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #111827;">${report.locationName || 'N/A'}</div>
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-size: 10px; color: #DC2626; margin-bottom: 1px; font-weight: 600;">Contact Number</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #111827;">${report.contactNumber || 'N/A'}</div>
+                </div>
+              </div>
             </div>
-            <div class="row">
-              <div class="col"><div class="label">Last Seen / Location</div><div class="value">${report.locationName || 'N/A'}</div></div>
-              <div class="col"><div class="label">Contact</div><div class="value">${report.contactNumber || 'N/A'}</div></div>
+            
+            ${report.description ? `
+              <div style="border: 2px solid #DC2626; border-radius: 6px; padding: 8px; background-color: #FEF2F2; flex-shrink: 0;">
+                <div style="font-size: 10px; color: #DC2626; margin-bottom: 4px; font-weight: 600;">Description</div>
+                <div style="font-size: 11px; color: #111827; line-height: 1.3; font-weight: 500;">${report.description}</div>
+              </div>
+            ` : ''}
+            
+            <div style="text-align: center; padding: 6px; background-color: #FEF2F2; border-radius: 6px; border: 2px solid #DC2626; flex-shrink: 0;">
+              <div style="font-size: 12px; font-weight: 700; color: #DC2626; margin-bottom: 2px;">If Found, Please Contact Immediately</div>
+              <div style="font-size: 10px; color: #111827;">This pet is dearly missed by its family</div>
             </div>
           </div>
-          ${report.description ? `<div class="section"><div class="label">Description</div><div class="value">${report.description}</div></div>` : ''}
-          <script>window.onload = function(){ window.focus(); window.print(); };</script>
-        </body>
-        </html>
+        </div>
       `;
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
+      
+      // Add to document temporarily
+      document.body.appendChild(printContent);
+      
+      // Create print styles
+      const printStyles = document.createElement('style');
+      printStyles.textContent = `
+        @media print {
+          body * { visibility: hidden; }
+          .print-content, .print-content * { visibility: visible; }
+          .print-content { position: absolute; left: 0; top: 0; width: 100%; height: 100vh; }
+          @page { margin: 0.3in; size: A4; }
+          * { box-sizing: border-box; }
+        }
+      `;
+      document.head.appendChild(printStyles);
+      
+      // Add print-content class
+      printContent.classList.add('print-content');
+      
+      // Trigger print
+      window.print();
+      
+      // Clean up
+      document.body.removeChild(printContent);
+      document.head.removeChild(printStyles);
+      
+      toast.success('Print dialog opened');
+      
     } catch (e) {
-      // ignore
+      console.error('Print error:', e);
+      toast.error('Failed to open print dialog');
     }
   };
 
@@ -1696,11 +1887,18 @@ const ImpoundDashboard = () => {
       }`}>
 
         {activeTab === 'stray' && (
-          <div className="bg-gradient-to-b from-slate-800 to-slate-900 shadow-2xl rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-medium text-white mb-4">Stray Reports</h2>
+          <div className="bg-gradient-to-b from-orange-50 to-red-50 shadow-2xl rounded-xl p-6 border border-orange-200">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-orange-600 to-red-600 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              Stray Reports
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {strayReports.map((r) => (
-                <div key={r.id} className="border border-slate-600 rounded-lg overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 flex flex-col h-full shadow-lg">
+                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
                     <img src={r.imageUrl} alt="Stray Pet" className="w-full h-40 object-cover" />
                   ) : (
@@ -1712,29 +1910,54 @@ const ImpoundDashboard = () => {
                     <p className="text-sm font-medium text-gray-900 mb-2">
                       {r.description ? r.description.substring(0, 100) + (r.description.length > 100 ? '...' : '') : 'No description'}
                     </p>
-                    <p className="text-sm text-gray-600 mb-1">{r.locationName || 'N/A'}</p>
-                    <p className="text-sm text-gray-600 mb-3">{r.contactNumber || 'N/A'}</p>
-                    <div className="grid grid-cols-3 gap-2 w-full">
-                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">View</button>
-                      <button onClick={() => updateStrayStatus(r.id, 'Resolved')} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-green-50 text-green-700 border-green-200">Resolved</button>
-                      <button onClick={() => handleDeclineStray(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-red-50 text-red-700 border-red-200">Decline</button>
+                    <div className="flex items-center mb-2">
+                      <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <p className="text-sm text-gray-600">{r.locationName || 'N/A'}</p>
+                    </div>
+                    <div className="flex items-center mb-3">
+                      <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <p className="text-sm text-gray-600">{r.contactNumber || 'N/A'}</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 w-full mt-auto">
+                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors">View</button>
+                      <button onClick={() => updateStrayStatus(r.id, 'Resolved')} className="px-3 py-2 text-sm rounded-md border font-medium bg-green-600 text-white border-green-600 hover:bg-green-700 transition-colors">Resolved</button>
+                      <button onClick={() => handleDeclineStray(r)} className="px-3 py-2 text-sm rounded-md border font-medium bg-red-600 text-white border-red-600 hover:bg-red-700 transition-colors">Decline</button>
                 </div>
               </div>
                 </div>
               ))}
               {strayReports.length === 0 && (
-                <div className="col-span-full text-center text-sm text-slate-400 py-8">No stray reports</div>
+                <div className="col-span-full text-center text-sm text-orange-600 py-8">
+                  <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  No stray reports at the moment
+                </div>
               )}
             </div>
           </div>
         )}
 
         {activeTab === 'lost' && (
-          <div className="bg-gradient-to-b from-slate-800 to-slate-900 shadow-2xl rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-medium text-white mb-4">Lost Pet Reports</h2>
+          <div className="bg-gradient-to-b from-indigo-50 to-purple-50 shadow-2xl rounded-xl p-6 border border-indigo-200">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              </div>
+              Lost Pet Reports
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {lostReports.map((r) => (
-                <div key={r.id} className="border border-slate-600 rounded-lg overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 flex flex-col h-full shadow-lg">
+                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
                     <img src={r.imageUrl} alt={r.petName || 'Pet'} className="w-full h-40 object-cover" />
                   ) : (
@@ -1743,32 +1966,67 @@ const ImpoundDashboard = () => {
                 </div>
                   )}
                   <div className="p-4 flex flex-col items-center text-center flex-1">
-                    <p className="text-base font-semibold text-white truncate w-full mb-2">
+                    <p className="text-base font-semibold text-gray-900 truncate w-full mb-2">
                       {r.petName ? `${r.petName} (${r.breed || r.petType || 'Pet'})` : 'Unspecified pet'}
                     </p>
-                    <p className="text-sm text-gray-600 mb-1">{r.locationName || 'N/A'}</p>
-                    <p className="text-sm text-gray-600 mb-3">{r.contactNumber || 'N/A'}</p>
-                    <div className="grid grid-cols-3 gap-2 w-full">
-                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">View</button>
-                      <button onClick={() => handlePrintLostReport(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Print</button>
-                      <a href={`tel:${r.contactNumber || ''}`} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 text-center">Contact</a>
+                    <div className="flex items-center mb-2">
+                      <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <p className="text-sm text-gray-600">{r.locationName || 'N/A'}</p>
+                    </div>
+                    <div className="flex items-center mb-3">
+                      <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <p className="text-sm text-gray-600">{r.contactNumber || 'N/A'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 w-full mt-auto">
+                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View
+                      </button>
+                      <button onClick={() => handlePrintLostReport(r)} className="px-3 py-2 text-sm rounded-md border font-medium bg-green-600 text-white border-green-600 hover:bg-green-700 transition-colors flex items-center justify-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print
+                      </button>
                 </div>
               </div>
                 </div>
               ))}
               {lostReports.length === 0 && (
-                <div className="col-span-full text-center text-sm text-slate-400 py-8">No lost pet reports</div>
+                <div className="col-span-full text-center text-sm text-indigo-600 py-8">
+                  <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-8 h-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  No lost pet reports at the moment
+                </div>
               )}
             </div>
           </div>
         )}
 
         {activeTab === 'incident' && (
-          <div className="bg-gradient-to-b from-slate-800 to-slate-900 shadow-2xl rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-medium text-white mb-4">Incident Reports</h2>
+          <div className="bg-gradient-to-b from-gray-50 to-gray-100 shadow-2xl rounded-xl p-6 border border-gray-200">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-red-600 to-pink-600 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 19.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              Incident Reports
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {incidentReports.map((r) => (
-                <div key={r.id} className="border border-slate-600 rounded-lg overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 flex flex-col h-full shadow-lg">
+                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
                     <img src={r.imageUrl} alt="Incident" className="w-full h-40 object-cover" />
                   ) : (
@@ -1783,23 +2041,37 @@ const ImpoundDashboard = () => {
                     <p className="text-sm text-gray-600 mb-1">{r.locationName || 'N/A'}</p>
                     <p className="text-sm text-gray-600 mb-3">{r.contactNumber || 'N/A'}</p>
                     <div className="grid grid-cols-3 gap-2 w-full">
-                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">View</button>
-                      <button onClick={() => handleResolveIncident(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-green-50 text-green-700 border-green-200">Resolve</button>
-                      <button onClick={() => handleDeclineIncident(r)} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50 bg-red-50 text-red-700 border-red-200">Decline</button>
+                      <button onClick={() => openReportDetails(r)} className="px-3 py-2 text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors">View</button>
+                      <button onClick={() => handleResolveIncident(r)} className="px-3 py-2 text-sm rounded-md border font-medium bg-green-600 text-white border-green-600 hover:bg-green-700 transition-colors">Resolve</button>
+                      <button onClick={() => handleDeclineIncident(r)} className="px-3 py-2 text-sm rounded-md border font-medium bg-red-600 text-white border-red-600 hover:bg-red-700 transition-colors">Decline</button>
                 </div>
               </div>
                 </div>
               ))}
               {incidentReports.length === 0 && (
-                <div className="col-span-full text-center text-sm text-slate-400 py-8">No incident reports</div>
+                <div className="col-span-full text-center text-sm text-red-600 py-8">
+                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 19.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  No incident reports at the moment
+                </div>
               )}
             </div>
           </div>
         )}
 
         {activeTab === 'adoption' && (
-          <div className="bg-gradient-to-b from-slate-800 to-slate-900 shadow-2xl rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-medium text-white mb-4">Post Adoptable Pet</h2>
+          <div className="bg-gradient-to-b from-emerald-50 to-teal-50 shadow-2xl rounded-xl p-6 border border-emerald-200">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              </div>
+              Post Adoptable Pet
+            </h2>
             <AdoptionForm
               adoptionForm={adoptionForm}
               setAdoptionForm={setAdoptionForm}
@@ -1810,28 +2082,42 @@ const ImpoundDashboard = () => {
         )}
 
         {activeTab === 'adoptionList' && (
-          <div className="bg-gradient-to-b from-slate-800 to-slate-900 shadow-2xl rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-medium text-white mb-4">Adoptable Pets</h2>
+          <div className="bg-gradient-to-b from-emerald-50 to-teal-50 shadow-2xl rounded-xl p-6 border border-emerald-200">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              </div>
+              Adoptable Pets
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {adoptablePets.map((p) => (
-                <div key={p.id} className="border border-slate-600 rounded-lg overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 flex flex-col h-full shadow-lg">
+                <div key={p.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {p.imageUrl ? (
                     <img src={p.imageUrl} alt={p.petName || 'Pet'} className="w-full h-40 object-cover" />
                   ) : (
                     <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">No Image</div>
                   )}
                   <div className="p-4 flex flex-col items-center text-center flex-1">
-                    <p className="text-base font-semibold text-white truncate w-full">{p.petName || 'Unnamed Pet'}</p>
+                    <p className="text-base font-semibold text-gray-900 truncate w-full">{p.petName || 'Unnamed Pet'}</p>
                     <div className="mt-4 grid grid-cols-3 gap-2 w-full">
-                      <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); fetchRegisteredUsers(); }} className="px-3 py-2 text-sm rounded-md border font-medium text-white bg-green-600 hover:bg-green-700">Transfer</button>
-                      <button onClick={() => { setEditingAdoptable(p); setShowEditAdoptableModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-gray-50">Edit</button>
-                      <button onClick={async () => { if (window.confirm('Delete this pet?')) { await deleteDoc(doc(db, 'adoptable_pets', p.id)); toast.success('Deleted'); } }} className="px-3 py-2 text-sm rounded-md border font-medium hover:bg-red-50 text-red-600 border-red-200">Delete</button>
+                      <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); fetchRegisteredUsers(); }} className="px-3 py-2 text-sm rounded-md border font-medium bg-green-600 text-white border-green-600 hover:bg-green-700 transition-colors">Transfer</button>
+                      <button onClick={() => { setEditingAdoptable(p); setShowEditAdoptableModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors">Edit</button>
+                      <button onClick={async () => { if (window.confirm('Delete this pet?')) { await deleteDoc(doc(db, 'adoptable_pets', p.id)); toast.success('Deleted'); } }} className="px-3 py-2 text-sm rounded-md border font-medium bg-red-600 text-white border-red-600 hover:bg-red-700 transition-colors">Delete</button>
                 </div>
               </div>
             </div>
               ))}
               {adoptablePets.length === 0 && (
-                <div className="col-span-full text-center text-sm text-slate-400 py-8">No adoptable pets</div>
+                <div className="col-span-full text-center text-sm text-emerald-600 py-8">
+                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  No adoptable pets at the moment
+                </div>
               )}
           </div>
         </div>
@@ -1840,8 +2126,15 @@ const ImpoundDashboard = () => {
         
 
         {activeTab === 'applications' && (
-          <div className="bg-gradient-to-b from-slate-800 to-slate-900 shadow-2xl rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-medium text-white mb-4">Adoption Applications</h2>
+          <div className="bg-gradient-to-b from-purple-50 to-pink-50 shadow-2xl rounded-xl p-6 border border-purple-200">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              Adoption Applications
+            </h2>
             
             {/* Application Sub-tabs */}
             <div className="mb-6">
@@ -1891,7 +2184,7 @@ const ImpoundDashboard = () => {
             </div>
 
             {/* Application Content */}
-            <div className="overflow-hidden ring-1 ring-black ring-opacity-5 rounded-md">
+            <div className="overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -1938,11 +2231,11 @@ const ImpoundDashboard = () => {
                       )}
                       <td className="px-4 py-2 text-right text-sm">
                         <div className="inline-flex flex-wrap gap-2">
-                          <button onClick={() => openApplicationDetails(a)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">View</button>
+                          <button onClick={() => openApplicationDetails(a)} className="px-2 py-1 text-xs rounded border bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors">View</button>
                           {activeApplicationTab === 'pending' && (
                             <>
-                              <button onClick={() => handleUpdateApplicationStatus(a.id, 'Approved')} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Approve</button>
-                              <button onClick={() => handleDeclineApplication(a)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Decline</button>
+                              <button onClick={() => handleUpdateApplicationStatus(a.id, 'Approved')} className="px-2 py-1 text-xs rounded border bg-green-600 text-white border-green-600 hover:bg-green-700 transition-colors">Approve</button>
+                              <button onClick={() => handleDeclineApplication(a)} className="px-2 py-1 text-xs rounded border bg-red-600 text-white border-red-600 hover:bg-red-700 transition-colors">Decline</button>
                             </>
                           )}
                         </div>
@@ -1956,8 +2249,15 @@ const ImpoundDashboard = () => {
                     return false;
                   }).length === 0 && (
                     <tr>
-                      <td colSpan={activeApplicationTab === 'pending' ? 5 : 6} className="px-4 py-6 text-center text-sm text-gray-500">
-                        No {activeApplicationTab} applications found
+                      <td colSpan={activeApplicationTab === 'pending' ? 5 : 6} className="px-4 py-6 text-center text-sm text-purple-600">
+                        <div className="flex flex-col items-center">
+                          <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-2">
+                            <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          No {activeApplicationTab} applications found
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -1983,7 +2283,7 @@ const ImpoundDashboard = () => {
                 </div>
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Total Reports</p>
-                        <p className="text-2xl font-bold text-gray-900">{(notifications || []).length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{(strayReports || []).length + (lostReports || []).length + (incidentReports || []).length}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2100,6 +2400,194 @@ const ImpoundDashboard = () => {
         </div>
 
 
+
+            {/* Analytics Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Adopted Pets Line Chart */}
+              <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 rounded-xl shadow-lg p-6 border border-emerald-200">
+                <h3 className="text-lg font-medium text-white mb-4 flex items-center">
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  Adopted Pets Trend
+                </h3>
+                <div className="h-64">
+                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                    {/* Grid lines */}
+                    <defs>
+                      <pattern id="adoptedGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
+                      </pattern>
+                      <linearGradient id="adoptedChartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.4"/>
+                        <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/>
+                      </linearGradient>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#adoptedGrid)" />
+                    
+                    {/* Chart area fill */}
+                    <path
+                      d={generateChartAreaPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
+                      fill="url(#adoptedChartGradient)"
+                    />
+                    
+                    {/* Chart line */}
+                    <path
+                      d={generateChartPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                    />
+                    
+                    {/* Data points */}
+                    {chartData.map((data, index) => {
+                      const maxValue = Math.max(...chartData.map(d => d.count), 1);
+                      const x = 20 + (index * 80);
+                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+                      return (
+                        <circle 
+                          key={index}
+                          cx={x} 
+                          cy={y} 
+                          r="6" 
+                          fill="#ffffff" 
+                          stroke="#10b981" 
+                          strokeWidth="3" 
+                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                        />
+                      );
+                    })}
+                    
+                    {/* Labels */}
+                    {chartData.map((data, index) => (
+                      <text 
+                        key={index}
+                        x={20 + (index * 80)} 
+                        y="195" 
+                        textAnchor="middle" 
+                        className="text-xs fill-white"
+                      >
+                        {data.month}
+                      </text>
+                    ))}
+                    
+                    {/* Y-axis labels */}
+                    <text x="10" y="185" textAnchor="end" className="text-xs fill-white">0</text>
+                    <text x="10" y="145" textAnchor="end" className="text-xs fill-white">20</text>
+                    <text x="10" y="105" textAnchor="end" className="text-xs fill-white">40</text>
+                    <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
+                    <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
+                  </svg>
+                      </div>
+                <div className="mt-4 flex justify-between text-sm text-white">
+                  <span>Total Adopted: {(adoptedPets || []).length}</span>
+                  <div className="flex items-center space-x-2">
+                    <span>Growth: {calculateAdoptedPetsGrowth(chartData) >= 0 ? '+' : ''}{calculateAdoptedPetsGrowth(chartData)}% this month</span>
+                    {isDataLoading && (
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                    )}
+                    </div>
+                    </div>
+              </div>
+
+              {/* Stray Reports Line Chart */}
+              <div className="bg-gradient-to-br from-orange-600 via-red-600 to-pink-600 rounded-xl shadow-lg p-6 border border-orange-200">
+                <h3 className="text-lg font-medium text-white mb-4 flex items-center">
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  Stray Reports Trend
+                </h3>
+                <div className="h-64">
+                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                    {/* Grid lines */}
+                    <defs>
+                      <pattern id="strayGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
+                      </pattern>
+                      <linearGradient id="strayChartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#f97316" stopOpacity="0.4"/>
+                        <stop offset="100%" stopColor="#ec4899" stopOpacity="0.1"/>
+                      </linearGradient>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#strayGrid)" />
+                    
+                    {/* Chart area fill */}
+                    <path
+                      d={generateChartAreaPath(strayChartData, Math.max(...strayChartData.map(d => d.count), 1))}
+                      fill="url(#strayChartGradient)"
+                    />
+                    
+                    {/* Chart line */}
+                    <path
+                      d={generateChartPath(strayChartData, Math.max(...strayChartData.map(d => d.count), 1))}
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                    />
+                    
+                    {/* Data points */}
+                    {strayChartData.map((data, index) => {
+                      const maxValue = Math.max(...strayChartData.map(d => d.count), 1);
+                      const x = 20 + (index * 80);
+                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+                      return (
+                        <circle 
+                          key={index}
+                          cx={x} 
+                          cy={y} 
+                          r="6" 
+                          fill="#ffffff" 
+                          stroke="#f97316" 
+                          strokeWidth="3" 
+                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                        />
+                      );
+                    })}
+                    
+                    {/* Labels */}
+                    {strayChartData.map((data, index) => (
+                      <text 
+                        key={index}
+                        x={20 + (index * 80)} 
+                        y="195" 
+                        textAnchor="middle" 
+                        className="text-xs fill-white"
+                      >
+                        {data.month}
+                      </text>
+                    ))}
+                    
+                    {/* Y-axis labels */}
+                    <text x="10" y="185" textAnchor="end" className="text-xs fill-white">0</text>
+                    <text x="10" y="145" textAnchor="end" className="text-xs fill-white">20</text>
+                    <text x="10" y="105" textAnchor="end" className="text-xs fill-white">40</text>
+                    <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
+                    <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
+                  </svg>
+                </div>
+                <div className="mt-4 flex justify-between text-sm text-white">
+                  <span>Total Reports: {(strayReports || []).length}</span>
+                  <div className="flex items-center space-x-2">
+                    <span>Growth: {calculateStrayReportsGrowth(strayChartData) >= 0 ? '+' : ''}{calculateStrayReportsGrowth(strayChartData)}% this month</span>
+                    {isDataLoading && (
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                    )}
+                  </div>
+                </div>
+                          </div>
+            </div>
+
             {/* Recent Activity */}
             <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6">
@@ -2111,8 +2599,14 @@ const ImpoundDashboard = () => {
                   </div>
                   Recent Activity
                 </h3>
-                <div className="bg-white/50 px-3 py-1 rounded-full text-sm font-medium text-blue-700">
-                  {notifications.filter(n => !n.impoundRead).length} unread
+                <div className="flex items-center space-x-2">
+                  <div className="bg-white/50 px-3 py-1 rounded-full text-sm font-medium text-blue-700">
+                    {notifications.filter(n => !n.impoundRead).length} unread
+                  </div>
+                  <div className="flex items-center space-x-1 text-xs text-blue-600">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Live</span>
+                  </div>
                 </div>
               </div>
               <div className="space-y-4">
@@ -2470,7 +2964,7 @@ const ImpoundDashboard = () => {
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mr-4">
                     <FileText className="h-6 w-6" />
-                  </div>
+              </div>
                   <div>
                     <h2 className="text-xl font-bold">Report Details</h2>
                     <p className="text-blue-100 text-sm">
@@ -2493,31 +2987,31 @@ const ImpoundDashboard = () => {
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="space-y-6">
                 {/* Report Image */}
-                {selectedReport.imageUrl && !selectedReport.imageUrl.startsWith('file://') ? (
+              {selectedReport.imageUrl && !selectedReport.imageUrl.startsWith('file://') ? (
                   <div className="relative">
-                    <img 
-                      src={selectedReport.imageUrl} 
+                <img 
+                  src={selectedReport.imageUrl} 
                       alt="Report Image" 
                       className="w-full h-64 object-cover rounded-xl shadow-lg"
-                      onError={(e) => {
-                        console.log('Image failed to load in modal:', selectedReport.imageUrl);
-                        e.target.style.display = 'none';
-                      }}
-                    />
+                  onError={(e) => {
+                    console.log('Image failed to load in modal:', selectedReport.imageUrl);
+                    e.target.style.display = 'none';
+                  }}
+                />
                     <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-700">
                       Report Image
                     </div>
                   </div>
-                ) : (
+              ) : (
                   <div className="w-full h-64 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400">
-                    {selectedReport.imageUrl && selectedReport.imageUrl.startsWith('file://') ? 'Old Report (Image Not Available)' : 'No Image Available'}
-                  </div>
-                )}
+                  {selectedReport.imageUrl && selectedReport.imageUrl.startsWith('file://') ? 'Old Report (Image Not Available)' : 'No Image Available'}
+                </div>
+              )}
 
                 {/* Report Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <div>
+                <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
                       <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                         <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2527,11 +3021,11 @@ const ImpoundDashboard = () => {
                         <span className="text-gray-900 font-medium">
                           {selectedReport.locationName || 'Unknown location'}
                         </span>
-                      </div>
+            </div>
                     </div>
 
                     {selectedReport.contactNumber && (
-                      <div>
+                <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number</label>
                         <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                           <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2540,13 +3034,13 @@ const ImpoundDashboard = () => {
                           <span className="text-gray-900 font-medium">
                             {selectedReport.contactNumber}
                           </span>
-                        </div>
-                      </div>
-                    )}
+          </div>
                   </div>
+                    )}
+                </div>
 
                   <div className="space-y-4">
-                    <div>
+                  <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Report Time</label>
                       <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                         <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2555,10 +3049,10 @@ const ImpoundDashboard = () => {
                         <span className="text-gray-900 font-medium">
                           {selectedReport.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}
                         </span>
-                      </div>
+                </div>
                     </div>
 
-                    <div>
+                  <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
                       <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                         <div className={`w-3 h-3 rounded-full mr-2 ${
@@ -2569,7 +3063,7 @@ const ImpoundDashboard = () => {
                         <span className="text-gray-900 font-medium">
                           {selectedReport.status || 'Pending Review'}
                         </span>
-                      </div>
+                  </div>
                     </div>
                   </div>
                 </div>
@@ -2599,8 +3093,8 @@ const ImpoundDashboard = () => {
                       <p className="text-gray-900 leading-relaxed whitespace-pre-wrap">
                         {selectedReport.description}
                       </p>
-                    </div>
                   </div>
+                </div>
                 )}
 
                 {/* Additional Details */}
@@ -2614,9 +3108,9 @@ const ImpoundDashboard = () => {
                       <p className="text-sm text-blue-700">
                         This report has been submitted and is awaiting review. You can take action on this report from the main dashboard.
                       </p>
-                    </div>
-                  </div>
-                </div>
+              </div>
+            </div>
+          </div>
               </div>
             </div>
 
