@@ -67,6 +67,8 @@ const AgriculturalDashboard = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [pets, setPets] = useState([]);
   const [users, setUsers] = useState([]);
   const [registeredPets, setRegisteredPets] = useState([]);
@@ -637,187 +639,216 @@ const AgriculturalDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-3">
+      {/* Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 transition-all duration-300 ${
+          sidebarOpen || sidebarHovered ? 'w-80 translate-x-0' : 'w-16 -translate-x-0'
+        } lg:${sidebarOpen || sidebarHovered ? 'w-80' : 'w-16'}`}
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+      >
+        <div className="h-full bg-gradient-to-b from-slate-800 to-slate-900 border-r border-slate-700 shadow-2xl flex flex-col">
+          {/* Brand / Toggle */}
+          <div className="flex items-center justify-between px-4 py-4 border-b border-slate-700">
             <div className="flex items-center">
-              <Leaf className="h-8 w-8 text-white mr-3" />
-              <h1 className="text-2xl font-bold text-white">Agricultural Dashboard</h1>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <Leaf className="h-6 w-6 text-white" />
+              </div>
+              {(sidebarOpen || sidebarHovered) && (
+                <span className="ml-3 text-white text-lg font-semibold">Agriculture</span>
+              )}
             </div>
-            <div className="flex items-center justify-center space-x-4">
-              {/* Notifications */}
-              <div className="relative notifications-container">
+            <div className="flex items-center gap-2">
+              {(sidebarOpen || sidebarHovered) && (
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700"
+                  aria-label="Toggle sidebar"
+                >
+                  {sidebarOpen ? '‹' : '›'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Nav */}
+          <nav className="p-3 flex-1 space-y-3 overflow-y-auto">
+            {/* Notifications (separate from title) */}
+            <div className="mb-2">
+              {(sidebarOpen || sidebarHovered) ? (
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
+                  className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-xl bg-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-600/50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 relative"
                 >
-                  <Bell className="h-4 w-4" />
+                  <Bell className="h-5 w-5 mr-2" />
+                  <span>Notifications</span>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                       {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
+                    </span>
                   )}
                 </button>
-                
-                {/* Notifications Dropdown */}
-                {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl z-50 border border-gray-200">
-                    {/* Header */}
-                    <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <Bell className="h-5 w-5 text-gray-600 mr-2" />
-                          <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-                          {unreadCount > 0 && (
-                            <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                              {unreadCount}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {unreadCount > 0 && (
-                            <button
-                              onClick={markAllNotificationsAsRead}
-                              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              Mark all read
-                            </button>
-                          )}
-                          {notifications.length > 0 && (
-                            <button
-                              onClick={deleteAllNotifications}
-                              className="text-sm text-red-600 hover:text-red-800 font-medium"
-                            >
-                              Delete all
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setShowNotifications(false)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Notifications List */}
-                    <div className="max-h-80 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <div className="p-8 text-center">
-                          <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                          <p className="text-gray-500">No notifications yet</p>
-                          <p className="text-sm text-gray-400">New pet registrations will appear here</p>
-                        </div>
-                      ) : (
-                        notifications.filter(n => n.type !== 'test').slice(0, 10).map((notification) => (
-                          <div
-                            key={notification.id}
-                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                              !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                            }`}
-                            onClick={() => handleNotificationClick(notification)}
-                          >
-                            <div className="flex items-start">
-                              <div className="flex-shrink-0 mr-3">
-                                {notification.type === 'new_registration' ? (
-                                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                    <Dog className="h-4 w-4 text-green-600" />
-                                  </div>
-                                ) : (
-                                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                                    <Bell className="h-4 w-4 text-gray-600" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between">
-                                  <p className="text-sm font-semibold text-gray-900 truncate">
-                                    {notification.title}
-                                  </p>
-                                  {!notification.read && (
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                                <div className="flex items-center justify-between mt-2">
-                                  <p className="text-xs text-gray-400">
-                                    {notification.createdAt?.toDate?.()?.toLocaleString() || 'Recently'}
-                                  </p>
-                                  {notification.type === 'new_registration' && (
-                                    <span className="text-xs text-blue-600 font-medium">
-                                      Click to view details →
-              </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    
-                    {/* Footer */}
-                    {notifications.filter(n => n.type !== 'test').length > 10 && (
-                      <div className="p-3 border-t border-gray-100 bg-gray-50 rounded-b-lg">
-                        <p className="text-sm text-gray-500 text-center">
-                          Showing 10 of {notifications.filter(n => n.type !== 'test').length} notifications
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              ) : (
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="w-full p-3 rounded-xl transition-all duration-300 relative text-slate-300 hover:text-white hover:bg-slate-700/50"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-6 w-6 mx-auto" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 min-w-[1rem] px-1 flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                activeTab === 'dashboard'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+              } flex items-center`}
+            >
+              <BarChart3 className="h-5 w-5" />
+              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Dashboard</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab('registration')}
+              className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                activeTab === 'registration'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+              } flex items-center`}
+            >
+              <List className="h-5 w-5" />
+              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Pet Registration</span>}
+              {pendingPets.length > 0 && (
+                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
+                  {pendingPets.length > 99 ? '99+' : pendingPets.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('petManagement')}
+              className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                activeTab === 'petManagement'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+              } flex items-center`}
+            >
+              <Settings className="h-5 w-5" />
+              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Pet Management</span>}
+              {registeredPets.length > 0 && (
+                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-white text-indigo-700`}>
+                  {registeredPets.length > 99 ? '99+' : registeredPets.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('userManagement')}
+              className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                activeTab === 'userManagement'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+              } flex items-center`}
+            >
+              <Shield className="h-5 w-5" />
+              {(sidebarOpen || sidebarHovered) && <span className="ml-3">User Management</span>}
+              {deactivatedUsers.length > 0 && (
+                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-rose-500 text-white`}>
+                  {deactivatedUsers.length > 99 ? '99+' : deactivatedUsers.length}
+                </span>
+              )}
+            </button>
 
+            {/* Notifications quick button removed; now at top */}
 
+          </nav>
+          {/* Logout pinned to bottom */}
+          <div className="p-3 pt-0 mt-auto">
+            {(sidebarOpen || sidebarHovered) ? (
               <button
                 onClick={handleLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105"
+                className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-xl bg-red-600/20 text-red-400 hover:bg-red-600/30 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-300"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </button>
+            ) : (
+              <button
+                onClick={handleLogout}
+                className="w-full p-3 rounded-xl transition-all duration-300 text-red-400 hover:text-red-300 hover:bg-red-600/20"
+                aria-label="Logout"
+              >
+                <LogOut className="h-6 w-6 mx-auto" />
+              </button>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* Floating notifications panel (same as before, anchored near sidebar) */}
+      {showNotifications && (
+        <div className="fixed left-20 top-6 z-50 notifications-container">
+          <div className="w-96 bg-white rounded-lg shadow-xl border border-gray-200">
+            <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg flex items-center justify-between">
+              <div className="flex items-center">
+                <Bell className="h-5 w-5 text-gray-600 mr-2" />
+                <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                {unreadCount > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">{unreadCount}</span>
+                )}
+              </div>
+              <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No notifications yet</p>
+                  <p className="text-sm text-gray-400">New pet registrations will appear here</p>
+                </div>
+              ) : (
+                notifications.filter(n => n.type !== 'test').slice(0, 10).map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                      !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                    }`}
+                    onClick={() => handleNotificationClick(notification)}
+                  >
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0 mr-3">
+                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          <Dog className="h-4 w-4 text-green-600" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{notification.title}</p>
+                          {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-gray-400">{notification.createdAt?.toDate?.()?.toLocaleString() || 'Recently'}</p>
+                          <span className="text-xs text-blue-600 font-medium">Click to view details →</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-
-          {/* Tabs moved to header */}
-          <div className="flex gap-2 flex-wrap justify-center mt-3 pb-4">
-          <TabButton
-            active={activeTab === 'dashboard'}
-            label="Dashboard"
-            icon={BarChart3}
-            onClick={() => setActiveTab('dashboard')}
-          />
-          <TabButton
-            active={activeTab === 'registration'}
-            label="Pet Registration"
-            icon={List}
-            badge={pendingPets.length}
-            onClick={() => setActiveTab('registration')}
-          />
-          <TabButton
-            active={activeTab === 'petManagement'}
-            label="Pet Management"
-            icon={Settings}
-            badge={registeredPets.length}
-            onClick={() => setActiveTab('petManagement')}
-          />
-          <TabButton
-            active={activeTab === 'userManagement'}
-            label="User Management"
-            icon={Shield}
-            badge={deactivatedUsers.length}
-            onClick={() => setActiveTab('userManagement')}
-          />
         </div>
-      </div>
-      </header>
+      )}
 
       {/* Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pt-36">
+      <main className={`py-6 px-6 transition-all duration-300 ${
+        sidebarOpen || sidebarHovered ? 'lg:ml-80' : 'lg:ml-16'
+      } pt-24`}>
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Overview Cards */}
