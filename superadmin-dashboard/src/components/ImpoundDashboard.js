@@ -961,13 +961,13 @@ const ImpoundDashboard = () => {
             <h1 style="font-size: 32px; margin: 0; color: #DC2626; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">MISSING</h1>
             <h2 style="font-size: 20px; margin: 2px 0 0; color: #111827; font-weight: 600;">Lost Pet Report</h2>
             <div style="color: #6B7280; font-size: 9px; margin-top: 2px;">Printed: ${new Date().toLocaleString()}</div>
-          </div>
+            </div>
           
           <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;">
             ${report.imageUrl ? `
               <div style="text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0;">
                 <img src="${report.imageUrl}" alt="Pet Image" style="max-width: 100%; max-height: 100%; height: auto; border-radius: 8px; border: 2px solid #DC2626; object-fit: contain;" />
-              </div>
+            </div>
             ` : ''}
             
             <div style="border: 2px solid #DC2626; border-radius: 6px; padding: 8px; background-color: #FEF2F2; flex-shrink: 0;">
@@ -975,7 +975,7 @@ const ImpoundDashboard = () => {
                 <div style="flex: 1;">
                   <div style="font-size: 10px; color: #DC2626; margin-bottom: 1px; font-weight: 600;">Pet Name</div>
                   <div style="font-size: 12px; font-weight: 700; color: #111827;">${report.petName ? `${report.petName} (${report.breed || report.petType || 'Pet'})` : (report.breed || report.petType || 'Pet')}</div>
-                </div>
+          </div>
                 <div style="flex: 1;">
                   <div style="font-size: 10px; color: #DC2626; margin-bottom: 1px; font-weight: 600;">Reported At</div>
                   <div style="font-size: 12px; font-weight: 700; color: #111827;">${reportedAt || 'N/A'}</div>
@@ -1465,21 +1465,21 @@ const ImpoundDashboard = () => {
             <div className="flex items-center">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <Dog className="h-6 w-6 text-white" />
-              </div>
+            </div>
               {(sidebarOpen || sidebarHovered) && (
                 <span className="ml-3 text-white text-lg font-semibold">Impound</span>
               )}
             </div>
             <div className="flex items-center gap-2">
-              {(sidebarOpen || sidebarHovered) && (
-                <button
+            {(sidebarOpen || sidebarHovered) && (
+              <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                   className="px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700"
                   aria-label="Toggle sidebar"
-                >
+              >
                   {sidebarOpen ? '‹' : '›'}
-                </button>
-              )}
+              </button>
+            )}
             </div>
           </div>
 
@@ -1515,108 +1515,108 @@ const ImpoundDashboard = () => {
                 </button>
               )}
             </div>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'analytics'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                <button
+                  onClick={() => setActiveTab('analytics')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                    activeTab === 'analytics' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-            >
+                >
               <BarChart3 className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Dashboard</span>}
-            </button>
-            <button
-              onClick={() => setActiveTab('stray')}
+                </button>
+                <button
+                  onClick={() => setActiveTab('stray')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'stray'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    activeTab === 'stray' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-            >
+                >
               <Search className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Stray Reports</span>}
-              {(strayReports || []).length > 0 && (
+                  {(strayReports || []).length > 0 && (
                 <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
                   {(strayReports || []).length > 99 ? '99+' : (strayReports || []).length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('lost')}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('lost')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'lost'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    activeTab === 'lost' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-            >
+                >
               <ShieldCheck className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Lost Pet Reports</span>}
-              {(lostReports || []).length > 0 && (
+                  {(lostReports || []).length > 0 && (
                 <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
                   {(lostReports || []).length > 99 ? '99+' : (lostReports || []).length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('incident')}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('incident')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'incident'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    activeTab === 'incident' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-            >
+                >
               <FileText className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Incident Reports</span>}
-              {(incidentReports || []).length > 0 && (
+                  {(incidentReports || []).length > 0 && (
                 <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
                   {(incidentReports || []).length > 99 ? '99+' : (incidentReports || []).length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('adoption')}
-              className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'adoption'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('adoption')}
+                  className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                    activeTab === 'adoption' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-            >
+                >
               <Heart className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Adoption</span>}
-            </button>
-            <button
-              onClick={() => setActiveTab('adoptionList')}
+                </button>
+                <button
+                  onClick={() => setActiveTab('adoptionList')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'adoptionList'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    activeTab === 'adoptionList' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-            >
+                >
               <List className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Adoption List</span>}
-              {(adoptablePets || []).length > 0 && (
+                  {(adoptablePets || []).length > 0 && (
                 <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
                   {(adoptablePets || []).length > 99 ? '99+' : (adoptablePets || []).length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('applications')}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('applications')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'applications'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    activeTab === 'applications' 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-            >
+                >
               <List className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Applications</span>}
-              {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 0 && (
+                  {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 0 && (
                 <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
                   {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 99 ? '99+' : (adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
-                </span>
-              )}
-            </button>
+                    </span>
+                  )}
+                </button>
 
             {/* Notifications quick button removed; now at top */}
 
@@ -1862,7 +1862,7 @@ const ImpoundDashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <p className="text-sm text-gray-600">{r.locationName || 'N/A'}</p>
-                    </div>
+                </div>
                     <div className="flex items-center mb-3">
                       <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -1921,7 +1921,7 @@ const ImpoundDashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <p className="text-sm text-gray-600">{r.locationName || 'N/A'}</p>
-                    </div>
+                </div>
                     <div className="flex items-center mb-3">
                       <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -2202,7 +2202,7 @@ const ImpoundDashboard = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </div>
-                          No {activeApplicationTab} applications found
+                        No {activeApplicationTab} applications found
                         </div>
                       </td>
                     </tr>
@@ -2429,7 +2429,7 @@ const ImpoundDashboard = () => {
                     <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
                     <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
                   </svg>
-                      </div>
+                  </div>
                 <div className="mt-4 flex justify-between text-sm text-white">
                   <span>Total Adopted: {(adoptedPets || []).length}</span>
                   <div className="flex items-center space-x-2">
@@ -2437,8 +2437,8 @@ const ImpoundDashboard = () => {
                     {isDataLoading && (
                       <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                     )}
-                    </div>
-                    </div>
+                </div>
+                </div>
               </div>
 
               {/* Stray Reports Line Chart */}
@@ -2448,7 +2448,7 @@ const ImpoundDashboard = () => {
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                  </div>
+                </div>
                   Stray Reports Trend
                 </h3>
                 <div className="h-64">
@@ -2521,7 +2521,7 @@ const ImpoundDashboard = () => {
                     <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
                     <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
                   </svg>
-                </div>
+              </div>
                 <div className="mt-4 flex justify-between text-sm text-white">
                   <span>Total Reports: {(strayReports || []).length}</span>
                   <div className="flex items-center space-x-2">
@@ -2529,10 +2529,10 @@ const ImpoundDashboard = () => {
                     {isDataLoading && (
                       <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                     )}
-                  </div>
-                </div>
-                          </div>
+              </div>
             </div>
+          </div>
+        </div>
 
             {/* Recent Activity */}
             <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg p-6">
@@ -2571,11 +2571,11 @@ const ImpoundDashboard = () => {
                               {(notification.status || 'Report')} Report
                             </h4>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              notification.impoundRead ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {notification.impoundRead ? 'Read' : 'Unread'}
-                            </span>
-                          </div>
+                        notification.impoundRead ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {notification.impoundRead ? 'Read' : 'Unread'}
+                      </span>
+                    </div>
                           <p className="text-sm text-gray-600 mb-2">
                             📍 {notification.locationName || 'Unknown location'}
                           </p>
@@ -2606,9 +2606,9 @@ const ImpoundDashboard = () => {
                     <p className="text-sm text-gray-500">No unread reports at the moment</p>
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
+                          </div>
+                        </div>
+                      </div>
         )}
 
         {/* View Adoptable Modal */}
