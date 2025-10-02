@@ -82,6 +82,8 @@ const AgriculturalDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [chartData, setChartData] = useState([]);
@@ -148,6 +150,32 @@ const AgriculturalDashboard = () => {
         return timeB - timeA;
       })
       .slice(0, 8);
+  };
+
+  // Helpers for dynamic SVG chart generation (match Impound scaling)
+  const generateChartPath = (data, maxValue = 10) => {
+    if (!data || data.length === 0) return "M 20,180 L 20,180";
+    const points = data.map((d, i) => {
+      const x = 20 + (i * 80);
+      const y = 180 - Math.min((d.count / maxValue) * 160, 160);
+      return `${x},${y}`;
+    });
+    if (points.length === 1) {
+      return `M ${points[0]} L ${points[0]}`;
+    }
+    return `M ${points[0]} L ${points.slice(1).join(' L ')}`;
+  };
+
+  const generateChartAreaPath = (data, maxValue = 10) => {
+    if (!data || data.length === 0) return "M 20,180 L 20,180 L 20,180 Z";
+    const points = data.map((d, i) => {
+      const x = 20 + (i * 80);
+      const y = 180 - Math.min((d.count / maxValue) * 160, 160);
+      return `${x},${y}`;
+    });
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},180 L 20,180 Z`;
   };
 
   // Firebase data listeners
@@ -473,21 +501,9 @@ const AgriculturalDashboard = () => {
     if (!notification.read) {
       await markNotificationAsRead(notification.id);
     }
-    
-    // If it's a pet registration notification, find and show the pet details
-    if (notification.type === 'new_registration' && notification.petId) {
-      const pet = pets.find(p => p.id === notification.petId);
-      if (pet) {
-        setSelectedPet(pet);
-        setShowPetModal(true);
-        setShowNotifications(false);
-        
-        // Switch to registration tab if not already there
-        if (activeTab !== 'registration') {
-          setActiveTab('registration');
-        }
-      }
-    }
+    // Open notification details modal without closing the list
+    setSelectedNotification(notification);
+    setShowNotificationModal(true);
   };
 
   const deleteTestNotifications = async () => {
@@ -623,10 +639,14 @@ const AgriculturalDashboard = () => {
 
 
 
-  // Close notifications dropdown when clicking outside
+  // Close notifications dropdown when clicking outside (ignore clicks on details modal)
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (showNotifications && !event.target.closest('.notifications-container')) {
+      if (
+        showNotifications &&
+        !event.target.closest('.notifications-container') &&
+        !event.target.closest('[data-notification-detail-modal]')
+      ) {
         setShowNotifications(false);
       }
     };
@@ -653,7 +673,7 @@ const AgriculturalDashboard = () => {
             <div className="flex items-center">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <Leaf className="h-6 w-6 text-white" />
-              </div>
+            </div>
               {(sidebarOpen || sidebarHovered) && (
                 <span className="ml-3 text-white text-lg font-semibold">Agriculture</span>
               )}
@@ -685,7 +705,7 @@ const AgriculturalDashboard = () => {
                   {unreadCount > 0 && (
                     <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                       {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
+              </span>
                   )}
                 </button>
               ) : (
@@ -695,15 +715,15 @@ const AgriculturalDashboard = () => {
                   aria-label="Notifications"
                 >
                   <Bell className="h-6 w-6 mx-auto" />
-                  {unreadCount > 0 && (
+                          {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 min-w-[1rem] px-1 flex items-center justify-center">
                       {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
+                            </span>
                   )}
                 </button>
-              )}
-            </div>
-            <button
+                          )}
+                        </div>
+                            <button
               onClick={() => setActiveTab('dashboard')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
                 activeTab === 'dashboard'
@@ -713,7 +733,7 @@ const AgriculturalDashboard = () => {
             >
               <BarChart3 className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Dashboard</span>}
-            </button>
+                            </button>
             <button
               onClick={() => setActiveTab('registration')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
@@ -730,7 +750,7 @@ const AgriculturalDashboard = () => {
                 </span>
               )}
             </button>
-            <button
+                            <button
               onClick={() => setActiveTab('petManagement')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
                 activeTab === 'petManagement'
@@ -745,7 +765,7 @@ const AgriculturalDashboard = () => {
                   {registeredPets.length > 99 ? '99+' : registeredPets.length}
                 </span>
               )}
-            </button>
+                            </button>
             <button
               onClick={() => setActiveTab('userManagement')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
@@ -769,13 +789,13 @@ const AgriculturalDashboard = () => {
           {/* Logout pinned to bottom */}
           <div className="p-3 pt-0 mt-auto">
             {(sidebarOpen || sidebarHovered) ? (
-              <button
+                          <button
                 onClick={handleLogout}
                 className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-xl bg-red-600/20 text-red-400 hover:bg-red-600/30 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-300"
-              >
+                          >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
-              </button>
+                          </button>
             ) : (
               <button
                 onClick={handleLogout}
@@ -785,8 +805,8 @@ const AgriculturalDashboard = () => {
                 <LogOut className="h-6 w-6 mx-auto" />
               </button>
             )}
-          </div>
-        </div>
+                        </div>
+                      </div>
       </aside>
 
       {/* Floating notifications panel (same as before, anchored near sidebar) */}
@@ -803,47 +823,47 @@ const AgriculturalDashboard = () => {
               </div>
               <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
-            <div className="max-h-80 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">No notifications yet</p>
-                  <p className="text-sm text-gray-400">New pet registrations will appear here</p>
-                </div>
-              ) : (
-                notifications.filter(n => n.type !== 'test').slice(0, 10).map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                      !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                    }`}
-                    onClick={() => handleNotificationClick(notification)}
-                  >
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 mr-3">
-                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                          <Dog className="h-4 w-4 text-green-600" />
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500">No notifications yet</p>
+                          <p className="text-sm text-gray-400">New pet registrations will appear here</p>
                         </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
+                      ) : (
+                        notifications.filter(n => n.type !== 'test').slice(0, 10).map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                              !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                            }`}
+                            onClick={() => handleNotificationClick(notification)}
+                          >
+                            <div className="flex items-start">
+                              <div className="flex-shrink-0 mr-3">
+                                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                    <Dog className="h-4 w-4 text-green-600" />
+                                  </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-gray-900 truncate">{notification.title}</p>
                           {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>}
-                        </div>
+                                </div>
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
-                        <div className="flex items-center justify-between mt-2">
+                                <div className="flex items-center justify-between mt-2">
                           <p className="text-xs text-gray-400">{notification.createdAt?.toDate?.()?.toLocaleString() || 'Recently'}</p>
                           <span className="text-xs text-blue-600 font-medium">Click to view details →</span>
-                        </div>
-                      </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
+                      </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                )}
 
       {/* Content */}
       <main className={`py-6 px-6 transition-all duration-300 ${
@@ -936,15 +956,15 @@ const AgriculturalDashboard = () => {
                     </defs>
                     <rect width="100%" height="100%" fill="url(#grid)" />
                     
-                    {/* Chart area fill */}
+                    {/* Chart area fill (dynamic) */}
                     <path
-                      d={`M 20,180 Q 80,120 120,100 T 200,80 T 280,60 T 360,40 L 360,180 L 20,180 Z`}
+                      d={generateChartAreaPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
                       fill="url(#chartGradient)"
                     />
                     
-                    {/* Chart line */}
+                    {/* Chart line (dynamic) */}
                     <path
-                      d={`M 20,180 Q 80,120 120,100 T 200,80 T 280,60 T 360,40`}
+                      d={generateChartPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
                       fill="none"
                       stroke="#ffffff"
                       strokeWidth="4"
@@ -953,13 +973,24 @@ const AgriculturalDashboard = () => {
                       filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
                     />
                     
-                    {/* Data points */}
-                    <circle cx="20" cy="180" r="6" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
-                    <circle cx="80" cy="120" r="6" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
-                    <circle cx="120" cy="100" r="6" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
-                    <circle cx="200" cy="80" r="6" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
-                    <circle cx="280" cy="60" r="6" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
-                    <circle cx="360" cy="40" r="6" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
+                    {/* Data points (dynamic) */}
+                    {chartData.map((data, index) => {
+                      const maxValue = Math.max(...chartData.map(d => d.count), 1);
+                      const x = 20 + (index * 80);
+                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+                      return (
+                        <circle 
+                          key={index}
+                          cx={x} 
+                          cy={y} 
+                          r="6" 
+                          fill="#ffffff" 
+                          stroke="#10b981" 
+                          strokeWidth="3" 
+                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                        />
+                      );
+                    })}
                     
                     {/* Labels */}
                     <text x="20" y="195" textAnchor="middle" className="text-xs fill-white">Jan</text>
@@ -969,32 +1000,39 @@ const AgriculturalDashboard = () => {
                     <text x="280" y="195" textAnchor="middle" className="text-xs fill-white">May</text>
                     <text x="360" y="195" textAnchor="middle" className="text-xs fill-white">Jun</text>
                     
-                    {/* Y-axis labels */}
-                    <text x="10" y="185" textAnchor="end" className="text-xs fill-white">0</text>
-                    <text x="10" y="145" textAnchor="end" className="text-xs fill-white">20</text>
-                    <text x="10" y="105" textAnchor="end" className="text-xs fill-white">40</text>
-                    <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
-                    <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
+                    {/* Y-axis labels (dynamic ticks) */}
+                    {(() => {
+                      const maxValue = Math.max(...chartData.map(d => d.count), 1);
+                      const tickMax = Math.max(5, Math.ceil(maxValue / 5) * 5);
+                      const ticks = [0, tickMax * 0.25, tickMax * 0.5, tickMax * 0.75, tickMax];
+                      return ticks.map((t, i) => {
+                        const y = 180 - Math.min((t / tickMax) * 160, 160);
+                        const label = t % 1 === 0 ? t : t.toFixed(0);
+                        return (
+                          <text key={i} x="10" y={y + 5} textAnchor="end" className="text-xs fill-white">{label}</text>
+                        );
+                      });
+                    })()}
                   </svg>
                 </div>
                 <div className="mt-4 flex justify-between text-sm text-white">
                   <span>Total Registered: {pets.length}</span>
-                  <span>Growth: +15% this month</span>
+                  <span>Max (6mo): {Math.max(...chartData.map(d => d.count), 0)}</span>
                 </div>
               </div>
 
               {/* Recent Activity Card */}
-              <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-medium text-white mb-4">Recent Activity</h3>
+              <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
                 <div className="h-64 overflow-y-auto">
                   {recentActivity.length > 0 ? (
                     <div className="space-y-3">
                       {recentActivity.map((activity) => (
-                        <div key={activity.id} className="flex items-start space-x-3 p-3 bg-white bg-opacity-10 rounded-lg">
+                        <div key={activity.id} className="flex items-start space-x-3 p-3 bg-white rounded-lg border border-gray-200">
                           <span className="text-2xl">{activity.icon}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white font-medium">{activity.message}</p>
-                            <p className="text-xs text-gray-300">
+                            <p className="text-sm text-gray-900 font-medium">{activity.message}</p>
+                            <p className="text-xs text-gray-600">
                               {activity.timestamp?.toDate ? 
                                 activity.timestamp.toDate().toLocaleDateString() : 
                                 new Date(activity.timestamp).toLocaleDateString()
@@ -1019,12 +1057,12 @@ const AgriculturalDashboard = () => {
           </div>
         )}
 
-        {activeTab === 'registration' && (
+                 {activeTab === 'registration' && (
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Pet Registration Requests</h2>
              
              {/* Search and Filter Controls */}
-            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+             <div className="mb-6 flex flex-col sm:flex-row gap-4">
                <div className="flex-1">
                  <input
                    type="text"
@@ -1073,52 +1111,52 @@ const AgriculturalDashboard = () => {
                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{pet.petName || 'Unnamed Pet'}</td>
                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
                      <td className="px-4 py-2 text-sm text-gray-700">{pet.petType} - {pet.breed}</td>
-                     <td className="px-4 py-2 text-sm">
+                      <td className="px-4 py-2 text-sm">
                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                           Pending
                         </span>
                       </td>
-                     <td className="px-4 py-2 text-right text-sm">
-                       <div className="inline-flex gap-2">
-                         <button 
-                           onClick={() => handleViewPet(pet)}
+                                             <td className="px-4 py-2 text-right text-sm">
+                         <div className="inline-flex gap-2">
+                           <button 
+                             onClick={() => handleViewPet(pet)}
                            className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
-                         >
-                           View
-                         </button>
-                         <button 
-                           onClick={() => handleApprovePetRegistration(pet.id)}
+                           >
+                             View
+                </button>
+                           <button 
+                             onClick={() => handleApprovePetRegistration(pet.id)}
                            className="px-2 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 transition-all duration-300"
-                         >
-                           Approve
-                         </button>
-                         <button 
-                           onClick={() => handleRejectPetRegistration(pet.id)}
+                           >
+                             Approve
+                </button>
+                           <button 
+                             onClick={() => handleRejectPetRegistration(pet.id)}
                            className="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 transition-all duration-300"
-                         >
-                           Reject
-                         </button>
-                       </div>
-                     </td>
+                           >
+                             Reject
+                </button>
+              </div>
+                       </td>
                     </tr>
                   ))}
-                  {getFilteredPendingPets().length === 0 && (
+                                     {getFilteredPendingPets().length === 0 && (
                     <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-600">
-                      {searchTerm || filterType !== 'all' ? 'No registrations match your search criteria' : 'No pending registrations'}
-                    </td></tr>
-                  )}
+                       {searchTerm || filterType !== 'all' ? 'No registrations match your search criteria' : 'No pending registrations'}
+                     </td></tr>
+                   )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {activeTab === 'petManagement' && (
+                 {activeTab === 'petManagement' && (
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Registered Pets Management</h2>
              
              {/* Search and Filter Controls */}
-            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+             <div className="mb-6 flex flex-col sm:flex-row gap-4">
                <div className="flex-1">
                  <input
                    type="text"
@@ -1170,52 +1208,52 @@ const AgriculturalDashboard = () => {
                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{pet.petName || 'Unnamed Pet'}</td>
                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
                      <td className="px-4 py-2 text-sm text-gray-700">
-                       <div className="flex flex-col">
+                        <div className="flex flex-col">
                          <span className="font-medium text-gray-900">{pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1) || 'Unknown'}</span>
                          <span className="text-xs text-gray-500">{pet.breed || 'Unknown breed'}</span>
-                       </div>
-                     </td>
+                        </div>
+                      </td>
                      <td className="px-4 py-2 text-sm text-gray-700">
-                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                          pet.petGender === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
-                       }`}>
-                         {pet.petGender === 'male' ? '♂ Male' : '♀ Female'}
-                       </span>
-                     </td>
+                        }`}>
+                          {pet.petGender === 'male' ? '♂ Male' : '♀ Female'}
+                        </span>
+                      </td>
                      <td className="px-4 py-2 text-sm text-gray-700">{pet.contactNumber || 'No contact'}</td>
                      <td className="px-4 py-2 text-sm text-gray-700">
-                       {pet.registeredAt?.toDate ? pet.registeredAt.toDate().toLocaleDateString() : 
-                        pet.registeredDate ? new Date(pet.registeredDate).toLocaleDateString() : 'N/A'}
-                     </td>
-                     <td className="px-4 py-2 text-sm">
+                        {pet.registeredAt?.toDate ? pet.registeredAt.toDate().toLocaleDateString() : 
+                         pet.registeredDate ? new Date(pet.registeredDate).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm">
                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                         <CheckCircle2 className="h-3 w-3 mr-1" />
-                         Registered
-                       </span>
-                     </td>
-                     <td className="px-4 py-2 text-right text-sm">
-                       <div className="inline-flex gap-2">
-                         <button 
-                           onClick={() => handleViewPet(pet)}
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Registered
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm">
+                        <div className="inline-flex gap-2">
+                          <button 
+                            onClick={() => handleViewPet(pet)}
                            className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
-                         >
-                           View
-                         </button>
-                         <button 
-                           onClick={() => handleDeletePet(pet.id, pet.petName)}
+                          >
+                            View
+                          </button>
+                          <button 
+                            onClick={() => handleDeletePet(pet.id, pet.petName)}
                            className="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 transition-all duration-300"
-                         >
-                           Delete
-                         </button>
-                       </div>
-                     </td>
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
-                  {getFilteredRegisteredPets().length === 0 && (
+                                     {getFilteredRegisteredPets().length === 0 && (
                     <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-600">
-                      {searchTerm || filterType !== 'all' ? 'No pets match your search criteria' : 'No registered pets yet'}
-                    </td></tr>
-                  )}
+                       {searchTerm || filterType !== 'all' ? 'No pets match your search criteria' : 'No registered pets yet'}
+                     </td></tr>
+                   )}
                 </tbody>
               </table>
           </div>
@@ -1725,6 +1763,95 @@ const AgriculturalDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Notification Detail Modal */}
+      {showNotificationModal && selectedNotification && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-[60]"
+            onClick={() => {
+              setShowNotificationModal(false);
+              setSelectedNotification(null);
+              // Keep notifications panel open
+            }}
+          />
+          {/* Modal */}
+          <div 
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl z-[60] border border-gray-200 overflow-hidden"
+            data-notification-detail-modal
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mr-4">
+                    <FileText className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Notification Details</h2>
+                    <p className="text-blue-100 text-sm">
+                      {selectedNotification.title || 'Notification'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowNotificationModal(false);
+                    setSelectedNotification(null);
+                  }}
+                  className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Message</label>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-gray-900 leading-relaxed">
+                      {selectedNotification.message || 'No message provided'}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Created At</label>
+                    <div className="p-3 bg-gray-50 rounded-lg text-gray-900">
+                      {selectedNotification.createdAt?.toDate?.()?.toLocaleString() || 'Recently'}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                    <div className="p-3 bg-gray-50 rounded-lg text-gray-900">
+                      {selectedNotification.read ? 'Read' : 'Unread'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowNotificationModal(false);
+                    setSelectedNotification(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* User Details Modal */}
