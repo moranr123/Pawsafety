@@ -416,6 +416,7 @@ const ImpoundDashboard = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
   const [adoptedPets, setAdoptedPets] = useState([]);
+  const [reportsExpanded, setReportsExpanded] = useState(true);
 
   // Generate chart data for adopted pets
   const generateAdoptedPetsChartData = (adoptedPets) => {
@@ -1515,111 +1516,155 @@ const ImpoundDashboard = () => {
                 </button>
               )}
             </div>
-                <button
-                  onClick={() => setActiveTab('analytics')}
-                  className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                    activeTab === 'analytics' 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+            
+            {/* Dashboard Button */}
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                activeTab === 'analytics' 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-                >
+            >
               <BarChart3 className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Dashboard</span>}
-                </button>
-                <button
-                  onClick={() => setActiveTab('stray')}
+            </button>
+
+            {/* Reports Section */}
+            <div className="space-y-1">
+              {/* Reports Parent Button */}
+              <button
+                onClick={() => setReportsExpanded(!reportsExpanded)}
+                className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                  ['stray', 'lost', 'incident'].includes(activeTab)
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                    : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+                } flex items-center justify-between`}
+              >
+                <div className="flex items-center">
+                  <FileText className="h-5 w-5" />
+                  {(sidebarOpen || sidebarHovered) && <span className="ml-3">Reports</span>}
+                </div>
+                {(sidebarOpen || sidebarHovered) && (
+                  <svg 
+                    className={`h-4 w-4 transition-transform duration-300 ${reportsExpanded ? 'rotate-180' : ''}`}
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Reports Sub-buttons */}
+              {reportsExpanded && (sidebarOpen || sidebarHovered) && (
+                <div className="ml-4 space-y-2 border-l-2 border-slate-600 pl-2">
+                  {/* Stray Reports */}
+                  <button
+                    onClick={() => setActiveTab('stray')}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'stray' 
+                        ? 'bg-slate-700 text-white shadow-md' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <Search className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Stray Reports</span>
+                    {(strayReports || []).length > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white">
+                        {(strayReports || []).length > 99 ? '99+' : (strayReports || []).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Lost Pet Reports */}
+                  <button
+                    onClick={() => setActiveTab('lost')}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'lost' 
+                        ? 'bg-slate-700 text-white shadow-md' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Lost Reports</span>
+                    {(lostReports || []).length > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white">
+                        {(lostReports || []).length > 99 ? '99+' : (lostReports || []).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Incident Reports */}
+                  <button
+                    onClick={() => setActiveTab('incident')}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'incident' 
+                        ? 'bg-slate-700 text-white shadow-md' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Incident Reports</span>
+                    {(incidentReports || []).length > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white">
+                        {(incidentReports || []).length > 99 ? '99+' : (incidentReports || []).length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Adoption Button */}
+            <button
+              onClick={() => setActiveTab('adoption')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                    activeTab === 'stray' 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                activeTab === 'adoption' 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-                >
-              <Search className="h-5 w-5" />
-              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Stray Reports</span>}
-                  {(strayReports || []).length > 0 && (
-                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
-                  {(strayReports || []).length > 99 ? '99+' : (strayReports || []).length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('lost')}
-              className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                    activeTab === 'lost' 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
-              } flex items-center`}
-                >
-              <ShieldCheck className="h-5 w-5" />
-              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Lost Pet Reports</span>}
-                  {(lostReports || []).length > 0 && (
-                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
-                  {(lostReports || []).length > 99 ? '99+' : (lostReports || []).length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('incident')}
-              className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                    activeTab === 'incident' 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
-              } flex items-center`}
-                >
-              <FileText className="h-5 w-5" />
-              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Incident Reports</span>}
-                  {(incidentReports || []).length > 0 && (
-                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
-                  {(incidentReports || []).length > 99 ? '99+' : (incidentReports || []).length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('adoption')}
-                  className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                    activeTab === 'adoption' 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
-              } flex items-center`}
-                >
+            >
               <Heart className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Adoption</span>}
-                </button>
-                <button
-                  onClick={() => setActiveTab('adoptionList')}
+            </button>
+
+            {/* Adoption List Button */}
+            <button
+              onClick={() => setActiveTab('adoptionList')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                    activeTab === 'adoptionList' 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                activeTab === 'adoptionList' 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-                >
+            >
               <List className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Adoption List</span>}
-                  {(adoptablePets || []).length > 0 && (
+              {(adoptablePets || []).length > 0 && (
                 <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
                   {(adoptablePets || []).length > 99 ? '99+' : (adoptablePets || []).length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('applications')}
+                </span>
+              )}
+            </button>
+
+            {/* Applications Button */}
+            <button
+              onClick={() => setActiveTab('applications')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                    activeTab === 'applications' 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                activeTab === 'applications' 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
-                >
+            >
               <List className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Applications</span>}
-                  {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 0 && (
+              {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 0 && (
                 <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
                   {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 99 ? '99+' : (adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
-                    </span>
-                  )}
-                </button>
-
-            {/* Notifications quick button removed; now at top */}
-
+                </span>
+              )}
+            </button>
           </nav>
           {/* Logout pinned to bottom */}
           <div className="p-3 pt-0 mt-auto">
