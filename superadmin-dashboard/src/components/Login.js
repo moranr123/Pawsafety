@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Lock, Mail, Eye, EyeOff, Shield, Loader2 } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
+import LogoBlue from '../assets/LogoBlue.png';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -40,7 +41,7 @@ const Login = () => {
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <Shield className="h-12 w-12 text-indigo-600" />
+              <img src={LogoBlue} alt="Logo" className="h-12 w-auto" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900">
               Admin Portal
