@@ -418,6 +418,7 @@ const ImpoundDashboard = () => {
   const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
   const [adoptedPets, setAdoptedPets] = useState([]);
   const [reportsExpanded, setReportsExpanded] = useState(true);
+  const [adoptionExpanded, setAdoptionExpanded] = useState(true);
 
   // Generate chart data for adopted pets
   const generateAdoptedPetsChartData = (adoptedPets) => {
@@ -1618,54 +1619,87 @@ const ImpoundDashboard = () => {
               )}
             </div>
 
-            {/* Adoption Button */}
-            <button
-              onClick={() => setActiveTab('adoption')}
-              className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'adoption' 
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
-              } flex items-center`}
-            >
-              <Heart className="h-5 w-5" />
-              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Adoption</span>}
-            </button>
+            {/* Adoption Section */}
+            <div className="space-y-1">
+              {/* Adoption Parent Button */}
+              <button
+                onClick={() => setAdoptionExpanded(!adoptionExpanded)}
+                className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                  ['adoption', 'adoptionList', 'applications'].includes(activeTab)
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+                } flex items-center justify-between`}
+              >
+                <div className="flex items-center">
+                  <Heart className="h-5 w-5" />
+                  {(sidebarOpen || sidebarHovered) && <span className="ml-3">Adoption</span>}
+                </div>
+                {(sidebarOpen || sidebarHovered) && (
+                  <svg
+                    className={`h-4 w-4 transition-transform duration-300 ${adoptionExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                )}
+              </button>
 
-            {/* Adoption List Button */}
-            <button
-              onClick={() => setActiveTab('adoptionList')}
-              className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'adoptionList' 
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
-              } flex items-center`}
-            >
-              <List className="h-5 w-5" />
-              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Adoption List</span>}
-              {(adoptablePets || []).length > 0 && (
-                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
-                  {(adoptablePets || []).length > 99 ? '99+' : (adoptablePets || []).length}
-                </span>
-              )}
-            </button>
+              {/* Adoption Sub-buttons */}
+              {adoptionExpanded && (sidebarOpen || sidebarHovered) && (
+                <div className="ml-4 space-y-2 border-l-2 border-slate-600 pl-2">
+                  {/* Register Pet */}
+                  <button
+                    onClick={() => setActiveTab('adoption')}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'adoption'
+                        ? 'bg-slate-700 text-white shadow-md'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <Heart className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Register Pet</span>
+                  </button>
 
-            {/* Applications Button */}
-            <button
-              onClick={() => setActiveTab('applications')}
-              className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'applications' 
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
-              } flex items-center`}
-            >
-              <List className="h-5 w-5" />
-              {(sidebarOpen || sidebarHovered) && <span className="ml-3">Applications</span>}
-              {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 0 && (
-                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white`}>
-                  {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 99 ? '99+' : (adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
-                </span>
+                  {/* Adoption List */}
+                  <button
+                    onClick={() => setActiveTab('adoptionList')}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'adoptionList'
+                        ? 'bg-slate-700 text-white shadow-md'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <List className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Adoption List</span>
+                    {(adoptablePets || []).length > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white">
+                        {(adoptablePets || []).length > 99 ? '99+' : (adoptablePets || []).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Applications */}
+                  <button
+                    onClick={() => setActiveTab('applications')}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'applications'
+                        ? 'bg-slate-700 text-white shadow-md'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <List className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Applications</span>
+                    {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white">
+                        {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 99 ? '99+' : (adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
+                      </span>
+                    )}
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
           </nav>
           {/* Logout pinned to bottom */}
           <div className="p-3 pt-0 mt-auto">
