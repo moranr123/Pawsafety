@@ -28,6 +28,7 @@ import {
 import AdminList from './AdminList';
 import CreateAdminModal from './CreateAdminModal';
 import EditPasswordModal from './modals/EditPasswordModal';
+import LogoWhite from '../assets/Logowhite.png';
 
 const SuperAdminDashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -181,8 +182,8 @@ const SuperAdminDashboard = () => {
       <aside className="w-64 bg-gradient-to-b from-slate-800 to-slate-900 border-r border-slate-700 shadow-2xl flex flex-col">
         <div className="p-6">
           <div className="flex items-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
-              <Shield className="h-6 w-6 text-white" />
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1 mr-3">
+              <img src={LogoWhite} alt="PawSafety Logo" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-xl font-bold text-white">
               Super Admin

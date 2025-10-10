@@ -35,6 +35,7 @@ import {
   FileText,
   Archive
 } from 'lucide-react';
+import LogoWhite from '../assets/Logowhite.png';
 
 // Breed options based on pet type
 const DOG_BREEDS = [
@@ -1464,8 +1465,8 @@ const ImpoundDashboard = () => {
           {/* Brand / Toggle */}
           <div className="flex items-center justify-between px-4 py-4 border-b border-slate-700">
             <div className="flex items-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Dog className="h-6 w-6 text-white" />
+              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1">
+                <img src={LogoWhite} alt="PawSafety Logo" className="w-full h-full object-contain" />
             </div>
               {(sidebarOpen || sidebarHovered) && (
                 <span className="ml-3 text-white text-lg font-semibold">Impound</span>
