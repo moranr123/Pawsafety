@@ -1474,15 +1474,13 @@ const ImpoundDashboard = () => {
               )}
             </div>
             <div className="flex items-center gap-2">
-            {(sidebarOpen || sidebarHovered) && (
               <button
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700"
-                  aria-label="Toggle sidebar"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700"
+                aria-label="Toggle sidebar"
               >
-                  {sidebarOpen ? '‹' : '›'}
+                {sidebarOpen ? '‹' : '›'}
               </button>
-            )}
             </div>
           </div>
 
@@ -1731,6 +1729,7 @@ const ImpoundDashboard = () => {
           setSidebarHovered(false);
         }}
         className="fixed top-4 left-4 z-50 lg:hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+        aria-label="Toggle sidebar"
       >
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
