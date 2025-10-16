@@ -752,12 +752,6 @@ const HomeTabScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>PawSafety</Text>
           <View style={styles.headerIcons}>
             <TouchableOpacity 
-              style={styles.iconButton}
-              onPress={() => setUserManualVisible(true)}
-            >
-              <MaterialIcons name="help-outline" size={24} color={COLORS.white} />
-            </TouchableOpacity>
-            <TouchableOpacity 
               style={[styles.iconButton, { position: 'relative' }]}
               onPress={() => setNotifVisible(true)}
             >
@@ -776,6 +770,12 @@ const HomeTabScreen = ({ navigation }) => {
               }}
             >
               <MaterialIcons name="account-circle" size={24} color={COLORS.white} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => setUserManualVisible(true)}
+            >
+              <MaterialIcons name="help-outline" size={24} color={COLORS.white} />
             </TouchableOpacity>
           </View>
         </View>
