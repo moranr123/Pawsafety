@@ -91,6 +91,7 @@ const AgriculturalDashboard = () => {
   const [chartData, setChartData] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Generate chart data from real pet registrations
   const generateChartData = (pets) => {
@@ -304,6 +305,9 @@ const AgriculturalDashboard = () => {
       
       // Generate recent activity
       setRecentActivity(generateRecentActivity(pets, regularUsers));
+      
+      // Set loading to false when data is loaded
+      setIsLoading(false);
     });
 
     // Listen to admin notifications
@@ -905,7 +909,19 @@ const getOwnerProfileImage = (pet) => {
       <main className={`py-6 px-6 transition-all duration-300 ${
         sidebarOpen || sidebarHovered ? 'lg:ml-80' : 'lg:ml-16'
       } pt-8`}>
-        {activeTab === 'dashboard' && (
+        {/* Loading Indicator */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
+              <p className="text-gray-600 text-xl font-medium">Loading dashboard data...</p>
+              <p className="text-gray-500 text-sm">Please wait while we fetch your data</p>
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard Content */}
+        {!isLoading && activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Overview Cards (match Impound UI) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
@@ -1139,7 +1155,7 @@ const getOwnerProfileImage = (pet) => {
           </div>
         )}
 
-                 {activeTab === 'registration' && (
+                 {!isLoading && activeTab === 'registration' && (
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Pet Registration Requests</h2>
              
@@ -1233,7 +1249,7 @@ const getOwnerProfileImage = (pet) => {
           </div>
         )}
 
-                 {activeTab === 'petManagement' && (
+                 {!isLoading && activeTab === 'petManagement' && (
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Registered Pets Management</h2>
              
@@ -1381,7 +1397,7 @@ const getOwnerProfileImage = (pet) => {
           </div>
         )}
 
-        {activeTab === 'userManagement' && (
+        {!isLoading && activeTab === 'userManagement' && (
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
             <div className="flex items-center justify-between mb-4">
               <div>
