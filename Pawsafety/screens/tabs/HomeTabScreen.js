@@ -19,6 +19,7 @@ import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/f
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
+import UserManualModal from '../../components/UserManualModal';
 
 const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
@@ -45,6 +46,7 @@ const HomeTabScreen = ({ navigation }) => {
   const [hiddenRegistrationIds, setHiddenRegistrationIds] = useState(new Set());
   const [hiddenIncidentIds, setHiddenIncidentIds] = useState(new Set());
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
+  const [userManualVisible, setUserManualVisible] = useState(false);
 
   // Load hidden notifications from storage
   useEffect(() => {
@@ -749,6 +751,12 @@ const HomeTabScreen = ({ navigation }) => {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>PawSafety</Text>
           <View style={styles.headerIcons}>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => setUserManualVisible(true)}
+            >
+              <MaterialIcons name="help-outline" size={24} color={COLORS.white} />
+            </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.iconButton, { position: 'relative' }]}
               onPress={() => setNotifVisible(true)}
@@ -2681,6 +2689,12 @@ const HomeTabScreen = ({ navigation }) => {
           </View>
         </Modal>
       )}
+
+      {/* User Manual Modal */}
+      <UserManualModal 
+        visible={userManualVisible} 
+        onClose={() => setUserManualVisible(false)} 
+      />
     </View>
   );
 };
