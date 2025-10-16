@@ -24,7 +24,6 @@ const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS } = useTheme();
   const [recentReports, setRecentReports] = useState([]);
-  const [recentPets, setRecentPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
@@ -142,7 +141,7 @@ const HomeTabScreen = ({ navigation }) => {
   }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, lastReadUpdate]);
 
   useEffect(() => {
-    let loadingCount = 2; // Track both queries
+    let loadingCount = 1; // Track only reports query
     
     // Fetch recent reports
     const reportsQuery = query(
@@ -171,23 +170,8 @@ const HomeTabScreen = ({ navigation }) => {
       if (loadingCount === 0) setLoading(false);
     });
     
-    // Fetch recent registered pets
-    const petsQuery = query(
-      collection(db, 'pets'),
-      orderBy('createdAt', 'desc'),
-      limit(5)
-    );
-    
-    const petsUnsubscribe = onSnapshot(petsQuery, (snapshot) => {
-      const pets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRecentPets(pets);
-      loadingCount--;
-      if (loadingCount === 0) setLoading(false);
-    });
-    
     return () => {
       reportsUnsubscribe();
-      petsUnsubscribe();
     };
   }, [user?.uid]);
 
@@ -895,14 +879,6 @@ const HomeTabScreen = ({ navigation }) => {
           />
 
           <QuickActionCard
-            title="My Pets"
-            description="View and manage your pets"
-            icon="🐾"
-            color={COLORS.mediumBlue}
-            onPress={() => navigation.navigate('MyPets')}
-          />
-
-          <QuickActionCard
             title="Pet Care Guide"
             description="How to care for your pet"
             icon="📘"
@@ -911,70 +887,6 @@ const HomeTabScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Recent Registered Pets */}
-        <View style={[styles.section, styles.petsSection]}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, styles.sectionTitleInHeader]}>Recent Registered Pets</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('PetList')}>
-              <Text style={styles.viewAllButton}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.white} />
-              <Text style={styles.loadingText}>Loading pets...</Text>
-            </View>
-          ) : recentPets.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No registered pets yet</Text>
-              <Text style={styles.emptySubtext}>Be the first to register your pet!</Text>
-            </View>
-          ) : (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.reportsScrollContainer}
-            >
-              {recentPets.map((pet) => (
-                <ImageBackground 
-                  key={pet.id}
-                  source={pet.petImage ? { uri: pet.petImage } : null}
-                  style={styles.reportCard}
-                  imageStyle={styles.cardBackgroundImage}
-                >
-                  {!pet.petImage && (
-                    <View style={styles.placeholderBackground}>
-                      <Text style={styles.petEmoji}>🐕</Text>
-                    </View>
-                  )}
-                  <View style={styles.darkOverlay} />
-                  
-                  <View style={styles.reportContent}>
-                    <View style={styles.reportHeader}>
-                      <Text style={styles.reportName}>{pet.petName || 'Unnamed Pet'}</Text>
-                    </View>
-                    
-                    <Text style={styles.reportLocation}>🐾 {pet.breed || 'Unknown Breed'}</Text>
-                    <Text style={styles.reportDistance}>{formatTimeAgo(pet.createdAt)}</Text>
-                    <Text style={styles.reportDescription} numberOfLines={3}>
-                      {pet.description || `A lovely ${pet.petType || 'pet'} looking for a loving home.`}
-                    </Text>
-                    
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity 
-                        style={styles.helpButton}
-                        onPress={() => setSelectedPetDetails(pet)}
-                      >
-                        <Text style={styles.helpButtonText}>View Details</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </ImageBackground>
-              ))}
-            </ScrollView>
-          )}
-        </View>
 
         {/* Recent Reports */}
         <View style={[styles.section, styles.reportsSection]}>

@@ -10,7 +10,7 @@ import HomeTabScreen from '../screens/tabs/HomeTabScreen';
 import StraysScreen from '../screens/tabs/StraysScreen';
 import ScanScreen from '../screens/tabs/ScanScreen';
 import AdoptScreen from '../screens/tabs/AdoptScreen';
-import PetListScreen from '../screens/tabs/PetListScreen';
+import MyPetsScreen from '../screens/MyPetsScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -129,7 +129,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             'Home': 'home',
             'Strays': 'report',
             'Adopt': 'favorite',
-            'PetList': 'pets',
+            'MyPets': 'pets',
           };
           const iconName = iconMap[routeName] || 'help';
           
@@ -193,9 +193,9 @@ const TabNavigator = () => {
         options={{ tabBarLabel: 'Adopt' }}
       />
       <Tab.Screen 
-        name="PetList" 
-        component={PetListScreen}
-        options={{ tabBarLabel: 'Pet List' }}
+        name="MyPets" 
+        component={MyPetsScreen}
+        options={{ tabBarLabel: 'My Pets' }}
       />
     </Tab.Navigator>
   );
