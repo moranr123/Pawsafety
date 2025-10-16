@@ -129,14 +129,6 @@ const StraysScreen = ({ navigation }) => {
       borderBottomColor: 'rgba(255, 255, 255, 0.1)',
       ...SHADOWS.light,
     },
-    headerTitle: {
-      fontSize: 20,
-      fontFamily: 'SF Pro Display',
-      fontWeight: '700',
-      color: COLORS.white,
-      textAlign: 'center',
-      marginBottom: SPACING.md,
-    },
     filtersContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -457,7 +449,6 @@ const StraysScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header with Filters */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Stray Reports</Text>
         <View style={styles.filtersContainer}>
           <FilterButton title="All" active={filter === 'All'} onPress={() => setFilter('All')} />
           <FilterButton title="Stray" active={filter === 'Stray'} onPress={() => setFilter('Stray')} />

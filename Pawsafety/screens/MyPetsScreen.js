@@ -953,12 +953,6 @@ Thank you for helping reunite pets with their families! ❤️`;
       alignItems: 'center',
       justifyContent: 'space-between',
     },
-    backButton: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 12,
-      padding: SPACING.sm,
-      marginRight: SPACING.md,
-    },
     headerTitle: {
       fontSize: 20,
       fontFamily: FONTS.family,
@@ -2500,12 +2494,6 @@ Thank you for helping reunite pets with their families! ❤️`;
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back" size={20} color={COLORS.white} />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>My Pets</Text>
           <View style={styles.statsContainer}>
             <Text style={styles.statsText}>

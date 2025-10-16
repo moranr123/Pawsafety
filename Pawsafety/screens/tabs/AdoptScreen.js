@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ImageBackground,
   RefreshControl,
@@ -72,36 +71,50 @@ const AdoptScreen = () => {
       flex: 1,
       backgroundColor: COLORS.background,
     },
-    filtersContainer: {
+    header: {
+      backgroundColor: COLORS.darkPurple,
       paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,
-      marginBottom: SPACING.md,
+      paddingTop: 50,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+      ...SHADOWS.light,
+    },
+    filtersContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: SPACING.xs,
     },
     filterChip: {
-      backgroundColor: COLORS.cardBackground,
-      paddingHorizontal: SPACING.md,
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      paddingHorizontal: SPACING.sm,
       paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.medium,
-      marginRight: SPACING.sm,
+      borderRadius: 15,
       borderWidth: 1,
-      borderColor: COLORS.mediumBlue,
+      borderColor: 'rgba(255, 255, 255, 0.3)',
+      flex: 1,
+      alignItems: 'center',
+      minHeight: 36,
+      justifyContent: 'center',
     },
     filterChipActive: {
-      backgroundColor: COLORS.success,
-      borderColor: COLORS.success,
+      backgroundColor: COLORS.white,
+      borderColor: COLORS.white,
     },
     filterText: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 12,
       fontFamily: FONTS.family,
-      color: COLORS.text,
-      fontWeight: FONTS.weights.medium,
+      color: COLORS.white,
+      fontWeight: FONTS.weights.semiBold,
+      textAlign: 'center',
     },
     filterTextActive: {
-      color: COLORS.white,
+      color: COLORS.darkPurple,
     },
     scrollView: {
       flex: 1,
       paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.lg,
     },
     petCard: {
       borderRadius: RADIUS.medium,
@@ -200,7 +213,7 @@ const AdoptScreen = () => {
       justifyContent: 'space-between',
     },
     adoptButton: {
-      backgroundColor: 'rgba(76, 175, 80, 0.8)',
+      backgroundColor: COLORS.success,
       paddingHorizontal: SPACING.md,
       paddingVertical: SPACING.sm,
       borderRadius: RADIUS.small,
@@ -215,14 +228,14 @@ const AdoptScreen = () => {
       textAlign: 'center',
     },
     detailsButton: {
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
       paddingHorizontal: SPACING.md,
       paddingVertical: SPACING.sm,
       borderRadius: RADIUS.small,
       flex: 1,
       marginLeft: SPACING.xs,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.2)',
+      borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     detailsButtonText: {
       color: '#FFFFFF',
@@ -232,12 +245,14 @@ const AdoptScreen = () => {
       textAlign: 'center',
     },
     ctaCard: {
-      backgroundColor: COLORS.golden,
+      backgroundColor: COLORS.cardBackground,
       borderRadius: RADIUS.medium,
       padding: SPACING.md,
       marginBottom: SPACING.md,
       flexDirection: 'row',
       alignItems: 'flex-start',
+      borderWidth: 1,
+      borderColor: COLORS.lightBlue,
       ...SHADOWS.light,
     },
     ctaIcon: {
@@ -274,16 +289,24 @@ const AdoptScreen = () => {
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
     },
+    myAppsContainer: {
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      alignItems: 'flex-end',
+    },
     myAppsButton: {
-      alignSelf: 'flex-end',
       backgroundColor: COLORS.darkPurple,
       paddingHorizontal: SPACING.md,
       paddingVertical: SPACING.sm,
       borderRadius: RADIUS.small,
+      ...SHADOWS.light,
     },
     myAppsButtonText: {
-      color: '#fff',
-      fontWeight: '700'
+      color: COLORS.white,
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      textAlign: 'center',
     },
     bottomSpacing: {
       height: 100,
@@ -798,19 +821,21 @@ const AdoptScreen = () => {
   }, [auth.currentUser?.uid]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Filter Section */}
-      <View style={styles.filtersContainer}>
-        <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
-          <FilterChip title="All" active={selectedFilter === 'All'} onPress={() => setSelectedFilter('All')} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }} />
-          <FilterChip title="Dogs" active={selectedFilter === 'Dogs'} onPress={() => setSelectedFilter('Dogs')} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }} />
-          <FilterChip title="Cats" active={selectedFilter === 'Cats'} onPress={() => setSelectedFilter('Cats')} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }} />
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.filtersContainer}>
+          <FilterChip title="All" active={selectedFilter === 'All'} onPress={() => setSelectedFilter('All')} />
+          <FilterChip title="Dogs" active={selectedFilter === 'Dogs'} onPress={() => setSelectedFilter('Dogs')} />
+          <FilterChip title="Cats" active={selectedFilter === 'Cats'} onPress={() => setSelectedFilter('Cats')} />
         </View>
-        <View style={{ marginTop: SPACING.sm }}>
-          <TouchableOpacity style={styles.myAppsButton} onPress={() => setMyAppsVisible(true)}>
-            <Text style={styles.myAppsButtonText}>My Applications</Text>
-          </TouchableOpacity>
-        </View>
+      </View>
+
+      {/* My Applications Button */}
+      <View style={styles.myAppsContainer}>
+        <TouchableOpacity style={styles.myAppsButton} onPress={() => setMyAppsVisible(true)}>
+          <Text style={styles.myAppsButtonText}>My Applications</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Adoption List */}
@@ -1346,7 +1371,7 @@ const AdoptScreen = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
