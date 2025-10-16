@@ -23,7 +23,7 @@ const SettingsScreen = ({ navigation }) => {
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#F8FAFC',
+      backgroundColor: COLORS.background,
     },
     header: {
       backgroundColor: COLORS.darkPurple,
@@ -271,33 +271,6 @@ const SettingsScreen = ({ navigation }) => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
         <ProfileCard />
-
-        <SettingsSection title="Account">
-          <SettingsItem
-            icon="👤"
-            title="Personal Information"
-            subtitle="Name, email, phone number"
-            onPress={() => Alert.alert('Personal Info', 'Personal information screen would open here')}
-          />
-          <SettingsItem
-            icon="📋"
-            title="Recent Activity"
-            subtitle="View your recent actions and updates"
-            onPress={() => Alert.alert('Recent Activity', 'Recent activity screen would open here')}
-          />
-        </SettingsSection>
-
-        <SettingsSection title="Notifications">
-          <SettingsItem
-            icon="🔔"
-            title="Push Notifications"
-            subtitle="Alerts for stray pets and updates"
-            showArrow={false}
-            rightComponent={<Switch value={true} trackColor={{ false: COLORS.gray, true: COLORS.mediumBlue }} />}
-          />
-        </SettingsSection>
-
-
 
         <SettingsSection title="App Preferences">
           <SettingsItem

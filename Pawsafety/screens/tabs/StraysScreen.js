@@ -118,7 +118,7 @@ const StraysScreen = ({ navigation }) => {
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#F8FAFC',
+      backgroundColor: COLORS.background,
     },
     header: {
       backgroundColor: COLORS.darkPurple,
