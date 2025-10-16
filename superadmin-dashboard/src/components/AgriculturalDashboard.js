@@ -1037,8 +1037,8 @@ const getOwnerProfileImage = (pet) => {
             </div>
 
 
-            {/* Chart and Activity Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Chart Layout */}
+            <div className="grid grid-cols-1 gap-6">
               {/* Registered Pets Line Chart */}
               <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 rounded-xl shadow-lg p-6">
                 <h3 className="text-lg font-medium text-white mb-4">Registered Pets Trend</h3>
@@ -1121,38 +1121,6 @@ const getOwnerProfileImage = (pet) => {
                 </div>
               </div>
 
-              {/* Recent Activity Card */}
-              <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
-                <div className="h-64 overflow-y-auto">
-                  {recentActivity.length > 0 ? (
-                    <div className="space-y-3">
-                      {recentActivity.map((activity) => (
-                        <div key={activity.id} className="flex items-start space-x-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <span className="text-2xl">{activity.icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-900 font-medium">{activity.message}</p>
-                            <p className="text-xs text-gray-600">
-                              {activity.timestamp?.toDate ? 
-                                activity.timestamp.toDate().toLocaleDateString() : 
-                                new Date(activity.timestamp).toLocaleDateString()
-                              }
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-gray-300">No recent activity</p>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-4 flex justify-between text-sm text-white">
-                  <span>Total Activities: {recentActivity.length}</span>
-                  <span>Last Updated: {new Date().toLocaleTimeString()}</span>
-                </div>
-              </div>
             </div>
           </div>
         )}

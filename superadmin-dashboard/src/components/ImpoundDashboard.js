@@ -1550,7 +1550,7 @@ const ImpoundDashboard = () => {
             <div className="flex items-center">
               <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1">
                 <img src={LogoWhite} alt="PawSafety Logo" className="w-full h-full object-contain" />
-            </div>
+              </div>
               {(sidebarOpen || sidebarHovered) && (
                 <span className="ml-3 text-white text-lg font-semibold">Impound</span>
               )}
@@ -1915,9 +1915,9 @@ const ImpoundDashboard = () => {
                         ))
                       )}
                     </div>
-                      </div>
-                  </div>
-                )}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <main className={`flex-1 py-6 px-6 transition-all duration-300 ${
@@ -2663,100 +2663,7 @@ const ImpoundDashboard = () => {
             </div>
           </div>
         </div>
-
-            {/* Recent Activity */}
-            <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  Recent Activity
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <div className="bg-white/50 px-3 py-1 rounded-full text-sm font-medium text-blue-700">
-                    {notifications.filter(n => !n.impoundRead).length} unread
-                  </div>
-                  <div className="flex items-center space-x-1 text-xs text-blue-600">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span>Live</span>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                {notifications.filter(n => !n.impoundRead).slice(0, 5).map((notification, index) => (
-                  <div
-                    key={notification.id || index}
-                    className="group bg-white/70 backdrop-blur-sm rounded-xl p-4 hover:bg-white/90 hover:shadow-md transition-all duration-300 border border-white/50"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3 flex-1">
-                        <div className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${notification.impoundRead ? 'bg-gray-400' : 'bg-blue-500 animate-pulse'}`}></div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <h4 className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                              {(notification.status || 'Report')} Report
-                            </h4>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        notification.impoundRead ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {notification.impoundRead ? 'Read' : 'Unread'}
-                      </span>
-                    </div>
-                          <p className="text-sm text-gray-600 mb-2">
-                            📍 {notification.locationName || 'Unknown location'}
-                          </p>
-                          <div className="flex items-center text-xs text-gray-500">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {notification.reportTime?.toDate ? notification.reportTime.toDate().toLocaleString() : 'Unknown time'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2 ml-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openReportDetails(notification);
-                          }}
-                          className="text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                        >
-                          View Details
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNotification(notification.id);
-                          }}
-                          className="flex items-center space-x-1 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors border border-red-200 hover:border-red-300 text-xs font-medium"
-                          title="Delete notification"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          <span>Delete</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {notifications.filter(n => !n.impoundRead).length === 0 && (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-white/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                    <h4 className="text-lg font-medium text-gray-900 mb-2">All caught up!</h4>
-                    <p className="text-sm text-gray-500">No unread reports at the moment</p>
-                  </div>
-                )}
-                          </div>
-                        </div>
-                      </div>
+          </div>
         )}
 
         {/* View Adoptable Modal */}
@@ -3043,8 +2950,8 @@ const ImpoundDashboard = () => {
                   <button type="submit" disabled={savingAdoptable} className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{savingAdoptable ? 'Saving...' : 'Save Changes'}</button>
                 </div>
               </form>
-                  </div>
-                </div>
+            </div>
+          </div>
         )}
       </main>
 
