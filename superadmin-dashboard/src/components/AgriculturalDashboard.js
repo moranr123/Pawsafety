@@ -1036,51 +1036,6 @@ const getOwnerProfileImage = (pet) => {
               </div>
             </div>
 
-            {/* User Profile Section */}
-            {currentUserProfile && (
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-100 border border-indigo-200 rounded-xl shadow-lg p-6 mb-6">
-                <div className="flex items-center space-x-4">
-                  <div className="flex-shrink-0">
-                    {currentUserProfile.profileImage ? (
-                      <img
-                        src={currentUserProfile.profileImage}
-                        alt="Profile"
-                        className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextElementSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div 
-                      className={`w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold ${currentUserProfile.profileImage ? 'hidden' : 'flex'}`}
-                    >
-                      {currentUserProfile.displayName?.charAt(0)?.toUpperCase() || 'A'}
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900">
-                      Welcome back, {currentUserProfile.displayName}!
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-1">
-                      {currentUserProfile.email}
-                    </p>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      <Shield className="h-3 w-3 mr-1" />
-                      Agricultural Administrator
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-500">
-                      Last login: {new Date().toLocaleDateString()}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      Dashboard v1.0
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Chart and Activity Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
