@@ -14,7 +14,8 @@ import {
   addDoc,
   serverTimestamp,
   writeBatch,
-  getDocs
+  getDocs,
+  getDoc
 } from 'firebase/firestore';
 import { getAuth, updateUserProfile } from 'firebase/auth';
 import { db } from '../firebase/config';
@@ -89,6 +90,7 @@ const AgriculturalDashboard = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [chartData, setChartData] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
 
   // Generate chart data from real pet registrations
   const generateChartData = (pets) => {
@@ -257,7 +259,8 @@ const AgriculturalDashboard = () => {
           status: userData.status || 'active',
           role: userData.role || 'user',
           emailVerified: userData.emailVerified || false,
-          createdAt: userData.createdAt
+          createdAt: userData.createdAt,
+          profileImage: userData.profileImage || null
         });
       });
       
@@ -348,6 +351,38 @@ const AgriculturalDashboard = () => {
       unsubscribeNotifications();
     };
   }, []);
+
+  // Fetch current user profile information
+  useEffect(() => {
+  const fetchCurrentUserProfile = async () => {
+    if (currentUser) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setCurrentUserProfile({
+            uid: currentUser.uid,
+            displayName: userData.name || userData.displayName || currentUser.displayName || 'Agricultural Admin',
+            email: currentUser.email,
+            profileImage: userData.profileImage || null,
+            role: userData.role || 'agricultural_admin'
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching current user profile:', error);
+      }
+    }
+  };
+
+  fetchCurrentUserProfile();
+}, [currentUser]);
+
+// Function to get owner's profile image
+const getOwnerProfileImage = (pet) => {
+  if (!pet || !pet.userId) return null;
+  const owner = users.find(user => user.uid === pet.userId);
+  return owner?.profileImage || null;
+};
 
   const handleLogout = async () => {
     const ok = window.confirm('Are you sure you want to logout?');
@@ -938,6 +973,52 @@ const AgriculturalDashboard = () => {
               </div>
             </div>
 
+            {/* User Profile Section */}
+            {currentUserProfile && (
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-100 border border-indigo-200 rounded-xl shadow-lg p-6 mb-6">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    {currentUserProfile.profileImage ? (
+                      <img
+                        src={currentUserProfile.profileImage}
+                        alt="Profile"
+                        className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div 
+                      className={`w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold ${currentUserProfile.profileImage ? 'hidden' : 'flex'}`}
+                    >
+                      {currentUserProfile.displayName?.charAt(0)?.toUpperCase() || 'A'}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      Welcome back, {currentUserProfile.displayName}!
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {currentUserProfile.email}
+                    </p>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                      <Shield className="h-3 w-3 mr-1" />
+                      Agricultural Administrator
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500">
+                      Last login: {new Date().toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Dashboard v1.0
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Chart and Activity Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Registered Pets Line Chart */}
@@ -1350,8 +1431,23 @@ const AgriculturalDashboard = () => {
                     <tr key={user.uid} className="hover:bg-gray-50 transition-all duration-300">
                       <td className="px-4 py-2 text-sm">
                         <div className="flex items-center">
-                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                            <User className="h-5 w-5 text-gray-600" />
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center mr-3 overflow-hidden">
+                            {user.profileImage ? (
+                              <img
+                                src={user.profileImage}
+                                alt="Profile"
+                                className="w-10 h-10 rounded-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextElementSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div 
+                              className={`w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-sm font-bold ${user.profileImage ? 'hidden' : 'flex'}`}
+                            >
+                              <User className="h-5 w-5 text-white" />
+                            </div>
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-900">{user.displayName || 'Unknown User'}</p>
@@ -1718,14 +1814,29 @@ const AgriculturalDashboard = () => {
                   
                   {/* Owner Profile Image */}
                   <div className="flex items-center mb-4">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mr-4">
-                      <User className="h-8 w-8 text-gray-400" />
-              </div>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mr-4 overflow-hidden">
+                      {getOwnerProfileImage(selectedPet) ? (
+                        <img
+                          src={getOwnerProfileImage(selectedPet)}
+                          alt="Owner Profile"
+                          className="w-16 h-16 rounded-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextElementSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className={`w-16 h-16 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-lg font-bold ${getOwnerProfileImage(selectedPet) ? 'hidden' : 'flex'}`}
+                      >
+                        <User className="h-8 w-8 text-white" />
+                      </div>
+                    </div>
                     <div>
                       <p className="text-lg font-semibold text-gray-900">{selectedPet.ownerFullName || 'Unknown Owner'}</p>
                       <p className="text-sm text-gray-500">Pet Owner</p>
-                </div>
-              </div>
+                    </div>
+                  </div>
                   
                   <div className="space-y-3">
                     <div>
@@ -1873,8 +1984,23 @@ const AgriculturalDashboard = () => {
               {/* User Profile Section */}
               <div className="mb-6">
                 <div className="flex items-center mb-4">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mr-4">
-                    <User className="h-8 w-8 text-gray-400" />
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mr-4 overflow-hidden">
+                    {selectedUser.profileImage ? (
+                      <img
+                        src={selectedUser.profileImage}
+                        alt="Profile"
+                        className="w-16 h-16 rounded-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div 
+                      className={`w-16 h-16 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-lg font-bold ${selectedUser.profileImage ? 'hidden' : 'flex'}`}
+                    >
+                      <User className="h-8 w-8 text-white" />
+                    </div>
                   </div>
                   <div>
                     <h4 className="text-xl font-semibold text-gray-900">{selectedUser.displayName || 'Unknown User'}</h4>

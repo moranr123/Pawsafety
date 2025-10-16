@@ -19,11 +19,13 @@ import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/f
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useProfileImage } from '../../contexts/ProfileImageContext';
 import UserManualModal from '../../components/UserManualModal';
 
 const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS } = useTheme();
+  const { profileImage } = useProfileImage();
   const [recentReports, setRecentReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -471,6 +473,11 @@ const HomeTabScreen = ({ navigation }) => {
       borderRadius: 12,
       padding: SPACING.sm,
     },
+    profileImage: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+    },
     badge: {
       position: 'absolute',
       top: -2,
@@ -769,7 +776,15 @@ const HomeTabScreen = ({ navigation }) => {
                 navigation.navigate('Settings');
               }}
             >
-              <MaterialIcons name="account-circle" size={24} color={COLORS.white} />
+              {profileImage ? (
+                <Image 
+                  source={{ uri: profileImage }} 
+                  style={styles.profileImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <MaterialIcons name="account-circle" size={24} color={COLORS.white} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.iconButton}

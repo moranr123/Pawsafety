@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import AppNavigator from './navigation/AppNavigator';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { ProfileImageProvider } from './contexts/ProfileImageContext';
 import * as Notifications from 'expo-notifications';
 import { auth, db } from './services/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -31,7 +32,9 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <AppNavigator />
+      <ProfileImageProvider>
+        <AppNavigator />
+      </ProfileImageProvider>
     </ThemeProvider>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,20 @@ import {
   Switch
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { signOut } from 'firebase/auth';
-import { auth } from '../../services/firebase';
+import { auth, storage } from '../../services/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useProfileImage } from '../../contexts/ProfileImageContext';
 
 const SettingsScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS, isDarkMode, toggleTheme } = useTheme();
+  const { profileImage, updateProfileImage } = useProfileImage();
+  const [isUploading, setIsUploading] = useState(false);
 
   // Create styles using current theme colors
   const styles = useMemo(() => StyleSheet.create({
@@ -67,6 +73,19 @@ const SettingsScreen = ({ navigation }) => {
       alignItems: 'center',
       ...SHADOWS.medium,
     },
+    profileImageContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      marginRight: SPACING.md,
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    profileImage: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+    },
     profileImagePlaceholder: {
       width: 60,
       height: 60,
@@ -74,10 +93,21 @@ const SettingsScreen = ({ navigation }) => {
       borderRadius: 30,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: SPACING.md,
     },
     profileEmoji: {
       fontSize: 30,
+    },
+    addImageOverlay: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      backgroundColor: COLORS.darkPurple,
+      borderRadius: 12,
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...SHADOWS.medium,
     },
     profileInfo: {
       flex: 1,
@@ -216,6 +246,51 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
+  const selectProfileImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Permission to access camera roll is required!');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        
+        // Upload to Firebase Storage
+        setIsUploading(true);
+        try {
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          const imageRef = ref(storage, `profile-images/${user.uid}_${Date.now()}.jpg`);
+          await uploadBytes(imageRef, blob);
+          const downloadURL = await getDownloadURL(imageRef);
+          
+          // Update global profile image context
+          await updateProfileImage(downloadURL);
+          
+          Alert.alert('Success', 'Profile image updated successfully!');
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          Alert.alert('Error', 'Failed to upload image. Please try again.');
+        } finally {
+          setIsUploading(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+
   const SettingsSection = ({ title, children }) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -241,14 +316,41 @@ const SettingsScreen = ({ navigation }) => {
 
   const ProfileCard = () => (
     <View style={styles.profileCard}>
-      <View style={styles.profileImagePlaceholder}>
-        <Text style={styles.profileEmoji}>👤</Text>
-      </View>
+      <TouchableOpacity 
+        style={styles.profileImageContainer}
+        onPress={selectProfileImage}
+        disabled={isUploading}
+      >
+        {profileImage ? (
+          <Image 
+            source={{ uri: profileImage }} 
+            style={styles.profileImage}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={styles.profileImagePlaceholder}>
+            <Text style={styles.profileEmoji}>👤</Text>
+          </View>
+        )}
+        <View style={styles.addImageOverlay}>
+          <MaterialIcons 
+            name="add-a-photo" 
+            size={20} 
+            color={COLORS.white} 
+          />
+        </View>
+      </TouchableOpacity>
       <View style={styles.profileInfo}>
         <Text style={styles.profileName}>{user?.displayName || 'Pet Lover'}</Text>
         <Text style={styles.profileEmail}>{user?.email}</Text>
-        <TouchableOpacity style={styles.editProfileButton}>
-          <Text style={styles.editProfileText}>Edit Profile</Text>
+        <TouchableOpacity 
+          style={styles.editProfileButton}
+          onPress={selectProfileImage}
+          disabled={isUploading}
+        >
+          <Text style={styles.editProfileText}>
+            {isUploading ? 'Uploading...' : 'Add Profile'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
