@@ -437,17 +437,27 @@ const ImpoundDashboard = () => {
   const ImageWithLoading = ({ src, alt, className, imageId, fallbackContent }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
+    const [hasLoaded, setHasLoaded] = useState(false);
 
     const handleLoad = () => {
+      console.log('Image loaded:', src);
       setIsLoading(false);
-      setImageLoading(imageId, false);
+      setHasLoaded(true);
     };
 
     const handleError = () => {
+      console.log('Image error:', src);
       setIsLoading(false);
       setHasError(true);
-      setImageLoading(imageId, false);
     };
+
+    // Only reset loading state if this is a new image that hasn't been loaded before
+    React.useEffect(() => {
+      if (src && !hasLoaded) {
+        setIsLoading(true);
+        setHasError(false);
+      }
+    }, [src, hasLoaded]);
 
     if (hasError) {
       return fallbackContent || (
@@ -465,7 +475,10 @@ const ImpoundDashboard = () => {
           className={className}
           onLoad={handleLoad}
           onError={handleError}
-          style={{ opacity: isLoading ? 0 : 1 }}
+          style={{ 
+            opacity: isLoading ? 0 : 1,
+            transition: 'opacity 0.3s ease-in-out'
+          }}
         />
         {isLoading && (
           <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
