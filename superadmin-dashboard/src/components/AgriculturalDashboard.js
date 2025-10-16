@@ -136,9 +136,9 @@ const AgriculturalDashboard = () => {
     });
     
     // Add recent user registrations
-    users.slice(0, 3).forEach(user => {
+    users.slice(0, 3).forEach((user, index) => {
       activities.push({
-        id: `user-${user.id}`,
+        id: `user-${user.uid || `unknown-${index}`}`,
         type: 'user_registration',
         message: `New user "${user.email}" registered`,
         timestamp: user.createdAt,
@@ -518,6 +518,19 @@ const getOwnerProfileImage = (pet) => {
     }
   };
 
+  const deleteNotification = async (notificationId) => {
+    const confirmed = window.confirm('Are you sure you want to delete this notification? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, 'admin_notifications', notificationId));
+      toast.success('Notification deleted successfully');
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      toast.error('Failed to delete notification');
+    }
+  };
+
   const deleteAllNotifications = async () => {
     const confirmed = window.confirm('Are you sure you want to delete all notifications? This action cannot be undone.');
     if (!confirmed) return;
@@ -861,7 +874,22 @@ const getOwnerProfileImage = (pet) => {
                   <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">{unreadCount}</span>
                 )}
               </div>
-              <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    deleteAllNotifications();
+                    setShowNotifications(false);
+                  }}
+                  className="flex items-center space-x-1 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors border border-red-200 hover:border-red-300 text-xs font-medium"
+                  title="Delete all notifications"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Delete All</span>
+                </button>
+                <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              </div>
             </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notifications.length === 0 ? (
@@ -874,10 +902,9 @@ const getOwnerProfileImage = (pet) => {
                         notifications.filter(n => n.type !== 'test').slice(0, 10).map((notification) => (
                           <div
                             key={notification.id}
-                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
                               !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                             }`}
-                            onClick={() => handleNotificationClick(notification)}
                           >
                             <div className="flex items-start">
                               <div className="flex-shrink-0 mr-3">
@@ -888,12 +915,32 @@ const getOwnerProfileImage = (pet) => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-gray-900 truncate">{notification.title}</p>
-                          {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>}
+                          <div className="flex items-center space-x-2">
+                          {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notification.id);
+                            }}
+                            className="flex items-center space-x-1 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors border border-red-200 hover:border-red-300 text-xs font-medium"
+                            title="Delete notification"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>Delete</span>
+                          </button>
+                          </div>
                                 </div>
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
                                 <div className="flex items-center justify-between mt-2">
                           <p className="text-xs text-gray-400">{notification.createdAt?.toDate?.()?.toLocaleString() || 'Recently'}</p>
-                          <span className="text-xs text-blue-600 font-medium">Click to view details →</span>
+                          <button
+                            onClick={() => handleNotificationClick(notification)}
+                            className="text-xs text-blue-600 font-medium hover:text-blue-800 transition-colors"
+                          >
+                            Click to view details →
+                          </button>
                                 </div>
                               </div>
                             </div>
@@ -1920,7 +1967,7 @@ const getOwnerProfileImage = (pet) => {
                   <div>
                     <h2 className="text-xl font-bold">Notification Details</h2>
                     <p className="text-blue-100 text-sm">
-                      {selectedNotification.title || 'Notification'}
+                      {selectedNotification.title || 'Pet Registration Notification'}
                     </p>
                   </div>
                 </div>
@@ -1931,7 +1978,9 @@ const getOwnerProfileImage = (pet) => {
                   }}
                   className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
                 >
-                  <XCircle className="h-5 w-5" />
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -1939,25 +1988,114 @@ const getOwnerProfileImage = (pet) => {
             {/* Content */}
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Message</label>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-gray-900 leading-relaxed">
-                      {selectedNotification.message || 'No message provided'}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Created At</label>
-                    <div className="p-3 bg-gray-50 rounded-lg text-gray-900">
-                      {selectedNotification.createdAt?.toDate?.()?.toLocaleString() || 'Recently'}
+
+                {/* Pet Owner's Input Details */}
+                {selectedNotification.petId && (() => {
+                  const petDetails = pets.find(pet => pet.id === selectedNotification.petId);
+                  return petDetails ? (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Pet Owner's Registration Details</label>
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        {/* Pet Image */}
+                        {petDetails.petImage || petDetails.imageUrl || petDetails.image ? (
+                          <div className="mb-6">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Pet Image</label>
+                            <div className="relative">
+                              <img 
+                                src={petDetails.petImage || petDetails.imageUrl || petDetails.image} 
+                                alt={petDetails.petName || 'Pet Image'}
+                                className="w-full h-64 object-cover rounded-lg border"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  const placeholder = e.target.nextElementSibling;
+                                  if (placeholder) {
+                                    placeholder.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                              <div className="image-placeholder w-full h-64 bg-gray-100 rounded-lg border items-center justify-center" style={{display: 'none'}}>
+                                <div className="text-center">
+                                  <Dog className="h-16 w-16 text-gray-400 mx-auto mb-2" />
+                                  <p className="text-gray-500 text-sm">Failed to load pet image</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Pet Details */}
+                          <div className="space-y-3">
+                            <h4 className="text-md font-semibold text-gray-800 mb-3">Pet Information</h4>
+                            <div>
+                              <span className="text-sm text-gray-600">Pet Name:</span>
+                              <p className="text-gray-900 font-medium">{petDetails.petName || 'Not provided'}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Pet Type:</span>
+                              <p className="text-gray-900 font-medium">{petDetails.petType?.charAt(0).toUpperCase() + petDetails.petType?.slice(1) || 'Not provided'}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Breed:</span>
+                              <p className="text-gray-900 font-medium">{petDetails.breed || 'Not provided'}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Gender:</span>
+                              <p className="text-gray-900 font-medium">
+                                {petDetails.petGender === 'male' ? '♂ Male' : '♀ Female'}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Age:</span>
+                              <p className="text-gray-900 font-medium">{petDetails.age || 'Not provided'}</p>
+                            </div>
+                            {petDetails.description && (
+                              <div>
+                                <span className="text-sm text-gray-600">Description:</span>
+                                <p className="text-gray-900 font-medium">{petDetails.description}</p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Owner Details */}
+                          <div className="space-y-3">
+                            <h4 className="text-md font-semibold text-gray-800 mb-3">Owner Information</h4>
+                            <div>
+                              <span className="text-sm text-gray-600">Owner Name:</span>
+                              <p className="text-gray-900 font-medium">{petDetails.ownerFullName || 'Not provided'}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Contact Number:</span>
+                              <p className="text-gray-900 font-medium">{petDetails.contactNumber || 'Not provided'}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Address:</span>
+                              <p className="text-gray-900 font-medium">{petDetails.address || 'Not provided'}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Registration Date:</span>
+                              <p className="text-gray-900 font-medium">
+                                {petDetails.createdAt?.toDate ? petDetails.createdAt.toDate().toLocaleDateString() : 'Not available'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                    <div className="p-3 bg-gray-50 rounded-lg text-gray-900">
-                      {selectedNotification.read ? 'Read' : 'Unread'}
+                  ) : null;
+                })()}
+
+                {/* Additional Information */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <h4 className="text-sm font-semibold text-blue-900 mb-1">Notification Information</h4>
+                      <p className="text-sm text-blue-700">
+                        This notification was generated when a new pet registration was submitted. You can review and manage pet registrations from the Pet Registration tab.
+                      </p>
                     </div>
                   </div>
                 </div>

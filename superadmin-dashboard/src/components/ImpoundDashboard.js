@@ -898,6 +898,19 @@ const ImpoundDashboard = () => {
   };
 
 
+  const deleteNotification = async (notificationId) => {
+    const confirmed = window.confirm('Are you sure you want to delete this notification? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await updateDoc(doc(db, 'stray_reports', notificationId), { hiddenImpoundNotification: true });
+      toast.success('Notification deleted successfully');
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      toast.error('Failed to delete notification');
+    }
+  };
+
   const handleDeleteAllNotifications = async () => {
     if ((notifications || []).length === 0) return;
     const ok = window.confirm('Remove all notifications from this list? (Reports are not deleted)');
@@ -1805,175 +1818,106 @@ const ImpoundDashboard = () => {
         </svg>
       </button>
 
-      {/* Global Notifications Modal */}
-                {showNotifications && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-50"
-            onClick={() => setShowNotifications(false)}
-          />
-          {/* Modal */}
-          <div 
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md max-h-[80vh] bg-white rounded-2xl shadow-2xl z-50 border border-gray-200 overflow-hidden notifications-container"
-            onClick={(e) => e.stopPropagation()}
-          >
-                    {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
-                    <Bell className="h-5 w-5" />
-                        </div>
-                  <div>
-                    <h3 className="text-xl font-bold">Notifications</h3>
-                    <p className="text-blue-100 text-sm">
-                      {notifications.length} total notifications
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowNotifications(false)}
-                  className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  <XCircle className="h-5 w-5" />
-                </button>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center space-x-3">
-                          {unreadCount > 0 && (
-                            <button
-                              onClick={markAllNotificationsAsRead}
-                      className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
-                            >
-                              Mark all read
-                            </button>
-                          )}
-                          {notifications.length > 0 && (
-                            <button
-                              onClick={handleDeleteAllNotifications}
-                      className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-sm font-medium transition-colors"
-                            >
-                              Delete all
-                            </button>
-                          )}
-                        </div>
+      {/* Floating notifications panel (same as AgriculturalDashboard) */}
+      {showNotifications && (
+        <div className="fixed left-20 top-6 z-50 notifications-container">
+          <div className="w-96 bg-white rounded-lg shadow-xl border border-gray-200">
+            <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg flex items-center justify-between">
+              <div className="flex items-center">
+                <Bell className="h-5 w-5 text-gray-600 mr-2" />
+                <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
                 {unreadCount > 0 && (
-                  <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                    {unreadCount} unread
-                  </div>
+                  <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">{unreadCount}</span>
                 )}
-                      </div>
-                    </div>
-                    
-                    {/* Notifications List */}
-            <div className="max-h-96 overflow-y-auto">
-              {notifications.filter((notification) => 
-                (notification.status || '').toLowerCase() !== 'resolved' &&
-                (notification.status || '').toLowerCase() !== 'completed' &&
-                (notification.status || '').toLowerCase() !== 'declined'
-              ).length === 0 ? (
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    handleDeleteAllNotifications();
+                    setShowNotifications(false);
+                  }}
+                  className="flex items-center space-x-1 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors border border-red-200 hover:border-red-300 text-xs font-medium"
+                  title="Delete all notifications"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Delete All</span>
+                </button>
+                <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              </div>
+            </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.filter((notification) => 
+                        (notification.status || '').toLowerCase() !== 'resolved' &&
+                        (notification.status || '').toLowerCase() !== 'completed' &&
+                        (notification.status || '').toLowerCase() !== 'declined'
+                      ).length === 0 ? (
                         <div className="p-8 text-center">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Bell className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No notifications yet</h3>
-                  <p className="text-gray-500">New reports will appear here when submitted</p>
+                          <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500">No notifications yet</p>
+                          <p className="text-sm text-gray-400">New reports will appear here when submitted</p>
                         </div>
                       ) : (
-                <div className="divide-y divide-gray-100">
-                  {notifications
-                    .filter((notification) => 
-                      (notification.status || '').toLowerCase() !== 'resolved' &&
-                      (notification.status || '').toLowerCase() !== 'completed' &&
-                      (notification.status || '').toLowerCase() !== 'declined'
-                    )
-                    .slice(0, 10)
-                    .map((notification) => (
+                        notifications
+                          .filter((notification) => 
+                            (notification.status || '').toLowerCase() !== 'resolved' &&
+                            (notification.status || '').toLowerCase() !== 'completed' &&
+                            (notification.status || '').toLowerCase() !== 'declined'
+                          )
+                          .slice(0, 10)
+                          .map((notification) => (
                           <div
                             key={notification.id}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-all duration-200 group ${
-                        !notification.impoundRead ? 'bg-blue-50/50 border-l-4 border-l-blue-500' : ''
-                      }`}
-                      onClick={(event) => handleNotificationClick(notification, event)}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            !notification.impoundRead 
-                              ? 'bg-blue-100 text-blue-600' 
-                              : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            <FileText className="h-5 w-5" />
-                                </div>
+                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                              !notification.impoundRead ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                            }`}
+                          >
+                            <div className="flex items-start">
+                              <div className="flex-shrink-0 mr-3">
+                                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                    <FileText className="h-4 w-4 text-green-600" />
+                                  </div>
                               </div>
                               <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="text-sm font-semibold text-gray-900 truncate">
-                              {(notification.status || 'Report')} Report
-                            </h4>
-                            <div className="flex items-center space-x-2">
-                                  {!notification.impoundRead && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                  )}
-                              <span className="text-xs text-gray-500">
-                                {notification.reportTime?.toDate?.()?.toLocaleDateString() || 'Recently'}
-                              </span>
-                                </div>
+                                <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{(notification.status || 'Report')} Report</p>
+                          <div className="flex items-center space-x-2">
+                          {!notification.impoundRead && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notification.id);
+                            }}
+                            className="flex items-center space-x-1 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors border border-red-200 hover:border-red-300 text-xs font-medium"
+                            title="Delete notification"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>Delete</span>
+                          </button>
                           </div>
-                          <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                                  {notification.locationName || 'Unknown location'}
-                                </p>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                notification.status === 'Approved' 
-                                  ? 'bg-green-100 text-green-800'
-                                  : notification.status === 'Declined'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {notification.status || 'Pending'}
-                                  </span>
                                 </div>
-                            <span className="text-xs text-blue-600 font-medium group-hover:text-blue-700">
-                              View details →
-                            </span>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{notification.locationName || 'Unknown location'}</p>
+                                <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-gray-400">{notification.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}</p>
+                          <button
+                            onClick={(event) => handleNotificationClick(notification, event)}
+                            className="text-xs text-blue-600 font-medium hover:text-blue-800 transition-colors"
+                          >
+                            Click to view details →
+                          </button>
+                                </div>
                               </div>
                             </div>
                           </div>
-                    </div>
-                  ))}
-                </div>
+                        ))
                       )}
                     </div>
-                    
-                    {/* Footer */}
-            {notifications.filter((notification) => 
-              (notification.status || '').toLowerCase() !== 'resolved' &&
-              (notification.status || '').toLowerCase() !== 'completed' &&
-              (notification.status || '').toLowerCase() !== 'declined'
-            ).length > 10 && (
-              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    Showing 10 of {notifications.filter((notification) => 
-                      (notification.status || '').toLowerCase() !== 'resolved' &&
-                      (notification.status || '').toLowerCase() !== 'completed' &&
-                      (notification.status || '').toLowerCase() !== 'declined'
-                    ).length} notifications
-                  </p>
-                  <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                    View all
-                  </button>
                       </div>
                   </div>
                 )}
-              </div>
-        </>
-      )}
 
       {/* Content */}
       <main className={`flex-1 py-6 px-6 transition-all duration-300 ${
@@ -2745,11 +2689,10 @@ const ImpoundDashboard = () => {
                 {notifications.filter(n => !n.impoundRead).slice(0, 5).map((notification, index) => (
                   <div
                     key={notification.id || index}
-                    onClick={() => openReportDetails(notification)}
-                    className="group bg-white/70 backdrop-blur-sm rounded-xl p-4 hover:bg-white/90 hover:shadow-md transition-all duration-300 cursor-pointer border border-white/50"
+                    className="group bg-white/70 backdrop-blur-sm rounded-xl p-4 hover:bg-white/90 hover:shadow-md transition-all duration-300 border border-white/50"
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3">
+                      <div className="flex items-start space-x-3 flex-1">
                         <div className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${notification.impoundRead ? 'bg-gray-400' : 'bg-blue-500 animate-pulse'}`}></div>
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">
@@ -2773,10 +2716,29 @@ const ImpoundDashboard = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="flex-shrink-0">
-                        <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                      <div className="flex items-center space-x-2 ml-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openReportDetails(notification);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteNotification(notification.id);
+                          }}
+                          className="flex items-center space-x-1 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors border border-red-200 hover:border-red-300 text-xs font-medium"
+                          title="Delete notification"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Delete</span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -3126,118 +3088,99 @@ const ImpoundDashboard = () => {
             {/* Content */}
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="space-y-6">
-                {/* Report Image */}
-              {selectedReport.imageUrl && !selectedReport.imageUrl.startsWith('file://') ? (
-                  <div className="relative">
-                <ImageWithLoading
-                  src={selectedReport.imageUrl}
-                  alt="Report Image"
-                  className="w-full h-64 object-cover rounded-xl shadow-lg"
-                  imageId={`report-modal-${selectedReport.id}`}
-                  fallbackContent={
-                    <div className="w-full h-64 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400">
-                      Failed to load image
-                    </div>
-                  }
-                />
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-700">
-                      Report Image
-                    </div>
-                  </div>
-              ) : (
-                  <div className="w-full h-64 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400">
-                  {selectedReport.imageUrl && selectedReport.imageUrl.startsWith('file://') ? 'Old Report (Image Not Available)' : 'No Image Available'}
-                </div>
-              )}
 
-                {/* Report Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
+                {/* Reporter's Input Details */}
                 <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-gray-900 font-medium">
-                          {selectedReport.locationName || 'Unknown location'}
-                        </span>
-            </div>
-                    </div>
-
-                    {selectedReport.contactNumber && (
-                <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number</label>
-                        <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                          <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          <span className="text-gray-900 font-medium">
-                            {selectedReport.contactNumber}
-                          </span>
-          </div>
-                  </div>
-                    )}
-                </div>
-
-                  <div className="space-y-4">
-                  <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Report Time</label>
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-gray-900 font-medium">
-                          {selectedReport.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}
-                        </span>
-                </div>
-                    </div>
-
-                  <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <div className={`w-3 h-3 rounded-full mr-2 ${
-                          selectedReport.status === 'Approved' ? 'bg-green-500' :
-                          selectedReport.status === 'Declined' ? 'bg-red-500' :
-                          'bg-yellow-500'
-                        }`}></div>
-                        <span className="text-gray-900 font-medium">
-                          {selectedReport.status || 'Pending Review'}
-                        </span>
-                  </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Pet Information */}
-                {selectedReport.petName && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Pet Information</label>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center">
-                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                        </svg>
-                        <span className="text-gray-900 font-medium">
-                          {selectedReport.petName} {selectedReport.breed && `(${selectedReport.breed})`}
-                        </span>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Reporter's Input Details</label>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    {/* Report Image */}
+                    {selectedReport.imageUrl && !selectedReport.imageUrl.startsWith('file://') ? (
+                      <div className="mb-6">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Report Image</label>
+                        <div className="relative">
+                          <img 
+                            src={selectedReport.imageUrl} 
+                            alt="Report Image"
+                            className="w-full h-64 object-cover rounded-lg border"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              const placeholder = e.target.nextElementSibling;
+                              if (placeholder) {
+                                placeholder.style.display = 'flex';
+                              }
+                            }}
+                          />
+                          <div className="image-placeholder w-full h-64 bg-gray-100 rounded-lg border items-center justify-center" style={{display: 'none'}}>
+                            <div className="text-center">
+                              <svg className="h-16 w-16 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <p className="text-gray-500 text-sm">Failed to load report image</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Report Details */}
+                      <div className="space-y-3">
+                        <h4 className="text-md font-semibold text-gray-800 mb-3">Report Information</h4>
+                        <div>
+                          <span className="text-sm text-gray-600">Report Type:</span>
+                          <p className="text-gray-900 font-medium">{(selectedReport.status || 'Report').charAt(0).toUpperCase() + (selectedReport.status || 'Report').slice(1)}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Location:</span>
+                          <p className="text-gray-900 font-medium">{selectedReport.locationName || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Report Date:</span>
+                          <p className="text-gray-900 font-medium">
+                            {selectedReport.reportTime?.toDate ? selectedReport.reportTime.toDate().toLocaleString() : 'Not available'}
+                          </p>
+                        </div>
+                        {selectedReport.description && (
+                          <div>
+                            <span className="text-sm text-gray-600">Description:</span>
+                            <p className="text-gray-900 font-medium whitespace-pre-wrap">{selectedReport.description}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Pet Details */}
+                      <div className="space-y-3">
+                        <h4 className="text-md font-semibold text-gray-800 mb-3">Pet Information</h4>
+                        <div>
+                          <span className="text-sm text-gray-600">Pet Name:</span>
+                          <p className="text-gray-900 font-medium">{selectedReport.petName || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Breed:</span>
+                          <p className="text-gray-900 font-medium">{selectedReport.breed || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Pet Type:</span>
+                          <p className="text-gray-900 font-medium">{selectedReport.petType?.charAt(0).toUpperCase() + selectedReport.petType?.slice(1) || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Gender:</span>
+                          <p className="text-gray-900 font-medium">
+                            {selectedReport.gender === 'male' ? '♂ Male' : selectedReport.gender === 'female' ? '♀ Female' : 'Not provided'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Age:</span>
+                          <p className="text-gray-900 font-medium">{selectedReport.age || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Color:</span>
+                          <p className="text-gray-900 font-medium">{selectedReport.color || 'Not provided'}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
-
-                {/* Description */}
-                {selectedReport.description && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-gray-900 leading-relaxed whitespace-pre-wrap">
-                        {selectedReport.description}
-                      </p>
-                  </div>
                 </div>
-                )}
 
                 {/* Additional Details */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
