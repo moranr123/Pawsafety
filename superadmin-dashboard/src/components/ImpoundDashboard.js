@@ -419,6 +419,61 @@ const ImpoundDashboard = () => {
   const [adoptedPets, setAdoptedPets] = useState([]);
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [adoptionExpanded, setAdoptionExpanded] = useState(true);
+  const [imageLoadingStates, setImageLoadingStates] = useState({});
+
+  // Helper functions for image loading states
+  const setImageLoading = (imageId, isLoading) => {
+    setImageLoadingStates(prev => ({
+      ...prev,
+      [imageId]: isLoading
+    }));
+  };
+
+  const isImageLoading = (imageId) => {
+    return imageLoadingStates[imageId] === true;
+  };
+
+  // Image component with loading indicator
+  const ImageWithLoading = ({ src, alt, className, imageId, fallbackContent }) => {
+    const [isLoading, setIsLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+
+    const handleLoad = () => {
+      setIsLoading(false);
+      setImageLoading(imageId, false);
+    };
+
+    const handleError = () => {
+      setIsLoading(false);
+      setHasError(true);
+      setImageLoading(imageId, false);
+    };
+
+    if (hasError) {
+      return fallbackContent || (
+        <div className={`${className} bg-gray-200 flex items-center justify-center`}>
+          <span className="text-gray-400 text-sm">Failed to load</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="relative">
+        {isLoading && (
+          <div className={`${className} bg-gray-200 flex items-center justify-center absolute inset-0 z-10`}>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        )}
+        <img
+          src={src}
+          alt={alt}
+          className={className}
+          onLoad={handleLoad}
+          onError={handleError}
+        />
+      </div>
+    );
+  };
 
   // Generate chart data for adopted pets
   const generateAdoptedPetsChartData = (adoptedPets) => {
@@ -1925,7 +1980,17 @@ const ImpoundDashboard = () => {
               {strayReports.map((r) => (
                 <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
-                    <img src={r.imageUrl} alt="Stray Pet" className="w-full h-40 object-cover" />
+                    <ImageWithLoading
+                      src={r.imageUrl}
+                      alt="Stray Pet"
+                      className="w-full h-40 object-cover"
+                      imageId={`stray-${r.id}`}
+                      fallbackContent={
+                        <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                          <span className="text-slate-400 text-sm">No image</span>
+                        </div>
+                      }
+                    />
                   ) : (
                     <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
                       <span className="text-slate-400 text-sm">No image</span>
@@ -1984,7 +2049,17 @@ const ImpoundDashboard = () => {
               {lostReports.map((r) => (
                 <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
-                    <img src={r.imageUrl} alt={r.petName || 'Pet'} className="w-full h-40 object-cover" />
+                    <ImageWithLoading
+                      src={r.imageUrl}
+                      alt={r.petName || 'Pet'}
+                      className="w-full h-40 object-cover"
+                      imageId={`lost-${r.id}`}
+                      fallbackContent={
+                        <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
+                          {r.imageUrl && r.imageUrl.startsWith('file://') ? 'Old Report' : 'No Image'}
+                        </div>
+                      }
+                    />
                   ) : (
                     <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
                       {r.imageUrl && r.imageUrl.startsWith('file://') ? 'Old Report' : 'No Image'}
@@ -2053,7 +2128,17 @@ const ImpoundDashboard = () => {
               {incidentReports.map((r) => (
                 <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
-                    <img src={r.imageUrl} alt="Incident" className="w-full h-40 object-cover" />
+                    <ImageWithLoading
+                      src={r.imageUrl}
+                      alt="Incident"
+                      className="w-full h-40 object-cover"
+                      imageId={`incident-${r.id}`}
+                      fallbackContent={
+                        <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                          <span className="text-slate-400 text-sm">No image</span>
+                        </div>
+                      }
+                    />
                   ) : (
                     <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
                       <span className="text-slate-400 text-sm">No image</span>
@@ -2120,7 +2205,15 @@ const ImpoundDashboard = () => {
               {adoptablePets.map((p) => (
                 <div key={p.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   {p.imageUrl ? (
-                    <img src={p.imageUrl} alt={p.petName || 'Pet'} className="w-full h-40 object-cover" />
+                    <ImageWithLoading
+                      src={p.imageUrl}
+                      alt={p.petName || 'Pet'}
+                      className="w-full h-40 object-cover"
+                      imageId={`adoptable-${p.id}`}
+                      fallbackContent={
+                        <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">No Image</div>
+                      }
+                    />
                   ) : (
                     <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">No Image</div>
                   )}
@@ -2697,7 +2790,15 @@ const ImpoundDashboard = () => {
               <div className="p-0 overflow-y-auto">
                 <div className="rounded-lg border overflow-hidden">
                   {selectedAdoptable.imageUrl ? (
-                    <img src={selectedAdoptable.imageUrl} alt="pet" className="w-full h-56 object-cover" />
+                    <ImageWithLoading
+                      src={selectedAdoptable.imageUrl}
+                      alt="pet"
+                      className="w-full h-56 object-cover"
+                      imageId={`adoptable-modal-${selectedAdoptable.id}`}
+                      fallbackContent={
+                        <div className="w-full h-56 bg-gray-100 flex items-center justify-center text-gray-400">No Image</div>
+                      }
+                    />
                   ) : (
                     <div className="w-full h-56 bg-gray-100 flex items-center justify-center text-gray-400">No Image</div>
                   )}
@@ -3014,14 +3115,16 @@ const ImpoundDashboard = () => {
                 {/* Report Image */}
               {selectedReport.imageUrl && !selectedReport.imageUrl.startsWith('file://') ? (
                   <div className="relative">
-                <img 
-                  src={selectedReport.imageUrl} 
-                      alt="Report Image" 
-                      className="w-full h-64 object-cover rounded-xl shadow-lg"
-                  onError={(e) => {
-                    console.log('Image failed to load in modal:', selectedReport.imageUrl);
-                    e.target.style.display = 'none';
-                  }}
+                <ImageWithLoading
+                  src={selectedReport.imageUrl}
+                  alt="Report Image"
+                  className="w-full h-64 object-cover rounded-xl shadow-lg"
+                  imageId={`report-modal-${selectedReport.id}`}
+                  fallbackContent={
+                    <div className="w-full h-64 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400">
+                      Failed to load image
+                    </div>
+                  }
                 />
                     <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-700">
                       Report Image
