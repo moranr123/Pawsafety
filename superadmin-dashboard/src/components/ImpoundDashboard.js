@@ -459,18 +459,19 @@ const ImpoundDashboard = () => {
 
     return (
       <div className="relative">
-        {isLoading && (
-          <div className={`${className} bg-gray-200 flex items-center justify-center absolute inset-0 z-10`}>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        )}
         <img
           src={src}
           alt={alt}
           className={className}
           onLoad={handleLoad}
           onError={handleError}
+          style={{ opacity: isLoading ? 0 : 1 }}
         />
+        {isLoading && (
+          <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        )}
       </div>
     );
   };
