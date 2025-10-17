@@ -3054,37 +3054,46 @@ const ImpoundDashboard = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* Pet Owner Information (for Lost reports) */}
+                      {selectedReport.status === 'Lost' && (selectedReport.ownerName || selectedReport.contactNumber || selectedReport.petName) && (
+                        <div className="space-y-3">
+                          <h4 className="text-md font-semibold text-gray-800 mb-3">Pet Owner Information</h4>
+                          {selectedReport.ownerName && (
+                            <div>
+                              <span className="text-sm text-gray-600">Owner Name:</span>
+                              <p className="text-gray-900 font-medium">{selectedReport.ownerName}</p>
+                            </div>
+                          )}
+                          {selectedReport.contactNumber && (
+                            <div>
+                              <span className="text-sm text-gray-600">Contact Number:</span>
+                              <p className="text-gray-900 font-medium">{selectedReport.contactNumber}</p>
+                            </div>
+                          )}
+                          {selectedReport.petName && (
+                            <div>
+                              <span className="text-sm text-gray-600">Pet Name:</span>
+                              <p className="text-gray-900 font-medium">{selectedReport.petName}</p>
+                            </div>
+                          )}
+                          {selectedReport.breed && (
+                            <div>
+                              <span className="text-sm text-gray-600">Breed:</span>
+                              <p className="text-gray-900 font-medium">{selectedReport.breed}</p>
+                            </div>
+                          )}
+                          {selectedReport.petType && (
+                            <div>
+                              <span className="text-sm text-gray-600">Pet Type:</span>
+                              <p className="text-gray-900 font-medium">
+                                {selectedReport.petType.charAt(0).toUpperCase() + selectedReport.petType.slice(1)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
-                      {/* Pet Details */}
-                      <div className="space-y-3">
-                        <h4 className="text-md font-semibold text-gray-800 mb-3">Pet Information</h4>
-                        <div>
-                          <span className="text-sm text-gray-600">Pet Name:</span>
-                          <p className="text-gray-900 font-medium">{selectedReport.petName || 'Not provided'}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Breed:</span>
-                          <p className="text-gray-900 font-medium">{selectedReport.breed || 'Not provided'}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Pet Type:</span>
-                          <p className="text-gray-900 font-medium">{selectedReport.petType?.charAt(0).toUpperCase() + selectedReport.petType?.slice(1) || 'Not provided'}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Gender:</span>
-                          <p className="text-gray-900 font-medium">
-                            {selectedReport.gender === 'male' ? '♂ Male' : selectedReport.gender === 'female' ? '♀ Female' : 'Not provided'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Age:</span>
-                          <p className="text-gray-900 font-medium">{selectedReport.age || 'Not provided'}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Color:</span>
-                          <p className="text-gray-900 font-medium">{selectedReport.color || 'Not provided'}</p>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -3559,89 +3568,94 @@ const ImpoundDashboard = () => {
             {/* Content */}
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="space-y-6">
-                {/* Report Image */}
-                {selectedNotification.imageUrl && !selectedNotification.imageUrl.startsWith('file://') && (
-                  <div className="relative">
-                    <img 
-                      src={selectedNotification.imageUrl} 
-                      alt="Report Image" 
-                      className="w-full h-64 object-cover rounded-xl shadow-lg"
-                    />
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-700">
-                      Report Image
-                    </div>
-                  </div>
-                )}
 
-                {/* Report Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-gray-900 font-medium">
-                          {selectedNotification.locationName || 'Unknown location'}
-                        </span>
+                {/* Reporter's Input Details */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Reporter's Input Details</label>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    {/* Report Image */}
+                    {selectedNotification.imageUrl && !selectedNotification.imageUrl.startsWith('file://') && (
+                      <div className="mb-6">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Report Image</label>
+                        <div className="relative">
+                          <img 
+                            src={selectedNotification.imageUrl} 
+                            alt="Report Image" 
+                            className="w-full h-64 object-cover rounded-lg border"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Report Details */}
+                      <div className="space-y-3">
+                        <h4 className="text-md font-semibold text-gray-800 mb-3">Report Information</h4>
+                        <div>
+                          <span className="text-sm text-gray-600">Report Type:</span>
+                          <p className="text-gray-900 font-medium">
+                            {(selectedNotification.status || 'Report').charAt(0).toUpperCase() + (selectedNotification.status || 'Report').slice(1)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Location:</span>
+                          <p className="text-gray-900 font-medium">{selectedNotification.locationName || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Report Date:</span>
+                          <p className="text-gray-900 font-medium">
+                            {selectedNotification.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}
+                          </p>
+                        </div>
+                        {selectedNotification.contactNumber && (
+                          <div>
+                            <span className="text-sm text-gray-600">Contact Number:</span>
+                            <p className="text-gray-900 font-medium">{selectedNotification.contactNumber}</p>
+                          </div>
+                        )}
+                        {selectedNotification.description && (
+                          <div>
+                            <span className="text-sm text-gray-600">Description:</span>
+                            <p className="text-gray-900 font-medium whitespace-pre-wrap">{selectedNotification.description}</p>
+                          </div>
+                        )}
+                      </div>
 
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number</label>
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        <span className="text-gray-900 font-medium">
-                          {selectedNotification.contactNumber || 'Not provided'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Report Time</label>
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-gray-900 font-medium">
-                          {selectedNotification.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <div className={`w-3 h-3 rounded-full mr-2 ${
-                          selectedNotification.status === 'Approved' ? 'bg-green-500' :
-                          selectedNotification.status === 'Declined' ? 'bg-red-500' :
-                          'bg-yellow-500'
-                        }`}></div>
-                        <span className="text-gray-900 font-medium">
-                          {selectedNotification.status || 'Pending Review'}
-                        </span>
-                      </div>
+                      {/* Pet Details (if available for Lost reports) */}
+                      {(selectedNotification.petName || selectedNotification.breed || selectedNotification.petType) && (
+                        <div className="space-y-3">
+                          <h4 className="text-md font-semibold text-gray-800 mb-3">Pet Information</h4>
+                          {selectedNotification.petName && (
+                            <div>
+                              <span className="text-sm text-gray-600">Pet Name:</span>
+                              <p className="text-gray-900 font-medium">{selectedNotification.petName}</p>
+                            </div>
+                          )}
+                          {selectedNotification.breed && (
+                            <div>
+                              <span className="text-sm text-gray-600">Breed:</span>
+                              <p className="text-gray-900 font-medium">{selectedNotification.breed}</p>
+                            </div>
+                          )}
+                          {selectedNotification.petType && (
+                            <div>
+                              <span className="text-sm text-gray-600">Pet Type:</span>
+                              <p className="text-gray-900 font-medium">
+                                {selectedNotification.petType.charAt(0).toUpperCase() + selectedNotification.petType.slice(1)}
+                              </p>
+                            </div>
+                          )}
+                          {selectedNotification.ownerName && (
+                            <div>
+                              <span className="text-sm text-gray-600">Owner Name:</span>
+                              <p className="text-gray-900 font-medium">{selectedNotification.ownerName}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-
-                {/* Description */}
-                {selectedNotification.description && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-gray-900 leading-relaxed">
-                        {selectedNotification.description}
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 {/* Additional Details */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
