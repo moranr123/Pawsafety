@@ -5,7 +5,7 @@ import {
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext();
@@ -24,6 +24,24 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const navigate = useNavigate();
+
+  // Helper function to log admin activities
+  const logActivity = async (adminId, adminName, adminEmail, action, actionType, details = '') => {
+    try {
+      await addDoc(collection(db, 'admin_activities'), {
+        adminId,
+        adminName,
+        adminEmail,
+        action,
+        actionType,
+        details,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      // Don't throw error to prevent login/logout failures
+    }
+  };
 
   const login = async (email, password) => {
     try {
@@ -46,6 +64,18 @@ export const AuthProvider = ({ children }) => {
       }
       
       setUserRole(userData.role);
+      
+      // Log login activity (only for agricultural and impound admins, not superadmin)
+      if (userData.role !== 'superadmin') {
+        await logActivity(
+          user.uid,
+          userData.displayName || userData.name || 'Unknown Admin',
+          user.email,
+          'Logged into the system',
+          'login',
+          `Logged in as ${userData.role}`
+        );
+      }
       
       // Redirect based on role
       switch (userData.role) {
@@ -70,6 +100,25 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      // Log logout activity before signing out (only for agricultural and impound admins, not superadmin)
+      if (currentUser) {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          // Only log logout for agricultural and impound admins
+          if (userData.role !== 'superadmin') {
+            await logActivity(
+              currentUser.uid,
+              userData.displayName || userData.name || 'Unknown Admin',
+              currentUser.email,
+              'Logged out of the system',
+              'logout',
+              `Logged out from ${userData.role} dashboard`
+            );
+          }
+        }
+      }
+      
       await signOut(auth);
       setCurrentUser(null);
       setUserRole(null);
