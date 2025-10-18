@@ -1120,7 +1120,7 @@ const getOwnerProfileImage = (pet) => {
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Total Users</p>
-                        <p className="text-2xl font-bold text-gray-900">-</p>
+                        <p className="text-2xl font-bold text-gray-900">{users.length}</p>
                       </div>
                     </div>
                     <div className="text-right">

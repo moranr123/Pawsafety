@@ -256,7 +256,7 @@ const AdoptScreen = () => {
       justifyContent: 'space-between',
     },
     adoptButton: {
-      backgroundColor: COLORS.success,
+      backgroundColor: '#8B5CF6',
       paddingHorizontal: SPACING.md,
       paddingVertical: SPACING.sm,
       borderRadius: RADIUS.small,
