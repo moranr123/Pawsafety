@@ -3428,8 +3428,8 @@ const ImpoundDashboard = () => {
                     (selectedApplication.status || 'Submitted') === 'Approved' ? 'bg-green-500 text-white' :
                     (selectedApplication.status || 'Submitted') === 'Declined' ? 'bg-red-500 text-white' :
                     'bg-yellow-500 text-white'
-                  }`}>
-                    {selectedApplication.status || 'Submitted'}
+                }`}>
+                  {selectedApplication.status || 'Submitted'}
                   </span>
                   <button 
                     onClick={() => setSelectedApplication(null)}
@@ -3441,7 +3441,7 @@ const ImpoundDashboard = () => {
                   </button>
                 </div>
               </div>
-            </div>
+                </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
@@ -3454,9 +3454,9 @@ const ImpoundDashboard = () => {
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
-                      </div>
+              </div>
                       <h4 className="text-lg font-semibold text-gray-900">Applicant Information</h4>
-                    </div>
+            </div>
                     <div className="space-y-3">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Full Name</p>
@@ -3480,8 +3480,8 @@ const ImpoundDashboard = () => {
                         <p className="text-sm font-medium text-gray-600">Address</p>
                         <p className="text-gray-900">{selectedApplication.applicant?.address || 'No address provided'}</p>
                       </div>
-                    </div>
-                  </div>
+          </div>
+        </div>
 
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-100">
                     <div className="flex items-center space-x-3 mb-4">
@@ -3489,7 +3489,7 @@ const ImpoundDashboard = () => {
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                         </svg>
-                      </div>
+                  </div>
                       <h4 className="text-lg font-semibold text-gray-900">Pet Information</h4>
                     </div>
                     <div className="space-y-3">
@@ -3502,8 +3502,8 @@ const ImpoundDashboard = () => {
                         <p className="text-gray-900 font-medium">{selectedApplication.preferredDate || 'N/A'}</p>
                       </div>
                     </div>
-                  </div>
-                </div>
+                          </div>
+                        </div>
 
                 {/* Household & Residence */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -3513,7 +3513,7 @@ const ImpoundDashboard = () => {
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                         </svg>
-                      </div>
+                  </div>
                       <h4 className="text-lg font-semibold text-gray-900">Household</h4>
                     </div>
                     <div className="space-y-2">
@@ -3534,7 +3534,7 @@ const ImpoundDashboard = () => {
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
-                      </div>
+                  </div>
                       <h4 className="text-lg font-semibold text-gray-900">Residence</h4>
                     </div>
                     <div className="space-y-2">
@@ -3571,23 +3571,23 @@ const ImpoundDashboard = () => {
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <h5 className="font-semibold text-gray-900 mb-2">Experience</h5>
                           <p className="text-gray-700 text-sm leading-relaxed">{selectedApplication.experience}</p>
-                        </div>
+                      </div>
                       )}
                       
                       {selectedApplication.currentPets && (
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <h5 className="font-semibold text-gray-900 mb-2">Current Pets</h5>
                           <p className="text-gray-700 text-sm leading-relaxed">{selectedApplication.currentPets}</p>
-                        </div>
+                  </div>
                       )}
                       
                       {selectedApplication.lifestyle && (
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 lg:col-span-2">
                           <h5 className="font-semibold text-gray-900 mb-2">Lifestyle</h5>
                           <p className="text-gray-700 text-sm leading-relaxed">{selectedApplication.lifestyle}</p>
-                        </div>
+                </div>
                       )}
-                    </div>
+              </div>
                   </div>
                 )}
 
@@ -3599,7 +3599,7 @@ const ImpoundDashboard = () => {
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                         </svg>
-                      </div>
+                </div>
                       <h4 className="text-lg font-semibold text-gray-900">Veterinarian</h4>
                     </div>
                     <div className="space-y-2">
@@ -3638,8 +3638,8 @@ const ImpoundDashboard = () => {
                   Application submitted on {selectedApplication.createdAt?.toDate?.()?.toLocaleDateString() || 'Unknown date'}
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {(selectedApplication.status || 'Submitted') === 'Submitted' && (
-                    <>
+              {(selectedApplication.status || 'Submitted') === 'Submitted' && (
+                <>
                       <button 
                         onClick={() => handleUpdateApplicationStatus(selectedApplication.id, 'Approved')} 
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center space-x-2"
@@ -3658,8 +3658,8 @@ const ImpoundDashboard = () => {
                         </svg>
                         <span>Decline</span>
                       </button>
-                    </>
-                  )}
+                </>
+              )}
                   <button 
                     onClick={() => setSelectedApplication(null)} 
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center space-x-2"
@@ -3671,9 +3671,9 @@ const ImpoundDashboard = () => {
                   </button>
                 </div>
               </div>
+              </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* Transfer Pet Modal */}

@@ -339,6 +339,232 @@ const StraysScreen = ({ navigation }) => {
     bottomSpacing: {
       height: 30,
     },
+    // Modern Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: '#FFFFFF',
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      maxHeight: '90%',
+      minHeight: '60%',
+      ...SHADOWS.heavy,
+    },
+    modernHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      paddingBottom: 16,
+    },
+    headerContent: {
+      flex: 1,
+    },
+    modernTitle: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 4,
+    },
+    modernSubtitle: {
+      fontSize: 16,
+      color: '#6B7280',
+      fontWeight: '400',
+    },
+    modernScrollView: {
+      flex: 1,
+    },
+    heroImageContainer: {
+      position: 'relative',
+      height: 280,
+      marginHorizontal: 24,
+      marginBottom: 16,
+      borderRadius: 20,
+      overflow: 'hidden',
+    },
+    petInfoSection: {
+      marginHorizontal: 24,
+      marginBottom: 24,
+    },
+    petInfoName: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 12,
+    },
+    petInfoBadges: {
+      flexDirection: 'row',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    petInfoBadge: {
+      backgroundColor: '#F3F4F6',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+    },
+    petInfoBadgeText: {
+      color: '#374151',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    heroImage: {
+      width: '100%',
+      height: '100%',
+    },
+    heroPlaceholder: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: '#F3F4F6',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    heroPlaceholderText: {
+      fontSize: 16,
+      color: '#9CA3AF',
+      marginTop: 8,
+      fontWeight: '500',
+    },
+    imageOverlay: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      padding: 20,
+    },
+    heroPetName: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      marginBottom: 8,
+    },
+    heroBadges: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    heroBadge: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    heroBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    petDetailsColumn: {
+      marginHorizontal: 24,
+      marginBottom: 24,
+      backgroundColor: '#F8FAFC',
+      borderRadius: 16,
+      padding: 20,
+    },
+    petDetailItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E7EB',
+    },
+    petDetailIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#FFFFFF',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 16,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+    },
+    petDetailContent: {
+      flex: 1,
+    },
+    petDetailLabel: {
+      fontSize: 12,
+      color: '#6B7280',
+      fontWeight: '500',
+      marginBottom: 4,
+    },
+    petDetailValue: {
+      fontSize: 16,
+      color: '#111827',
+      fontWeight: '600',
+    },
+    descriptionCard: {
+      marginHorizontal: 24,
+      marginBottom: 24,
+      backgroundColor: '#F8FAFC',
+      borderRadius: 16,
+      padding: 20,
+    },
+    descriptionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    descriptionTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#111827',
+      marginLeft: 8,
+    },
+    descriptionText: {
+      fontSize: 14,
+      color: '#374151',
+      lineHeight: 20,
+    },
+    infoGrid: {
+      gap: 12,
+    },
+    infoItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E7EB',
+    },
+    infoLabel: {
+      fontSize: 14,
+      color: '#6B7280',
+      fontWeight: '500',
+    },
+    infoValue: {
+      fontSize: 14,
+      color: '#111827',
+      fontWeight: '600',
+    },
+    modernActionContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: 24,
+      paddingVertical: 20,
+      paddingBottom: 34,
+      gap: 12,
+      backgroundColor: '#FFFFFF',
+      borderTopWidth: 1,
+      borderTopColor: '#F3F4F6',
+    },
+    modernCloseBtn: {
+      flex: 1,
+      backgroundColor: '#F3F4F6',
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    modernCloseBtnText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#374151',
+    },
   }), [COLORS]);
 
   const handleViewDetails = (report) => {
@@ -378,9 +604,6 @@ const StraysScreen = ({ navigation }) => {
         <Text style={styles.petDistance}><Text style={{fontWeight:'bold'}}>Reported:</Text> {time}</Text>
         <Text style={styles.petDescription}>{description}</Text>
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Text style={styles.helpButtonText}>Help Find</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.shareButton} onPress={onViewDetails}>
             <Text style={styles.shareButtonText}>View Details</Text>
           </TouchableOpacity>
@@ -532,32 +755,136 @@ const StraysScreen = ({ navigation }) => {
       <Modal
         visible={modalVisible}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          {selectedReport && (
-            <View style={{ backgroundColor: COLORS.cardBackground, borderRadius: 20, padding: 24, width: '90%', maxWidth: 400 }}>
-              {selectedReport.imageUrl && (
-                <Image source={{ uri: selectedReport.imageUrl }} style={{ width: '100%', height: 260, borderRadius: 12, marginBottom: 16 }} resizeMode="cover" />
-              )}
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8, flexWrap: 'wrap' }}>
-                <MaterialIcons name="location-pin" size={20} color="#E74C3C" style={{ marginRight: 4, marginTop: 2 }} />
-                <Text style={{ fontWeight: 'bold', color: COLORS.text, marginRight: 4, marginTop: 2 }}>Location:</Text>
-                <Text style={{ color: COLORS.text, flexShrink: 1, flex: 1, flexWrap: 'wrap' }}>{selectedReport.locationName || 'Unknown Location'}</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Modern Header */}
+            <View style={styles.modernHeader}>
+              <View style={styles.headerContent}>
+                <Text style={styles.modernTitle}>Report Details</Text>
+                <Text style={styles.modernSubtitle}>Stray pet information</Text>
               </View>
-              <Text style={{ fontWeight: 'bold', color: COLORS.text, marginBottom: 2 }}>Reported:</Text>
-              <Text style={{ color: COLORS.secondaryText, marginBottom: 8 }}>{selectedReport.reportTime?.toDate ? selectedReport.reportTime.toDate().toLocaleString() : ''}</Text>
-              <Text style={{ fontWeight: 'bold', color: COLORS.text, marginBottom: 2 }}>Description:</Text>
-              <Text style={{ color: COLORS.text, marginBottom: 16 }}>{selectedReport.description}</Text>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
+              {/* Hero Image Section */}
+              <View style={styles.heroImageContainer}>
+                {selectedReport?.imageUrl ? (
+                  <Image 
+                    source={{ uri: selectedReport.imageUrl }} 
+                    style={styles.heroImage} 
+                    resizeMode="cover" 
+                  />
+                ) : (
+                  <View style={styles.heroPlaceholder}>
+                    <MaterialIcons name="pets" size={60} color="#9CA3AF" />
+                    <Text style={styles.heroPlaceholderText}>No Photo Available</Text>
+                  </View>
+                )}
+              </View>
+
+
+              {/* Pet Details Column */}
+              <View style={styles.petDetailsColumn}>
+                {selectedReport?.petName && (
+                  <View style={styles.petDetailItem}>
+                    <View style={styles.petDetailIcon}>
+                      <MaterialIcons name="pets" size={20} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.petDetailContent}>
+                      <Text style={styles.petDetailLabel}>Name</Text>
+                      <Text style={styles.petDetailValue}>{selectedReport.petName}</Text>
+                    </View>
+                  </View>
+                )}
+                
+                {selectedReport?.petType && (
+                  <View style={styles.petDetailItem}>
+                    <View style={styles.petDetailIcon}>
+                      <MaterialIcons name="category" size={20} color="#F59E0B" />
+                    </View>
+                    <View style={styles.petDetailContent}>
+                      <Text style={styles.petDetailLabel}>Type</Text>
+                      <Text style={styles.petDetailValue}>
+                        {selectedReport.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                
+                {selectedReport?.age && (
+                  <View style={styles.petDetailItem}>
+                    <View style={styles.petDetailIcon}>
+                      <MaterialIcons name="cake" size={20} color="#10B981" />
+                    </View>
+                    <View style={styles.petDetailContent}>
+                      <Text style={styles.petDetailLabel}>Age</Text>
+                      <Text style={styles.petDetailValue}>{selectedReport.age}</Text>
+                    </View>
+                  </View>
+                )}
+                
+                <View style={styles.petDetailItem}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons name="location-on" size={20} color="#EF4444" />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Location</Text>
+                    <Text style={styles.petDetailValue}>{selectedReport?.locationName || 'Unknown'}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.petDetailItem}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons name="schedule" size={20} color="#3B82F6" />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Reported</Text>
+                    <Text style={styles.petDetailValue}>
+                      {selectedReport?.reportTime?.toDate ? 
+                        selectedReport.reportTime.toDate().toLocaleDateString() : 
+                        'Unknown'
+                      }
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.petDetailItem}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons name="report" size={20} color="#F59E0B" />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Status</Text>
+                    <Text style={styles.petDetailValue}>Stray Report</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Description Card */}
+              {selectedReport?.description && (
+                <View style={styles.descriptionCard}>
+                  <View style={styles.descriptionHeader}>
+                    <MaterialIcons name="description" size={20} color="#6366F1" />
+                    <Text style={styles.descriptionTitle}>Description</Text>
+                  </View>
+                  <Text style={styles.descriptionText}>{selectedReport.description}</Text>
+                </View>
+              )}
+
+            </ScrollView>
+
+            {/* Modern Action Buttons */}
+            <View style={styles.modernActionContainer}>
               <TouchableOpacity
-                style={{ backgroundColor: COLORS.darkPurple, borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 }}
                 onPress={() => setModalVisible(false)}
+                style={styles.modernCloseBtn}
               >
-                <Text style={{ color: COLORS.white, fontWeight: 'bold', fontSize: 16 }}>Close</Text>
+                <Text style={styles.modernCloseBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
-          )}
+          </View>
         </View>
       </Modal>
     </View>

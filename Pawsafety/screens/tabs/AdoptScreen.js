@@ -584,31 +584,44 @@ const AdoptScreen = () => {
       fontSize: 14,
       fontWeight: '600',
     },
-    quickInfoGrid: {
-      flexDirection: 'row',
-      paddingHorizontal: 24,
+    petDetailsColumn: {
+      marginHorizontal: 24,
       marginBottom: 24,
-      gap: 12,
-    },
-    quickInfoItem: {
-      flex: 1,
       backgroundColor: '#F8FAFC',
-      padding: 16,
       borderRadius: 16,
-      alignItems: 'center',
+      padding: 20,
     },
-    quickInfoLabel: {
+    petDetailItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E7EB',
+    },
+    petDetailIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#FFFFFF',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 16,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+    },
+    petDetailContent: {
+      flex: 1,
+    },
+    petDetailLabel: {
       fontSize: 12,
       color: '#6B7280',
       fontWeight: '500',
-      marginTop: 8,
       marginBottom: 4,
     },
-    quickInfoValue: {
-      fontSize: 14,
+    petDetailValue: {
+      fontSize: 16,
       color: '#111827',
       fontWeight: '600',
-      textAlign: 'center',
     },
     medicalCard: {
       marginHorizontal: 24,
@@ -1094,52 +1107,85 @@ const AdoptScreen = () => {
                     <Text style={styles.heroPlaceholderText}>No Photo Available</Text>
                   </View>
                 )}
-                <View style={styles.imageOverlay}>
-                  <Text style={styles.heroPetName}>{selectedPet?.petName || 'Unnamed Pet'}</Text>
-                  <View style={styles.heroBadges}>
-                    <View style={styles.heroBadge}>
-                      <Text style={styles.heroBadgeText}>
-                        {selectedPet?.petType ? 
-                          (selectedPet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : 
-                          'Pet'
-                        }
-                      </Text>
-                    </View>
-                    {selectedPet?.age && (
-                      <View style={styles.heroBadge}>
-                        <Text style={styles.heroBadgeText}>{selectedPet.age}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
               </View>
 
-              {/* Quick Info Grid */}
-              <View style={styles.quickInfoGrid}>
-                <View style={styles.quickInfoItem}>
-                  <MaterialIcons name="category" size={24} color="#F59E0B" />
-                  <Text style={styles.quickInfoLabel}>Breed</Text>
-                  <Text style={styles.quickInfoValue}>{selectedPet?.breed || 'Unknown'}</Text>
+              {/* Pet Details Column */}
+              <View style={styles.petDetailsColumn}>
+                <View style={styles.petDetailItem}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons name="pets" size={20} color="#8B5CF6" />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Name</Text>
+                    <Text style={styles.petDetailValue}>{selectedPet?.petName || 'Unnamed Pet'}</Text>
+                  </View>
                 </View>
-                <View style={styles.quickInfoItem}>
-                  <MaterialIcons 
-                    name={selectedPet?.gender === 'male' ? 'male' : 'female'} 
-                    size={24} 
-                    color={selectedPet?.gender === 'male' ? '#3B82F6' : '#EC4899'} 
-                  />
-                  <Text style={styles.quickInfoLabel}>Gender</Text>
-                  <Text style={styles.quickInfoValue}>
-                    {selectedPet?.gender ? 
-                      (selectedPet.gender === 'male' ? 'Male' : 'Female') : 
-                      'Unknown'
-                    }
-                  </Text>
+                
+                <View style={styles.petDetailItem}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons name="category" size={20} color="#F59E0B" />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Type</Text>
+                    <Text style={styles.petDetailValue}>
+                      {selectedPet?.petType ? 
+                        (selectedPet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : 
+                        'Pet'
+                      }
+                    </Text>
+                  </View>
                 </View>
+                
+                <View style={styles.petDetailItem}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons name="category" size={20} color="#F59E0B" />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Breed</Text>
+                    <Text style={styles.petDetailValue}>{selectedPet?.breed || 'Unknown'}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.petDetailItem}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons 
+                      name={selectedPet?.gender === 'male' ? 'male' : 'female'} 
+                      size={20} 
+                      color={selectedPet?.gender === 'male' ? '#3B82F6' : '#EC4899'} 
+                    />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Gender</Text>
+                    <Text style={styles.petDetailValue}>
+                      {selectedPet?.gender ? 
+                        (selectedPet.gender === 'male' ? 'Male' : 'Female') : 
+                        'Unknown'
+                      }
+                    </Text>
+                  </View>
+                </View>
+                
+                {selectedPet?.age && (
+                  <View style={styles.petDetailItem}>
+                    <View style={styles.petDetailIcon}>
+                      <MaterialIcons name="cake" size={20} color="#10B981" />
+                    </View>
+                    <View style={styles.petDetailContent}>
+                      <Text style={styles.petDetailLabel}>Age</Text>
+                      <Text style={styles.petDetailValue}>{selectedPet.age}</Text>
+                    </View>
+                  </View>
+                )}
+                
                 {selectedPet?.location && (
-                  <View style={styles.quickInfoItem}>
-                    <MaterialIcons name="location-on" size={24} color="#EF4444" />
-                    <Text style={styles.quickInfoLabel}>Location</Text>
-                    <Text style={styles.quickInfoValue}>{selectedPet.location}</Text>
+                  <View style={styles.petDetailItem}>
+                    <View style={styles.petDetailIcon}>
+                      <MaterialIcons name="location-on" size={20} color="#EF4444" />
+                    </View>
+                    <View style={styles.petDetailContent}>
+                      <Text style={styles.petDetailLabel}>Location</Text>
+                      <Text style={styles.petDetailValue}>{selectedPet.location}</Text>
+                    </View>
                   </View>
                 )}
               </View>
