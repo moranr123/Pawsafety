@@ -69,6 +69,7 @@ const AgriculturalDashboard = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [pets, setPets] = useState([]);
@@ -711,10 +712,156 @@ const getOwnerProfileImage = (pet) => {
   }, [showNotifications]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col lg:block">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-800 to-slate-900 shadow-lg">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-white hover:bg-slate-700 rounded-lg transition-all"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1">
+              <img src={LogoWhite} alt="PawSafety Logo" className="w-full h-full object-contain" />
+            </div>
+            <span className="text-white text-base font-semibold">Agriculture</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 min-w-[1rem] px-1 flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-600/20 rounded-lg transition-all"
+              aria-label="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu Dropdown */}
+      {mobileMenuOpen && (
+        <>
+          <div 
+            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40 top-[60px]"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="lg:hidden fixed top-[60px] left-0 right-0 z-50 bg-gradient-to-b from-slate-800 to-slate-900 shadow-xl border-t border-slate-700 max-h-[calc(100vh-60px)] overflow-y-auto">
+            <nav className="py-2">
+              <button
+                onClick={() => {
+                  setActiveTab('dashboard');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'dashboard'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <BarChart3 className="h-5 w-5 mr-3" />
+                Dashboard
+              </button>
+              
+              <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">Pet Management</div>
+              
+              <button
+                onClick={() => {
+                  setActiveTab('registered');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'registered'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <div className="flex items-center">
+                  <CheckCircle2 className="h-5 w-5 mr-3" />
+                  Registered Pets
+                </div>
+                {registeredPets.length > 0 && (
+                  <span className="bg-green-500 text-white text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center">
+                    {registeredPets.length > 99 ? '99+' : registeredPets.length}
+                  </span>
+                )}
+              </button>
+              
+              <button
+                onClick={() => {
+                  setActiveTab('pending');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'pending'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <div className="flex items-center">
+                  <Clock className="h-5 w-5 mr-3" />
+                  Pending Approval
+                </div>
+                {pendingPets.length > 0 && (
+                  <span className="bg-yellow-500 text-white text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center">
+                    {pendingPets.length > 99 ? '99+' : pendingPets.length}
+                  </span>
+                )}
+              </button>
+              
+              <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">User Management</div>
+              
+              <button
+                onClick={() => {
+                  setActiveTab('users');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'users'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <div className="flex items-center">
+                  <Users className="h-5 w-5 mr-3" />
+                  User Management
+                </div>
+                {users.length > 0 && (
+                  <span className="bg-blue-500 text-white text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center">
+                    {users.length > 99 ? '99+' : users.length}
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
+        </>
+      )}
+
+      {/* Desktop Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 transition-all duration-300 ${
+        className={`hidden lg:block fixed inset-y-0 left-0 z-50 transition-all duration-300 ${
           sidebarOpen || sidebarHovered ? 'w-80 translate-x-0' : 'w-16 -translate-x-0'
         } lg:${sidebarOpen || sidebarHovered ? 'w-80' : 'w-16'}`}
         onMouseEnter={() => setSidebarHovered(true)}
@@ -788,9 +935,9 @@ const getOwnerProfileImage = (pet) => {
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Dashboard</span>}
                             </button>
             <button
-              onClick={() => setActiveTab('registration')}
+              onClick={() => setActiveTab('pending')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'registration'
+                activeTab === 'pending'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
@@ -804,9 +951,9 @@ const getOwnerProfileImage = (pet) => {
               )}
             </button>
                             <button
-              onClick={() => setActiveTab('petManagement')}
+              onClick={() => setActiveTab('registered')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'petManagement'
+                activeTab === 'registered'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
@@ -820,18 +967,18 @@ const getOwnerProfileImage = (pet) => {
               )}
                             </button>
             <button
-              onClick={() => setActiveTab('userManagement')}
+              onClick={() => setActiveTab('users')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                activeTab === 'userManagement'
+                activeTab === 'users'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                   : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
               } flex items-center`}
             >
               <Shield className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">User Management</span>}
-              {deactivatedUsers.length > 0 && (
-                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-rose-500 text-white`}>
-                  {deactivatedUsers.length > 99 ? '99+' : deactivatedUsers.length}
+              {users.length > 0 && (
+                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-blue-500 text-white`}>
+                  {users.length > 99 ? '99+' : users.length}
                 </span>
               )}
             </button>
@@ -864,12 +1011,12 @@ const getOwnerProfileImage = (pet) => {
 
       {/* Floating notifications panel (same as before, anchored near sidebar) */}
       {showNotifications && (
-        <div className="fixed left-20 top-6 z-50 notifications-container">
-          <div className="w-96 bg-white rounded-lg shadow-xl border border-gray-200">
-            <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg flex items-center justify-between">
+        <div className="fixed left-4 top-20 lg:left-20 lg:top-6 z-50 notifications-container max-w-[calc(100vw-2rem)] sm:max-w-md w-full sm:w-96">
+          <div className="w-full bg-white rounded-lg shadow-xl border border-gray-200">
+            <div className="p-3 sm:p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg flex items-center justify-between">
               <div className="flex items-center">
-                <Bell className="h-5 w-5 text-gray-600 mr-2" />
-                <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 mr-2" />
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Notifications</h3>
                 {unreadCount > 0 && (
                   <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">{unreadCount}</span>
                 )}
@@ -953,9 +1100,9 @@ const getOwnerProfileImage = (pet) => {
                 )}
 
       {/* Content */}
-      <main className={`py-6 px-6 transition-all duration-300 ${
+      <main className={`py-3 px-3 sm:py-6 sm:px-6 transition-all duration-300 ${
         sidebarOpen || sidebarHovered ? 'lg:ml-80' : 'lg:ml-16'
-      } pt-8`}>
+      } pt-20 lg:pt-8`}>
         {/* Loading Indicator */}
         {isLoading && (
           <div className="flex items-center justify-center py-20">
@@ -1040,9 +1187,9 @@ const getOwnerProfileImage = (pet) => {
             {/* Chart Layout */}
             <div className="grid grid-cols-1 gap-6">
               {/* Registered Pets Line Chart */}
-              <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-medium text-white mb-4">Registered Pets Trend</h3>
-                <div className="h-64">
+              <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 rounded-xl shadow-lg p-4 sm:p-6">
+                <h3 className="text-base sm:text-lg font-medium text-white mb-3 sm:mb-4">Registered Pets Trend</h3>
+                <div className="h-48 sm:h-64">
                   <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
                     {/* Grid lines */}
                     <defs>
@@ -1115,7 +1262,7 @@ const getOwnerProfileImage = (pet) => {
                     })()}
                   </svg>
                 </div>
-                <div className="mt-4 flex justify-between text-sm text-white">
+                <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 text-xs sm:text-sm text-white">
                   <span>Total Registered: {pets.length}</span>
                   <span>Max (6mo): {Math.max(...chartData.map(d => d.count), 0)}</span>
                 </div>
@@ -1125,9 +1272,9 @@ const getOwnerProfileImage = (pet) => {
           </div>
         )}
 
-                 {!isLoading && activeTab === 'registration' && (
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Pet Registration Requests</h2>
+                 {!isLoading && activeTab === 'pending' && (
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Pet Registration Requests</h2>
              
              {/* Search and Filter Controls */}
              <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -1162,7 +1309,60 @@ const getOwnerProfileImage = (pet) => {
           </div>
         </div>
 
-            <div className="overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {getFilteredPendingPets().map((pet) => (
+                <div key={pet.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {pet.petName || 'Unnamed Pet'}
+                      </h3>
+                      <p className="text-xs text-gray-600 truncate mt-0.5">{pet.ownerFullName || 'Unknown Owner'}</p>
+                    </div>
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 whitespace-nowrap">
+                      Pending
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Type/Breed:</span>
+                      <span className="text-gray-900 text-right">{pet.petType} - {pet.breed}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => handleViewPet(pet)}
+                      className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => handleApprovePetRegistration(pet.id)}
+                      className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleRejectPetRegistration(pet.id)}
+                      className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {getFilteredPendingPets().length === 0 && (
+                <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
+                  {searchTerm || filterType !== 'all' ? 'No registrations match your search criteria' : 'No pending registrations'}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
              <table className="min-w-full divide-y divide-gray-200">
                <thead className="bg-gray-50">
                   <tr>
@@ -1219,9 +1419,9 @@ const getOwnerProfileImage = (pet) => {
           </div>
         )}
 
-                 {!isLoading && activeTab === 'petManagement' && (
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Registered Pets Management</h2>
+                 {!isLoading && activeTab === 'registered' && (
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Registered Pets Management</h2>
              
              {/* Search and Filter Controls */}
              <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -1256,7 +1456,74 @@ const getOwnerProfileImage = (pet) => {
               </div>
             </div>
              
-            <div className="overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {getFilteredRegisteredPets().map((pet) => (
+                <div key={pet.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {pet.petName || 'Unnamed Pet'}
+                      </h3>
+                      <p className="text-xs text-gray-600 truncate mt-0.5">{pet.ownerFullName || 'Unknown Owner'}</p>
+                    </div>
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 whitespace-nowrap">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Registered
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Type/Breed:</span>
+                      <span className="text-gray-900 text-right">{pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1) || 'Unknown'} - {pet.breed || 'Unknown'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Gender:</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        pet.petGender === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                      }`}>
+                        {pet.petGender === 'male' ? '♂ Male' : '♀ Female'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Contact:</span>
+                      <span className="text-gray-900 text-right">{pet.contactNumber || 'No contact'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Registered:</span>
+                      <span className="text-gray-900">
+                        {pet.registeredAt?.toDate ? pet.registeredAt.toDate().toLocaleDateString() : 
+                         pet.registeredDate ? new Date(pet.registeredDate).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => handleViewPet(pet)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => handleDeletePet(pet.id, pet.petName)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {getFilteredRegisteredPets().length === 0 && (
+                <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
+                  {searchTerm || filterType !== 'all' ? 'No pets match your search criteria' : 'No registered pets yet'}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
              <table className="min-w-full divide-y divide-gray-200">
                <thead className="bg-gray-50">
                   <tr>
@@ -1328,35 +1595,35 @@ const getOwnerProfileImage = (pet) => {
 
             {/* Summary Stats */}
             {registeredPets.length > 0 && (
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white bg-opacity-10 rounded-lg p-4">
+              <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-3 sm:p-4">
                   <div className="flex items-center">
-                    <Dog className="h-5 w-5 text-white mr-2" />
+                    <Dog className="h-4 w-4 sm:h-5 sm:w-5 text-white mr-2" />
                   <div>
-                      <p className="text-sm font-medium text-white">Dogs</p>
-                      <p className="text-lg font-semibold text-white">
+                      <p className="text-xs sm:text-sm font-medium text-white">Dogs</p>
+                      <p className="text-base sm:text-lg font-semibold text-white">
                         {registeredPets.filter(pet => pet.petType === 'dog').length}
                     </p>
                   </div>
                 </div>
                 </div>
-                <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-3 sm:p-4">
                   <div className="flex items-center">
-                    <span className="text-white mr-2">🐱</span>
+                    <span className="text-white mr-2 text-base sm:text-lg">🐱</span>
                   <div>
-                      <p className="text-sm font-medium text-white">Cats</p>
-                      <p className="text-lg font-semibold text-white">
+                      <p className="text-xs sm:text-sm font-medium text-white">Cats</p>
+                      <p className="text-base sm:text-lg font-semibold text-white">
                         {registeredPets.filter(pet => pet.petType === 'cat').length}
                     </p>
                   </div>
                 </div>
                 </div>
-                <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                <div className="bg-white bg-opacity-10 rounded-lg p-3 sm:p-4">
                   <div className="flex items-center">
-                    <Users className="h-5 w-5 text-white mr-2" />
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-white mr-2" />
                   <div>
-                      <p className="text-sm font-medium text-white">Unique Owners</p>
-                      <p className="text-lg font-semibold text-white">
+                      <p className="text-xs sm:text-sm font-medium text-white">Unique Owners</p>
+                      <p className="text-base sm:text-lg font-semibold text-white">
                         {new Set(registeredPets.map(pet => pet.ownerFullName)).size}
                     </p>
                   </div>
@@ -1367,14 +1634,14 @@ const getOwnerProfileImage = (pet) => {
           </div>
         )}
 
-        {!isLoading && activeTab === 'userManagement' && (
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200">
-            <div className="flex items-center justify-between mb-4">
+        {!isLoading && activeTab === 'users' && (
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-2">
               <div>
-                <h2 className="text-lg font-medium text-gray-900">User Management</h2>
-                <p className="text-sm text-gray-600">Managing regular users only (admin users not displayed)</p>
+                <h2 className="text-base sm:text-lg font-medium text-gray-900">User Management</h2>
+                <p className="text-xs sm:text-sm text-gray-600">Managing regular users only (admin users not displayed)</p>
               </div>
-              <div className="text-sm text-gray-900">
+              <div className="text-xs sm:text-sm text-gray-900 font-medium">
                 Total Users: {users.length}
               </div>
             </div>
@@ -1400,7 +1667,110 @@ const getOwnerProfileImage = (pet) => {
           </div>
         </div>
 
-            <div className="overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {getFilteredUsers().map((user) => (
+                <div key={user.uid} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden">
+                      {user.profileImage ? (
+                        <img
+                          src={user.profileImage}
+                          alt="Profile"
+                          className="w-12 h-12 rounded-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextElementSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className={`w-12 h-12 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center ${user.profileImage ? 'hidden' : 'flex'}`}
+                      >
+                        <User className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {user.displayName || 'Unknown User'}
+                      </h3>
+                      <p className="text-xs text-gray-600 truncate">{user.email || 'No email'}</p>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          user.status === 'deactivated' 
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {user.status === 'deactivated' ? (
+                            <>
+                              <ShieldOff className="h-3 w-3 mr-1" />
+                              Deactivated
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                              Active
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Phone:</span>
+                      <span className="text-gray-900 text-right">{user.phone || 'No phone'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Address:</span>
+                      <span className="text-gray-900 text-right truncate ml-2">{user.address || 'No address'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Pets:</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {registeredPets.filter(pet => pet.userId === user.uid).length} pets
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => handleViewUser(user)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                    >
+                      <User className="h-3 w-3 mr-1" />
+                      View
+                    </button>
+                    {user.status === 'deactivated' ? (
+                      <button
+                        onClick={() => handleActivateUser(user.uid)}
+                        className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                      >
+                        <ShieldCheck className="h-3 w-3 mr-1" />
+                        Activate
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleDeactivateUser(user.uid)}
+                        className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                      >
+                        <ShieldOff className="h-3 w-3 mr-1" />
+                        Deactivate
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {getFilteredUsers().length === 0 && (
+                <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
+                  {searchTerm ? 'No users match your search criteria' : 'No users found'}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -1517,35 +1887,35 @@ const getOwnerProfileImage = (pet) => {
 
             {/* Summary Stats */}
             {users.length > 0 && (
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
                   <div className="flex items-center">
-                    <ShieldCheck className="h-5 w-5 text-gray-700 mr-2" />
+                    <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 mr-2" />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Active Users</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">Active Users</p>
+                      <p className="text-base sm:text-lg font-semibold text-gray-900">
                         {users.filter(user => user.status !== 'deactivated').length}
                       </p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
                   <div className="flex items-center">
-                    <ShieldOff className="h-5 w-5 text-gray-700 mr-2" />
+                    <ShieldOff className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 mr-2" />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Deactivated Users</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">Deactivated Users</p>
+                      <p className="text-base sm:text-lg font-semibold text-gray-900">
                         {deactivatedUsers.length}
                       </p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
                   <div className="flex items-center">
-                    <Users className="h-5 w-5 text-gray-700 mr-2" />
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 mr-2" />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Total Users</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">Total Users</p>
+                      <p className="text-base sm:text-lg font-semibold text-gray-900">
                         {users.length}
                       </p>
                     </div>

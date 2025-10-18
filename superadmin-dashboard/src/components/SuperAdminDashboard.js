@@ -48,6 +48,7 @@ const SuperAdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [adminActivities, setAdminActivities] = useState([]);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [activitySearchTerm, setActivitySearchTerm] = useState('');
@@ -429,18 +430,102 @@ const SuperAdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col lg:flex-row">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-800 to-slate-900 shadow-lg">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-white hover:bg-slate-700 rounded-lg transition-all"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1">
+              <img src={LogoWhite} alt="PawSafety Logo" className="w-full h-full object-contain" />
+            </div>
+            <span className="text-white text-base font-semibold">Super Admin</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleLogout}
+              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-600/20 rounded-lg transition-all"
+              aria-label="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu Dropdown */}
+      {mobileMenuOpen && (
+        <>
+          <div 
+            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40 top-[60px]"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="lg:hidden fixed top-[60px] left-0 right-0 z-50 bg-gradient-to-b from-slate-800 to-slate-900 shadow-xl border-t border-slate-700">
+            <nav className="py-2">
+              <button
+                onClick={() => {
+                  setActiveTab('dashboard');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'dashboard'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <Settings className="h-5 w-5 mr-3" />
+                Dashboard
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('activities');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'activities'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <Activity className="h-5 w-5 mr-3" />
+                Admin Activities
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('history');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'history'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <FileText className="h-5 w-5 mr-3" />
+                History Log
+              </button>
+            </nav>
+          </div>
+        </>
       )}
 
-      {/* Sidebar */}
+      {/* Desktop Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 transition-all duration-300 ${
+        className={`hidden lg:block fixed inset-y-0 left-0 z-50 transition-all duration-300 ${
           sidebarOpen || sidebarHovered ? 'w-80 translate-x-0' : 'w-16 -translate-x-0'
         } lg:${sidebarOpen || sidebarHovered ? 'w-80' : 'w-16'}`}
         onMouseEnter={() => setSidebarHovered(true)}
@@ -530,92 +615,79 @@ const SuperAdminDashboard = () => {
         </div>
       </aside>
 
-      {/* Mobile menu button */}
-      <button
-        onClick={() => {
-          setSidebarOpen(!sidebarOpen);
-          setSidebarHovered(false);
-        }}
-        className="fixed top-4 left-4 z-50 lg:hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-      >
-        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
-
       {/* Main Content */}
-      <main className={`flex-1 py-6 px-6 transition-all duration-300 ${
+      <main className={`flex-1 py-3 px-3 sm:py-6 sm:px-6 transition-all duration-300 ${
         sidebarOpen || sidebarHovered ? 'lg:ml-80' : 'lg:ml-16'
-      } pt-12`}>
+      } pt-20 lg:pt-12`}>
         <div className="max-w-7xl mx-auto">
           
           {/* Dashboard Tab */}
           {activeTab === 'dashboard' && (
             <>
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6 lg:mb-8">
                 <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                   <div className="p-6">
+                   <div className="p-4 sm:p-6">
                      <div className="flex items-center justify-between">
                        <div className="flex items-center">
                          <div className="flex-shrink-0">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                            <Users className="h-6 w-6 text-white" />
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                            <Users className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                            </div>
                          </div>
-                         <div className="ml-4">
-                          <p className="text-sm font-medium text-blue-600">Total Admins</p>
-                          <p className="text-2xl font-bold text-gray-900">{admins.length}</p>
+                         <div className="ml-3 sm:ml-4">
+                          <p className="text-xs sm:text-sm font-medium text-blue-600">Total Admins</p>
+                          <p className="text-xl sm:text-2xl font-bold text-gray-900">{admins.length}</p>
                          </div>
                        </div>
                        <div className="text-right">
-                        <div className="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-600 rounded-full animate-pulse"></div>
                        </div>
                      </div>
                    </div>
                  </div>
 
                 <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                   <div className="p-6">
+                   <div className="p-4 sm:p-6">
                      <div className="flex items-center justify-between">
                        <div className="flex items-center">
                          <div className="flex-shrink-0">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                            <UserCheck className="h-6 w-6 text-white" />
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                            <UserCheck className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                            </div>
                          </div>
-                         <div className="ml-4">
-                          <p className="text-sm font-medium text-blue-600">Active Admins</p>
-                          <p className="text-2xl font-bold text-gray-900">
+                         <div className="ml-3 sm:ml-4">
+                          <p className="text-xs sm:text-sm font-medium text-blue-600">Active Admins</p>
+                          <p className="text-xl sm:text-2xl font-bold text-gray-900">
                              {admins.filter(admin => admin.status === 'active').length}
                            </p>
                          </div>
                        </div>
                        <div className="text-right">
-                        <div className="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-600 rounded-full animate-pulse"></div>
                        </div>
                      </div>
                    </div>
                  </div>
 
                 <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                   <div className="p-6">
+                   <div className="p-4 sm:p-6">
                      <div className="flex items-center justify-between">
                        <div className="flex items-center">
                          <div className="flex-shrink-0">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                            <UserX className="h-6 w-6 text-white" />
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                            <UserX className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                            </div>
                          </div>
-                         <div className="ml-4">
-                          <p className="text-sm font-medium text-blue-600">Inactive Admins</p>
-                          <p className="text-2xl font-bold text-gray-900">
+                         <div className="ml-3 sm:ml-4">
+                          <p className="text-xs sm:text-sm font-medium text-blue-600">Inactive Admins</p>
+                          <p className="text-xl sm:text-2xl font-bold text-gray-900">
                              {admins.filter(admin => admin.status === 'inactive').length}
                            </p>
                          </div>
                        </div>
                        <div className="text-right">
-                        <div className="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-600 rounded-full animate-pulse"></div>
                        </div>
                      </div>
                    </div>
@@ -624,27 +696,29 @@ const SuperAdminDashboard = () => {
 
              {/* Admin Management Section */}
              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200">
-               <div className="px-4 py-5 sm:p-6">
-                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                   <h2 className="text-lg font-medium text-gray-900">
+               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
+                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
+                   <h2 className="text-base sm:text-lg font-medium text-gray-900">
                      Admin Management
                    </h2>
                     <button
                       onClick={() => setShowCreateModal(true)}
-                      className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 w-full sm:w-auto justify-center"
+                      className="flex items-center px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-md text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 w-full sm:w-auto justify-center"
                     >
-                     <Plus className="h-4 w-4 mr-2" />
+                     <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                      Create Admin
                    </button>
                  </div>
 
-                 <div className="overflow-x-auto">
-                   <AdminList
-                     admins={admins}
-                     onToggleStatus={handleToggleStatus}
-                     onEdit={handleOpenEditPassword}
-                     onDelete={handleDeleteAdmin}
-                   />
+                 <div className="overflow-x-auto -mx-3 sm:mx-0">
+                   <div className="inline-block min-w-full align-middle">
+                     <AdminList
+                       admins={admins}
+                       onToggleStatus={handleToggleStatus}
+                       onEdit={handleOpenEditPassword}
+                       onDelete={handleDeleteAdmin}
+                     />
+                   </div>
                  </div>
                </div>
              </div>
@@ -653,20 +727,20 @@ const SuperAdminDashboard = () => {
 
           {/* Admin Activities Tab */}
           {activeTab === 'activities' && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Header */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
                   <div className="flex items-center">
-                    <Activity className="h-8 w-8 text-indigo-600 mr-3" />
+                    <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-600 mr-2 sm:mr-3" />
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900">Admin Activities</h2>
-                      <p className="text-sm text-gray-600">Track agricultural and impound admin login/logout activities</p>
+                      <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Admin Activities</h2>
+                      <p className="text-xs sm:text-sm text-gray-600">Track admin login/logout activities</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="bg-white/50 px-3 py-1 rounded-full text-sm font-medium text-indigo-700">
-                      {(adminActivities || []).length} total activities
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="bg-white/50 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium text-indigo-700">
+                      {(adminActivities || []).length} total
                     </div>
                     <div className="flex items-center space-x-1 text-xs text-indigo-600">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -676,7 +750,7 @@ const SuperAdminDashboard = () => {
                 </div>
 
                 {/* Search and Filter */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 sm:mb-6">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
@@ -684,15 +758,15 @@ const SuperAdminDashboard = () => {
                       placeholder="Search activities..."
                       value={activitySearchTerm}
                       onChange={(e) => setActivitySearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     />
                   </div>
-                  <div className="relative">
+                  <div className="relative sm:w-48">
                     <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <select
                       value={activityFilter}
                       onChange={(e) => setActivityFilter(e.target.value)}
-                      className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white"
+                      className="w-full pl-10 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white"
                     >
                       <option value="all">All Activities</option>
                       <option value="login">Login</option>
@@ -704,34 +778,34 @@ const SuperAdminDashboard = () => {
                 {/* Activities List */}
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                   {activitiesLoading ? (
-                    <div className="p-8 text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-600">Loading activities...</p>
+                    <div className="p-6 sm:p-8 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                      <p className="mt-2 text-sm sm:text-base text-gray-600">Loading activities...</p>
                     </div>
                   ) : filteredActivities.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <Activity className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500">No activities found</p>
-                      <p className="text-sm text-gray-400">Agricultural and impound admin activities will appear here</p>
+                    <div className="p-6 sm:p-8 text-center">
+                      <Activity className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm sm:text-base text-gray-500">No activities found</p>
+                      <p className="text-xs sm:text-sm text-gray-400">Admin activities will appear here</p>
                     </div>
                   ) : (
-                    <div className="max-h-96 overflow-y-auto">
+                    <div className="max-h-80 sm:max-h-96 overflow-y-auto">
                       {filteredActivities.map((activity) => (
                         <div
                           key={activity.id}
-                          className="p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                          className="p-3 sm:p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
                         >
-                          <div className="flex items-start space-x-3">
+                          <div className="flex items-start space-x-2 sm:space-x-3">
                             <div className="flex-shrink-0 mt-1">
                               {getActivityIcon(activity.actionType)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-gray-900">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                                <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
                                   {activity.adminName || 'Unknown Admin'}
                                 </p>
-                                <div className="flex items-center space-x-2">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                  <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                                     {activity.actionType || 'activity'}
                                   </span>
                                   <div className="flex items-center text-xs text-gray-500">
@@ -740,7 +814,7 @@ const SuperAdminDashboard = () => {
                                   </div>
                                 </div>
                               </div>
-                              <p className="text-sm text-gray-600 mt-1">
+                              <p className="text-xs sm:text-sm text-gray-600 mt-1">
                                 {activity.action || 'Performed an action'}
                               </p>
                               {activity.details && (
@@ -761,20 +835,20 @@ const SuperAdminDashboard = () => {
 
           {/* History Log Tab */}
           {activeTab === 'history' && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Header */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
                   <div className="flex items-center">
-                    <FileText className="h-8 w-8 text-indigo-600 mr-3" />
+                    <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-600 mr-2 sm:mr-3" />
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900">History Log</h2>
-                      <p className="text-sm text-gray-600">Track all SuperAdmin management actions</p>
+                      <h2 className="text-lg sm:text-xl font-semibold text-gray-900">History Log</h2>
+                      <p className="text-xs sm:text-sm text-gray-600">Track SuperAdmin actions</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="bg-white/50 px-3 py-1 rounded-full text-sm font-medium text-indigo-700">
-                      {(historyLog || []).length} total actions
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="bg-white/50 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium text-indigo-700">
+                      {(historyLog || []).length} total
                     </div>
                     <div className="flex items-center space-x-1 text-xs text-indigo-600">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -784,7 +858,7 @@ const SuperAdminDashboard = () => {
                 </div>
 
                 {/* Search and Filter */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 sm:mb-6">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
@@ -792,15 +866,15 @@ const SuperAdminDashboard = () => {
                       placeholder="Search history..."
                       value={historySearchTerm}
                       onChange={(e) => setHistorySearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     />
                   </div>
-                  <div className="relative">
+                  <div className="relative sm:w-48">
                     <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <select
                       value={historyFilter}
                       onChange={(e) => setHistoryFilter(e.target.value)}
-                      className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white"
+                      className="w-full pl-10 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white"
                     >
                       <option value="all">All Actions</option>
                       <option value="create">Create</option>
@@ -814,34 +888,34 @@ const SuperAdminDashboard = () => {
                 {/* History List */}
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                   {historyLoading ? (
-                    <div className="p-8 text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-600">Loading history...</p>
+                    <div className="p-6 sm:p-8 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                      <p className="mt-2 text-sm sm:text-base text-gray-600">Loading history...</p>
                     </div>
                   ) : filteredHistoryLog.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500">No history found</p>
-                      <p className="text-sm text-gray-400">SuperAdmin management actions will appear here</p>
+                    <div className="p-6 sm:p-8 text-center">
+                      <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm sm:text-base text-gray-500">No history found</p>
+                      <p className="text-xs sm:text-sm text-gray-400">SuperAdmin actions will appear here</p>
                     </div>
                   ) : (
-                    <div className="max-h-96 overflow-y-auto">
+                    <div className="max-h-80 sm:max-h-96 overflow-y-auto">
                       {filteredHistoryLog.map((activity) => (
                         <div
                           key={activity.id}
-                          className="p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                          className="p-3 sm:p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
                         >
-                          <div className="flex items-start space-x-3">
+                          <div className="flex items-start space-x-2 sm:space-x-3">
                             <div className="flex-shrink-0 mt-1">
                               {getActivityIcon(activity.actionType)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-gray-900">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                                <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
                                   {activity.adminName || 'Super Admin'}
                                 </p>
-                                <div className="flex items-center space-x-2">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                  <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                     {activity.actionType || 'action'}
                                   </span>
                                   <div className="flex items-center text-xs text-gray-500">
@@ -850,7 +924,7 @@ const SuperAdminDashboard = () => {
                                   </div>
                                 </div>
                               </div>
-                              <p className="text-sm text-gray-600 mt-1">
+                              <p className="text-xs sm:text-sm text-gray-600 mt-1">
                                 {activity.action || 'Performed an action'}
                               </p>
                               {activity.details && (
