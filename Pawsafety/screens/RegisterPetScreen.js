@@ -11,7 +11,9 @@ import {
   Image,
   Modal,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,22 +26,55 @@ import { useTheme } from '../contexts/ThemeContext';
 
 // Breed data
 const CAT_BREEDS = [
-  'Puspin (Mixed Breed)', 'Persian', 'Siamese', 'Maine Coon', 'British Shorthair', 'Ragdoll', 
-  'Bengal', 'Abyssinian', 'Russian Blue', 'Birman', 'Sphynx', 'Scottish Fold', 
-  'Norwegian Forest Cat', 'Burmese', 'Oriental Shorthair', 'Manx', 'Devon Rex', 'Cornish Rex', 
-  'Somali', 'Turkish Angora', 'Chartreux', 'Tonkinese', 'Balinese', 'Egyptian Mau', 'Ocicat', 
-  'Bombay', 'Havana Brown', 'Singapura', 'Korat', 'Snowshoe', 'American Curl', 'Selkirk Rex', 
-  'Mixed/Unknown'
+  'Puspin (Mixed Breed)', 'Abyssinian', 'American Curl', 'American Shorthair', 'American Wirehair', 
+  'Angora', 'Australian Mist', 'Balinese', 'Bambino', 'Bengal', 'Birman', 'Bombay', 
+  'Brazilian Shorthair', 'British Longhair', 'British Shorthair', 'Burmese', 'Burmilla',
+  'California Spangled', 'Chantilly-Tiffany', 'Chartreux', 'Colorpoint Shorthair', 'Cornish Rex', 
+  'Cymric', 'Devon Rex', 'Donskoy', 'Dragon Li', 'Egyptian Mau', 'European Shorthair', 
+  'Exotic Shorthair', 'Havana Brown', 'Highlander', 'Himalayan', 'Japanese Bobtail', 'Javanese', 
+  'Khao Manee', 'Korat', 'Kurilian Bobtail', 'LaPerm', 'Lykoi', 'Maine Coon', 'Manx', 'Munchkin',
+  'Nebelung', 'Neva Masquerade', 'Norwegian Forest Cat', 'Ocicat', 'Oriental', 'Oriental Longhair',
+  'Oriental Shorthair', 'Persian', 'Peterbald', 'Pixie-bob', 'Ragamuffin', 'Ragdoll', 'Russian Blue', 
+  'Savannah', 'Scottish Fold', 'Selkirk Rex', 'Serengeti', 'Siberian', 'Siamese', 'Singapura', 
+  'Snowshoe', 'Somali', 'Sphynx', 'Thai', 'Tonkinese', 'Toyger', 'Turkish Angora', 'Turkish Van', 
+  'Ukrainian Levkoy', 'Mixed/Unknown'
 ];
 
 const DOG_BREEDS = [
-  'Aspin (Mixed Breed)', 'Labrador Retriever', 'Golden Retriever', 'German Shepherd', 'Bulldog', 
-  'Poodle', 'Beagle', 'Rottweiler', 'Yorkshire Terrier', 'Dachshund', 'Siberian Husky', 
-  'Great Dane', 'Chihuahua', 'Boxer', 'Shih Tzu', 'Boston Terrier', 'Pomeranian', 
-  'Australian Shepherd', 'Maltese', 'Cavalier King Charles Spaniel', 'French Bulldog', 
-  'Cocker Spaniel', 'Border Collie', 'Mastiff', 'Basset Hound', 'Dalmatian', 'Bichon Frise', 
-  'Akita', 'Collie', 'Chow Chow', 'Doberman Pinscher', 'Bernese Mountain Dog', 'Weimaraner', 
-  'Vizsla', 'Mixed/Unknown'
+  'Aspin (Mixed Breed)', 'Afghan Hound', 'Airedale Terrier', 'Akbash', 'Akita', 'Alaskan Malamute',
+  'American Bulldog', 'American Pit Bull Terrier', 'American Staffordshire Terrier', 'American Water Spaniel',
+  'Anatolian Shepherd Dog', 'Australian Cattle Dog', 'Australian Kelpie', 'Australian Shepherd',
+  'Australian Terrier', 'Basenji', 'Basset Hound', 'Beagle', 'Bearded Collie', 'Bedlington Terrier',
+  'Belgian Malinois', 'Belgian Sheepdog', 'Belgian Tervuren', 'Bernese Mountain Dog', 'Bichon Frise',
+  'Black and Tan Coonhound', 'Bloodhound', 'Bluetick Coonhound', 'Border Collie', 'Border Terrier',
+  'Borzoi', 'Boston Terrier', 'Bouvier des Flandres', 'Boxer', 'Boykin Spaniel', 'Briard',
+  'Brittany', 'Brussels Griffon', 'Bull Terrier', 'Bulldog', 'Bullmastiff', 'Cairn Terrier',
+  'Canaan Dog', 'Cane Corso', 'Cardigan Welsh Corgi', 'Catahoula Leopard Dog', 'Cavalier King Charles Spaniel',
+  'Chesapeake Bay Retriever', 'Chihuahua', 'Chinese Crested', 'Chinese Shar-Pei', 'Chow Chow',
+  'Clumber Spaniel', 'Cocker Spaniel', 'Collie', 'Curly-Coated Retriever', 'Dachshund',
+  'Dalmatian', 'Doberman Pinscher', 'Dogue de Bordeaux', 'English Cocker Spaniel', 'English Setter',
+  'English Springer Spaniel', 'English Toy Spaniel', 'Field Spaniel', 'Finnish Spitz', 'Flat-Coated Retriever',
+  'French Bulldog', 'German Pinscher', 'German Shepherd', 'German Shorthaired Pointer', 'German Wirehaired Pointer',
+  'Giant Schnauzer', 'Glen of Imaal Terrier', 'Golden Retriever', 'Gordon Setter', 'Great Dane',
+  'Great Pyrenees', 'Greater Swiss Mountain Dog', 'Greyhound', 'Harrier', 'Havanese',
+  'Ibizan Hound', 'Icelandic Sheepdog', 'Irish Red and White Setter', 'Irish Setter', 'Irish Terrier',
+  'Irish Water Spaniel', 'Irish Wolfhound', 'Italian Greyhound', 'Jack Russell Terrier', 'Japanese Chin',
+  'Keeshond', 'Kerry Blue Terrier', 'Komondor', 'Kuvasz', 'Labrador Retriever', 'Lakeland Terrier',
+  'Leonberger', 'Lhasa Apso', 'Lowchen', 'Maltese', 'Manchester Terrier', 'Mastiff',
+  'Miniature Bull Terrier', 'Miniature Pinscher', 'Miniature Schnauzer', 'Neapolitan Mastiff', 'Newfoundland',
+  'Norfolk Terrier', 'Norwegian Buhund', 'Norwegian Elkhound', 'Norwich Terrier', 'Nova Scotia Duck Tolling Retriever',
+  'Old English Sheepdog', 'Otterhound', 'Papillon', 'Parson Russell Terrier', 'Pekingese',
+  'Pembroke Welsh Corgi', 'Petit Basset Griffon Vendeen', 'Pharaoh Hound', 'Plott', 'Pointer',
+  'Polish Lowland Sheepdog', 'Pomeranian', 'Poodle', 'Portuguese Water Dog', 'Pug', 'Puli',
+  'Pumi', 'Pyrenean Shepherd', 'Redbone Coonhound', 'Rhodesian Ridgeback', 'Rottweiler',
+  'Saint Bernard', 'Saluki', 'Samoyed', 'Schipperke', 'Scottish Deerhound', 'Scottish Terrier',
+  'Sealyham Terrier', 'Shetland Sheepdog', 'Shiba Inu', 'Shih Tzu', 'Siberian Husky', 'Silky Terrier',
+  'Skye Terrier', 'Sloughi', 'Smooth Fox Terrier', 'Soft Coated Wheaten Terrier', 'Spinone Italiano',
+  'Staffordshire Bull Terrier', 'Standard Schnauzer', 'Sussex Spaniel', 'Swedish Vallhund', 'Tibetan Mastiff',
+  'Tibetan Spaniel', 'Tibetan Terrier', 'Toy Fox Terrier', 'Treeing Walker Coonhound', 'Vizsla',
+  'Weimaraner', 'Welsh Springer Spaniel', 'Welsh Terrier', 'West Highland White Terrier', 'Whippet',
+  'Wire Fox Terrier', 'Wirehaired Pointing Griffon', 'Xoloitzcuintli', 'Yorkshire Terrier',
+  'Mixed/Unknown'
 ];
 
 const RegisterPetScreen = ({ navigation }) => {
@@ -434,6 +469,9 @@ const RegisterPetScreen = ({ navigation }) => {
       flex: 1,
       backgroundColor: COLORS.background,
     },
+    keyboardView: {
+      flex: 1,
+    },
     header: {
       backgroundColor: COLORS.darkPurple,
       paddingHorizontal: SPACING.lg,
@@ -474,6 +512,7 @@ const RegisterPetScreen = ({ navigation }) => {
       flex: 1,
       paddingHorizontal: SPACING.lg,
       paddingTop: SPACING.lg,
+      paddingBottom: SPACING.xl,
     },
     form: {
       paddingBottom: SPACING.xl,
@@ -728,7 +767,9 @@ const RegisterPetScreen = ({ navigation }) => {
       borderTopLeftRadius: RADIUS.large,
       borderTopRightRadius: RADIUS.large,
       padding: SPACING.lg,
-      maxHeight: '80%',
+      maxHeight: '85%',
+      minHeight: '50%',
+      flex: 1,
     },
     modalHeader: {
       flexDirection: 'row',
@@ -761,7 +802,8 @@ const RegisterPetScreen = ({ navigation }) => {
       marginBottom: SPACING.md,
     },
     breedList: {
-      maxHeight: 300,
+      flex: 1,
+      maxHeight: 400,
     },
     breedItem: {
       paddingVertical: SPACING.md,
@@ -1045,10 +1087,16 @@ const RegisterPetScreen = ({ navigation }) => {
         </View>
         </View>
 
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView 
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
 
         <View style={styles.form}>
           {/* Registration Form Card */}
@@ -1259,6 +1307,7 @@ const RegisterPetScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* QR Code Success Modal */}
       <Modal
@@ -1314,7 +1363,11 @@ const RegisterPetScreen = ({ navigation }) => {
         transparent={true}
         onRequestClose={() => setBreedModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -1342,6 +1395,7 @@ const RegisterPetScreen = ({ navigation }) => {
               data={getFilteredBreeds()}
               keyExtractor={(item) => item}
               showsVerticalScrollIndicator={false}
+              style={styles.breedList}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
@@ -1364,7 +1418,7 @@ const RegisterPetScreen = ({ navigation }) => {
               ItemSeparatorComponent={() => <View style={styles.separator} />}
             />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Instruction Modal */}

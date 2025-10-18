@@ -744,7 +744,7 @@ const StrayReportScreen = ({ navigation, route }) => {
             >
               <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
-            <Text style={styles.formTitle}>Stray Pet Report Form</Text>
+            <Text style={styles.formTitle}>Report Form</Text>
             <TouchableOpacity 
               style={styles.helpButton}
               onPress={() => setShowInstructionModal(true)}
