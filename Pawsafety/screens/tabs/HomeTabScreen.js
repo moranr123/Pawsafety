@@ -50,6 +50,47 @@ const HomeTabScreen = ({ navigation }) => {
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
   const [userManualVisible, setUserManualVisible] = useState(false);
 
+  // Check if user should see manual today (once per day per account)
+  useEffect(() => {
+    const checkDailyUserManual = async () => {
+      try {
+        if (!user) return; // No user logged in
+
+        // Use user-specific storage key
+        const storageKey = `PAW_USER_MANUAL_LAST_SHOWN_${user.uid}`;
+        const lastShownDate = await AsyncStorage.getItem(storageKey);
+        const today = new Date().toDateString(); // Get current date as string (e.g., "Mon Oct 18 2025")
+        
+        // Show manual if it hasn't been shown today for this user
+        if (lastShownDate !== today) {
+          setUserManualVisible(true);
+        }
+      } catch (error) {
+        console.error('Error checking daily user manual:', error);
+      }
+    };
+    
+    checkDailyUserManual();
+  }, [user]);
+
+  // Handle user manual close and mark as shown for today
+  const handleUserManualClose = async () => {
+    try {
+      if (!user) {
+        setUserManualVisible(false);
+        return;
+      }
+
+      const today = new Date().toDateString();
+      const storageKey = `PAW_USER_MANUAL_LAST_SHOWN_${user.uid}`;
+      await AsyncStorage.setItem(storageKey, today);
+      setUserManualVisible(false);
+    } catch (error) {
+      console.error('Error saving user manual shown date:', error);
+      setUserManualVisible(false);
+    }
+  };
+
   // Load hidden notifications from storage
   useEffect(() => {
     (async () => {
@@ -2708,7 +2749,7 @@ const HomeTabScreen = ({ navigation }) => {
       {/* User Manual Modal */}
       <UserManualModal 
         visible={userManualVisible} 
-        onClose={() => setUserManualVisible(false)} 
+        onClose={handleUserManualClose} 
       />
     </View>
   );

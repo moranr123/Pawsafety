@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { db } from '../services/firebase';
@@ -36,6 +37,7 @@ const StrayReportScreen = ({ navigation, route }) => {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [showInstructionModal, setShowInstructionModal] = useState(false);
+  const hasShownInstructionToday = useRef(false);
   const [mapRegion, setMapRegion] = useState({
     latitude: 14.5995, // Default to Philippines coordinates
     longitude: 120.9842,
@@ -47,6 +49,56 @@ const StrayReportScreen = ({ navigation, route }) => {
     // Request camera and location permissions
     requestPermissions();
   }, []);
+
+  // Check if user should see instruction manual today (once per day per account)
+  useEffect(() => {
+    const checkDailyInstruction = async () => {
+      try {
+        // Skip if we've already shown the instruction today in this session
+        if (hasShownInstructionToday.current) {
+          return;
+        }
+
+        const user = auth.currentUser;
+        if (!user) return; // No user logged in
+
+        // Use user-specific storage key
+        const storageKey = `PAW_FILE_REPORT_INSTRUCTION_LAST_SHOWN_${user.uid}`;
+        const lastShownDate = await AsyncStorage.getItem(storageKey);
+        const today = new Date().toDateString();
+        
+        // Show instruction if it hasn't been shown today for this user
+        if (lastShownDate !== today) {
+          hasShownInstructionToday.current = true;
+          setShowInstructionModal(true);
+        }
+      } catch (error) {
+        console.error('Error checking daily instruction:', error);
+      }
+    };
+    
+    // Only check on initial load, not on every re-render
+    checkDailyInstruction();
+  }, []); // Empty dependency array ensures this only runs once
+
+  // Handle instruction modal close and mark as shown for today
+  const handleInstructionClose = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        setShowInstructionModal(false);
+        return;
+      }
+
+      const today = new Date().toDateString();
+      const storageKey = `PAW_FILE_REPORT_INSTRUCTION_LAST_SHOWN_${user.uid}`;
+      await AsyncStorage.setItem(storageKey, today);
+      setShowInstructionModal(false);
+    } catch (error) {
+      console.error('Error saving instruction shown date:', error);
+      setShowInstructionModal(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAndSetLocation = async () => {
@@ -989,7 +1041,7 @@ const StrayReportScreen = ({ navigation, route }) => {
               <Text style={styles.instructionModalTitle}>📋 How to File a Report</Text>
               <TouchableOpacity
                 style={styles.instructionCloseButton}
-                onPress={() => setShowInstructionModal(false)}
+                onPress={handleInstructionClose}
               >
                 <MaterialIcons name="close" size={24} color={COLORS.secondaryText} />
               </TouchableOpacity>
@@ -1127,7 +1179,7 @@ const StrayReportScreen = ({ navigation, route }) => {
 
             <TouchableOpacity
               style={styles.instructionGotItButton}
-              onPress={() => setShowInstructionModal(false)}
+              onPress={handleInstructionClose}
             >
               <Text style={styles.instructionGotItButtonText}>Got It!</Text>
             </TouchableOpacity>

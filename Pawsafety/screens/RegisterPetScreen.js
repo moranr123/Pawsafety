@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-native-qrcode-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db, storage } from '../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -100,6 +101,7 @@ const RegisterPetScreen = ({ navigation }) => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [registeredPet, setRegisteredPet] = useState(null);
   const [showInstructionModal, setShowInstructionModal] = useState(false);
+  const hasShownInstructionToday = useRef(false);
 
   // Set default owner name from logged-in user and request permissions
   useEffect(() => {
@@ -124,6 +126,55 @@ const RegisterPetScreen = ({ navigation }) => {
       }
     })();
   }, []);
+
+  // Check if user should see instruction manual today (once per day per account)
+  useEffect(() => {
+    const checkDailyInstruction = async () => {
+      try {
+        // Skip if we've already shown the instruction today in this session
+        if (hasShownInstructionToday.current) {
+          return;
+        }
+
+        const user = auth.currentUser;
+        if (!user) return; // No user logged in
+
+        // Use user-specific storage key
+        const storageKey = `PAW_REGISTER_PET_INSTRUCTION_LAST_SHOWN_${user.uid}`;
+        const lastShownDate = await AsyncStorage.getItem(storageKey);
+        const today = new Date().toDateString();
+        
+        // Show instruction if it hasn't been shown today for this user
+        if (lastShownDate !== today) {
+          hasShownInstructionToday.current = true;
+          setShowInstructionModal(true);
+        }
+      } catch (error) {
+        console.error('Error checking daily instruction:', error);
+      }
+    };
+    
+    checkDailyInstruction();
+  }, []);
+
+  // Handle instruction modal close and mark as shown for today
+  const handleInstructionClose = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        setShowInstructionModal(false);
+        return;
+      }
+
+      const today = new Date().toDateString();
+      const storageKey = `PAW_REGISTER_PET_INSTRUCTION_LAST_SHOWN_${user.uid}`;
+      await AsyncStorage.setItem(storageKey, today);
+      setShowInstructionModal(false);
+    } catch (error) {
+      console.error('Error saving instruction shown date:', error);
+      setShowInstructionModal(false);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setPetData(prev => ({
@@ -1434,7 +1485,7 @@ const RegisterPetScreen = ({ navigation }) => {
               <Text style={styles.instructionModalTitle}>📋 How to Register Your Pet</Text>
               <TouchableOpacity
                 style={styles.instructionCloseButton}
-                onPress={() => setShowInstructionModal(false)}
+                onPress={handleInstructionClose}
               >
                 <MaterialIcons name="close" size={24} color={COLORS.secondaryText} />
               </TouchableOpacity>
@@ -1527,7 +1578,7 @@ const RegisterPetScreen = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.instructionGotItButton}
-              onPress={() => setShowInstructionModal(false)}
+              onPress={handleInstructionClose}
             >
               <Text style={styles.instructionGotItButtonText}>Got It!</Text>
             </TouchableOpacity>
