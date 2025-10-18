@@ -50,6 +50,49 @@ const AdoptScreen = () => {
     agreeData: false,
   });
 
+  // Helper function to format dates
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'Date not available';
+    
+    try {
+      // If it's a Firestore timestamp
+      if (dateValue && typeof dateValue === 'object' && dateValue.seconds) {
+        return new Date(dateValue.seconds * 1000).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      
+      // If it's already a string, format it nicely
+      if (typeof dateValue === 'string') {
+        const date = new Date(dateValue);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+        }
+        return dateValue; // Return as-is if it can't be parsed
+      }
+      
+      // If it's a regular Date object or timestamp
+      const date = new Date(dateValue);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      
+      return 'Date not available';
+    } catch (error) {
+      return 'Date not available';
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 800);
@@ -448,161 +491,276 @@ const AdoptScreen = () => {
       fontWeight: FONTS.weights.medium,
       color: '#374151',
     },
-    // Modal Styles
+    // Modern Modal Styles
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: SPACING.lg,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
     },
     modalContainer: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.xlarge,
+      backgroundColor: '#FFFFFF',
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
       maxHeight: '90%',
-      width: '100%',
-      maxWidth: 400,
-      elevation: 10,
+      minHeight: '60%',
       ...SHADOWS.heavy,
     },
-    modalHeader: {
+    modernHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: SPACING.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: '#E5E5E5',
+      alignItems: 'flex-start',
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      paddingBottom: 16,
     },
-    modalTitle: {
-      fontSize: FONTS.sizes.xlarge,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-    },
-    closeButton: {
-      padding: SPACING.sm,
-      borderRadius: RADIUS.medium,
-      backgroundColor: COLORS.inputBackground,
-    },
-    imageContainer: {
-      padding: SPACING.lg,
-      alignItems: 'center',
-    },
-    petImageModal: {
-      width: 200,
-      height: 200,
-      borderRadius: RADIUS.xlarge,
-      backgroundColor: COLORS.inputBackground,
-    },
-    placeholderImage: {
-      width: 200,
-      height: 200,
-      borderRadius: RADIUS.xlarge,
-      backgroundColor: COLORS.inputBackground,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    placeholderText: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      marginTop: SPACING.sm,
-    },
-    nameSection: {
-      paddingHorizontal: SPACING.lg,
-      marginBottom: SPACING.lg,
-    },
-    petNameModal: {
-      fontSize: FONTS.sizes.xxlarge,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      textAlign: 'center',
-    },
-    infoSection: {
-      paddingHorizontal: SPACING.lg,
-    },
-    infoCard: {
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      marginBottom: SPACING.sm,
-      borderLeftWidth: 4,
-      borderLeftColor: COLORS.mediumBlue,
-    },
-    infoRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    infoIconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: RADIUS.large,
-      backgroundColor: COLORS.cardBackground,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: SPACING.md,
-    },
-    infoContent: {
+    headerContent: {
       flex: 1,
     },
-    infoLabel: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.secondaryText,
-      marginBottom: SPACING.xs,
+    modernTitle: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 4,
     },
-    infoValue: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
-      color: COLORS.text,
+    modernSubtitle: {
+      fontSize: 16,
+      color: '#6B7280',
+      fontWeight: '400',
     },
-    descriptionSection: {
-      margin: SPACING.lg,
-      padding: SPACING.md,
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: RADIUS.medium,
-      borderLeftWidth: 4,
-      borderLeftColor: COLORS.darkPurple,
+    modernScrollView: {
+      flex: 1,
+    },
+    heroImageContainer: {
+      position: 'relative',
+      height: 280,
+      marginHorizontal: 24,
+      marginBottom: 24,
+      borderRadius: 20,
+      overflow: 'hidden',
+    },
+    heroImage: {
+      width: '100%',
+      height: '100%',
+    },
+    heroPlaceholder: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: '#F3F4F6',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    heroPlaceholderText: {
+      fontSize: 16,
+      color: '#9CA3AF',
+      marginTop: 8,
+      fontWeight: '500',
+    },
+    imageOverlay: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      padding: 20,
+    },
+    heroPetName: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      marginBottom: 8,
+    },
+    heroBadges: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    heroBadge: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    heroBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    quickInfoGrid: {
+      flexDirection: 'row',
+      paddingHorizontal: 24,
+      marginBottom: 24,
+      gap: 12,
+    },
+    quickInfoItem: {
+      flex: 1,
+      backgroundColor: '#F8FAFC',
+      padding: 16,
+      borderRadius: 16,
+      alignItems: 'center',
+    },
+    quickInfoLabel: {
+      fontSize: 12,
+      color: '#6B7280',
+      fontWeight: '500',
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    quickInfoValue: {
+      fontSize: 14,
+      color: '#111827',
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    medicalCard: {
+      marginHorizontal: 24,
+      marginBottom: 24,
+      backgroundColor: '#F8FAFC',
+      borderRadius: 16,
+      padding: 20,
+    },
+    medicalTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    medicalGrid: {
+      gap: 12,
+    },
+    medicalItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      backgroundColor: '#FFFFFF',
+      padding: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      minHeight: 60,
+    },
+    medicalItemActive: {
+      borderColor: '#10B981',
+      backgroundColor: '#F0FDF4',
+    },
+    medicalItemContent: {
+      flex: 1,
+      marginLeft: 12,
+    },
+    medicalLabel: {
+      fontSize: 14,
+      color: '#6B7280',
+      fontWeight: '500',
+    },
+    medicalLabelActive: {
+      color: '#059669',
+      fontWeight: '600',
+    },
+    dateContainer: {
+      backgroundColor: '#F3F4F6',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: '#D1D5DB',
+      alignSelf: 'flex-start',
+    },
+    dateText: {
+      fontSize: 13,
+      color: '#374151',
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    medicalStatus: {
+      fontSize: 14,
+      color: '#6B7280',
+      fontWeight: '600',
+      marginTop: 2,
+    },
+    medicalStatusActive: {
+      color: '#10B981',
+    },
+    temperamentCard: {
+      marginHorizontal: 24,
+      marginBottom: 24,
+      backgroundColor: '#F8FAFC',
+      borderRadius: 16,
+      padding: 20,
+    },
+    temperamentHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    temperamentTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#111827',
+      marginLeft: 8,
+    },
+    temperamentText: {
+      fontSize: 14,
+      color: '#374151',
+      lineHeight: 20,
+    },
+    descriptionCard: {
+      marginHorizontal: 24,
+      marginBottom: 24,
+      backgroundColor: '#F8FAFC',
+      borderRadius: 16,
+      padding: 20,
     },
     descriptionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: SPACING.sm,
+      marginBottom: 12,
     },
     descriptionTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
-      marginLeft: SPACING.sm,
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#111827',
+      marginLeft: 8,
     },
     descriptionText: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      color: COLORS.text,
-      lineHeight: 22,
+      fontSize: 14,
+      color: '#374151',
+      lineHeight: 20,
     },
-    actionButtonsContainer: {
-      padding: SPACING.lg,
+    modernActionContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: 24,
+      paddingVertical: 20,
+      paddingBottom: 34,
+      gap: 12,
+      backgroundColor: '#FFFFFF',
       borderTopWidth: 1,
-      borderTopColor: '#E5E5E5',
+      borderTopColor: '#F3F4F6',
     },
-    actionButton: {
-      borderRadius: RADIUS.medium,
-      paddingVertical: SPACING.md,
+    modernCloseBtn: {
+      flex: 1,
+      backgroundColor: '#F3F4F6',
+      paddingVertical: 16,
+      borderRadius: 12,
       alignItems: 'center',
     },
-    closeActionButton: {
-      backgroundColor: COLORS.darkPurple,
+    modernCloseBtnText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#374151',
     },
-    closeButtonText: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.white,
+    modernAdoptBtn: {
+      flex: 2,
+      backgroundColor: '#8B5CF6',
+      paddingVertical: 16,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    modernAdoptBtnText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
     },
     // Medical Section Styles
     medicalSection: {
@@ -913,219 +1071,193 @@ const AdoptScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            {/* Modal Header with Close Button */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pet Details</Text>
-              <TouchableOpacity
-                onPress={() => setDetailsVisible(false)}
-                style={styles.closeButton}
-              >
-                <MaterialIcons name="close" size={24} color={COLORS.text} />
-              </TouchableOpacity>
+            {/* Modern Header */}
+            <View style={styles.modernHeader}>
+              <View style={styles.headerContent}>
+                <Text style={styles.modernTitle}>Pet Details</Text>
+                <Text style={styles.modernSubtitle}>Meet your new companion</Text>
+              </View>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Pet Image */}
-              <View style={styles.imageContainer}>
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
+              {/* Hero Image Section */}
+              <View style={styles.heroImageContainer}>
                 {selectedPet?.imageUrl ? (
                   <Image 
                     source={{ uri: selectedPet.imageUrl }} 
-                    style={styles.petImageModal} 
+                    style={styles.heroImage} 
                     resizeMode="cover" 
                   />
                 ) : (
-                  <View style={styles.placeholderImage}>
-                    <MaterialIcons 
-                      name="pets" 
-                      size={80} 
-                      color={COLORS.mediumBlue} 
-                    />
-                    <Text style={styles.placeholderText}>No Photo</Text>
+                  <View style={styles.heroPlaceholder}>
+                    <MaterialIcons name="pets" size={60} color="#9CA3AF" />
+                    <Text style={styles.heroPlaceholderText}>No Photo Available</Text>
                   </View>
                 )}
-              </View>
-
-              {/* Pet Name */}
-              <View style={styles.nameSection}>
-                <Text style={styles.petNameModal}>{selectedPet?.petName || 'Unnamed Pet'}</Text>
-              </View>
-
-              {/* Pet Information Cards */}
-              <View style={styles.infoSection}>
-                <View style={styles.infoCard}>
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoIconContainer}>
-                      <MaterialIcons 
-                        name={selectedPet?.petType === 'cat' ? 'pets' : 'pets'} 
-                        size={20} 
-                        color={COLORS.darkPurple} 
-                      />
-                    </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>Type</Text>
-                      <Text style={styles.infoValue}>
+                <View style={styles.imageOverlay}>
+                  <Text style={styles.heroPetName}>{selectedPet?.petName || 'Unnamed Pet'}</Text>
+                  <View style={styles.heroBadges}>
+                    <View style={styles.heroBadge}>
+                      <Text style={styles.heroBadgeText}>
                         {selectedPet?.petType ? 
                           (selectedPet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : 
-                          'Unknown'
+                          'Pet'
                         }
                       </Text>
                     </View>
-                  </View>
-                </View>
-
-                <View style={styles.infoCard}>
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoIconContainer}>
-                      <MaterialIcons name="category" size={20} color="#FF9800" />
-                    </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>Breed</Text>
-                      <Text style={styles.infoValue}>{selectedPet?.breed || 'Unknown Breed'}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {selectedPet?.age && (
-                  <View style={styles.infoCard}>
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoIconContainer}>
-                        <MaterialIcons name="cake" size={20} color="#4CAF50" />
+                    {selectedPet?.age && (
+                      <View style={styles.heroBadge}>
+                        <Text style={styles.heroBadgeText}>{selectedPet.age}</Text>
                       </View>
-                      <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Age</Text>
-                        <Text style={styles.infoValue}>{selectedPet.age}</Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-
-                <View style={styles.infoCard}>
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoIconContainer}>
-                      <MaterialIcons 
-                        name={selectedPet?.gender === 'male' ? 'male' : 'female'} 
-                        size={20} 
-                        color={selectedPet?.gender === 'male' ? '#2196F3' : '#E91E63'} 
-                      />
-                    </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>Gender</Text>
-                      <Text style={styles.infoValue}>
-                        {selectedPet?.gender ? 
-                          (selectedPet.gender === 'male' ? '♂️ Male' : '♀️ Female') : 
-                          'Unknown'
-                        }
-                      </Text>
-                    </View>
+                    )}
                   </View>
                 </View>
+              </View>
 
+              {/* Quick Info Grid */}
+              <View style={styles.quickInfoGrid}>
+                <View style={styles.quickInfoItem}>
+                  <MaterialIcons name="category" size={24} color="#F59E0B" />
+                  <Text style={styles.quickInfoLabel}>Breed</Text>
+                  <Text style={styles.quickInfoValue}>{selectedPet?.breed || 'Unknown'}</Text>
+                </View>
+                <View style={styles.quickInfoItem}>
+                  <MaterialIcons 
+                    name={selectedPet?.gender === 'male' ? 'male' : 'female'} 
+                    size={24} 
+                    color={selectedPet?.gender === 'male' ? '#3B82F6' : '#EC4899'} 
+                  />
+                  <Text style={styles.quickInfoLabel}>Gender</Text>
+                  <Text style={styles.quickInfoValue}>
+                    {selectedPet?.gender ? 
+                      (selectedPet.gender === 'male' ? 'Male' : 'Female') : 
+                      'Unknown'
+                    }
+                  </Text>
+                </View>
                 {selectedPet?.location && (
-                  <View style={styles.infoCard}>
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoIconContainer}>
-                        <MaterialIcons name="location-on" size={20} color="#F44336" />
-                      </View>
-                      <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Location</Text>
-                        <Text style={styles.infoValue}>{selectedPet.location}</Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-
-                {/* Medical Treatments Section */}
-                <View style={styles.medicalSection}>
-                  <Text style={styles.sectionTitle}>Medical Information</Text>
-                  
-                  <View style={styles.treatmentContainer}>
-                    <View style={styles.treatmentItem}>
-                      <MaterialIcons 
-                        name="vaccines" 
-                        size={20} 
-                        color={selectedPet?.vaccinated ? "#4CAF50" : "#9E9E9E"} 
-                      />
-                      <View style={styles.treatmentInfo}>
-                        <Text style={styles.treatmentLabel}>Vaccine</Text>
-                        <Text style={[styles.treatmentStatus, selectedPet?.vaccinated && styles.treatmentStatusActive]}>
-                          {selectedPet?.vaccinated ? '✓ Vaccinated' : '✗ Not Vaccinated'}
-                        </Text>
-                        {selectedPet?.vaccinated && selectedPet?.vaccinatedDate && (
-                          <Text style={styles.treatmentDate}>Date: {selectedPet.vaccinatedDate}</Text>
-                        )}
-                      </View>
-                    </View>
-
-                    <View style={styles.treatmentItem}>
-                      <MaterialIcons 
-                        name="healing" 
-                        size={20} 
-                        color={selectedPet?.dewormed ? "#4CAF50" : "#9E9E9E"} 
-                      />
-                      <View style={styles.treatmentInfo}>
-                        <Text style={styles.treatmentLabel}>Deworm</Text>
-                        <Text style={[styles.treatmentStatus, selectedPet?.dewormed && styles.treatmentStatusActive]}>
-                          {selectedPet?.dewormed ? '✓ Dewormed' : '✗ Not Dewormed'}
-                        </Text>
-                        {selectedPet?.dewormed && selectedPet?.dewormedDate && (
-                          <Text style={styles.treatmentDate}>Date: {selectedPet.dewormedDate}</Text>
-                        )}
-                      </View>
-                    </View>
-
-                    <View style={styles.treatmentItem}>
-                      <MaterialIcons 
-                        name="local-hospital" 
-                        size={20} 
-                        color={selectedPet?.antiRabies ? "#4CAF50" : "#9E9E9E"} 
-                      />
-                      <View style={styles.treatmentInfo}>
-                        <Text style={styles.treatmentLabel}>Anti-rabies</Text>
-                        <Text style={[styles.treatmentStatus, selectedPet?.antiRabies && styles.treatmentStatusActive]}>
-                          {selectedPet?.antiRabies ? '✓ Anti-rabies' : '✗ No Anti-rabies'}
-                        </Text>
-                        {selectedPet?.antiRabies && selectedPet?.antiRabiesDate && (
-                          <Text style={styles.treatmentDate}>Date: {selectedPet.antiRabiesDate}</Text>
-                        )}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                {selectedPet?.temperament && (
-                  <View style={styles.infoCard}>
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoIconContainer}>
-                        <MaterialIcons name="psychology" size={20} color="#9C27B0" />
-                      </View>
-                      <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Temperament</Text>
-                        <Text style={styles.infoValue}>{selectedPet.temperament}</Text>
-                      </View>
-                    </View>
+                  <View style={styles.quickInfoItem}>
+                    <MaterialIcons name="location-on" size={24} color="#EF4444" />
+                    <Text style={styles.quickInfoLabel}>Location</Text>
+                    <Text style={styles.quickInfoValue}>{selectedPet.location}</Text>
                   </View>
                 )}
               </View>
 
-              {/* Description Section */}
+
+              {/* Medical Status */}
+              <View style={styles.medicalCard}>
+                <Text style={styles.medicalTitle}>Health Status</Text>
+                <View style={styles.medicalGrid}>
+                  <View style={[styles.medicalItem, selectedPet?.vaccinated && styles.medicalItemActive]}>
+                    <MaterialIcons 
+                      name="vaccines" 
+                      size={20} 
+                      color={selectedPet?.vaccinated ? "#10B981" : "#9CA3AF"} 
+                    />
+                    <View style={styles.medicalItemContent}>
+                      <Text style={[styles.medicalLabel, selectedPet?.vaccinated && styles.medicalLabelActive]}>
+                        Vaccinated
+                      </Text>
+                      {selectedPet?.vaccinated && (
+                        <View style={styles.dateContainer}>
+                          <Text style={styles.dateText}>
+                            {formatDate(selectedPet.vaccinatedDate || selectedPet.vaccineDate || selectedPet.vaccinationDate)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.medicalStatus, selectedPet?.vaccinated && styles.medicalStatusActive]}>
+                      {selectedPet?.vaccinated ? 'Yes' : 'No'}
+                    </Text>
+                  </View>
+                  <View style={[styles.medicalItem, selectedPet?.dewormed && styles.medicalItemActive]}>
+                    <MaterialIcons 
+                      name="healing" 
+                      size={20} 
+                      color={selectedPet?.dewormed ? "#10B981" : "#9CA3AF"} 
+                    />
+                    <View style={styles.medicalItemContent}>
+                      <Text style={[styles.medicalLabel, selectedPet?.dewormed && styles.medicalLabelActive]}>
+                        Dewormed
+                      </Text>
+                      {selectedPet?.dewormed && (
+                        <View style={styles.dateContainer}>
+                          <Text style={styles.dateText}>
+                            {formatDate(selectedPet.dewormedDate || selectedPet.dewormDate)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.medicalStatus, selectedPet?.dewormed && styles.medicalStatusActive]}>
+                      {selectedPet?.dewormed ? 'Yes' : 'No'}
+                    </Text>
+                  </View>
+                  <View style={[styles.medicalItem, selectedPet?.antiRabies && styles.medicalItemActive]}>
+                    <MaterialIcons 
+                      name="local-hospital" 
+                      size={20} 
+                      color={selectedPet?.antiRabies ? "#10B981" : "#9CA3AF"} 
+                    />
+                    <View style={styles.medicalItemContent}>
+                      <Text style={[styles.medicalLabel, selectedPet?.antiRabies && styles.medicalLabelActive]}>
+                        Anti-rabies
+                      </Text>
+                      {selectedPet?.antiRabies && (
+                        <View style={styles.dateContainer}>
+                          <Text style={styles.dateText}>
+                            {formatDate(selectedPet.antiRabiesDate || selectedPet.antiRabiesVaccineDate)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.medicalStatus, selectedPet?.antiRabies && styles.medicalStatusActive]}>
+                      {selectedPet?.antiRabies ? 'Yes' : 'No'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Temperament */}
+              {selectedPet?.temperament && (
+                <View style={styles.temperamentCard}>
+                  <View style={styles.temperamentHeader}>
+                    <MaterialIcons name="psychology" size={20} color="#8B5CF6" />
+                    <Text style={styles.temperamentTitle}>Temperament</Text>
+                  </View>
+                  <Text style={styles.temperamentText}>{selectedPet.temperament}</Text>
+                </View>
+              )}
+
+              {/* Description */}
               {selectedPet?.description && (
-                <View style={styles.descriptionSection}>
+                <View style={styles.descriptionCard}>
                   <View style={styles.descriptionHeader}>
-                    <MaterialIcons name="description" size={20} color={COLORS.darkPurple} />
-                    <Text style={styles.descriptionTitle}>Description</Text>
+                    <MaterialIcons name="description" size={20} color="#6366F1" />
+                    <Text style={styles.descriptionTitle}>About</Text>
                   </View>
                   <Text style={styles.descriptionText}>{selectedPet.description}</Text>
                 </View>
               )}
             </ScrollView>
 
-            {/* Action Buttons */}
-            <View style={styles.actionButtonsContainer}>
+            {/* Modern Action Buttons */}
+            <View style={styles.modernActionContainer}>
+              <TouchableOpacity
+                onPress={() => {
+                  setDetailsVisible(false);
+                  setApplyVisible(true);
+                }}
+                style={styles.modernAdoptBtn}
+              >
+                <MaterialIcons name="favorite" size={20} color="#FFFFFF" />
+                <Text style={styles.modernAdoptBtnText}>Adopt Me</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setDetailsVisible(false)}
-                style={[styles.actionButton, styles.closeActionButton]}
+                style={styles.modernCloseBtn}
               >
-                <Text style={styles.closeButtonText}>Close</Text>
+                <Text style={styles.modernCloseBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
