@@ -848,11 +848,6 @@ const getOwnerProfileImage = (pet) => {
                   <Users className="h-5 w-5 mr-3" />
                   User Management
                 </div>
-                {users.length > 0 && (
-                  <span className="bg-blue-500 text-white text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center">
-                    {users.length > 99 ? '99+' : users.length}
-                  </span>
-                )}
               </button>
             </nav>
           </div>
@@ -976,11 +971,6 @@ const getOwnerProfileImage = (pet) => {
             >
               <Shield className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">User Management</span>}
-              {users.length > 0 && (
-                <span className={`ml-auto ${(sidebarOpen || sidebarHovered) ? '' : 'hidden'} inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-blue-500 text-white`}>
-                  {users.length > 99 ? '99+' : users.length}
-                </span>
-              )}
             </button>
 
             {/* Notifications quick button removed; now at top */}
@@ -1130,7 +1120,7 @@ const getOwnerProfileImage = (pet) => {
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Total Users</p>
-                        <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                        <p className="text-2xl font-bold text-gray-900">-</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -1642,7 +1632,7 @@ const getOwnerProfileImage = (pet) => {
                 <p className="text-xs sm:text-sm text-gray-600">Managing regular users only (admin users not displayed)</p>
               </div>
               <div className="text-xs sm:text-sm text-gray-900 font-medium">
-                Total Users: {users.length}
+                User Management
               </div>
             </div>
             
@@ -1719,14 +1709,6 @@ const getOwnerProfileImage = (pet) => {
                   
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500 font-medium">Phone:</span>
-                      <span className="text-gray-900 text-right">{user.phone || 'No phone'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-500 font-medium">Address:</span>
-                      <span className="text-gray-900 text-right truncate ml-2">{user.address || 'No address'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Pets:</span>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         {registeredPets.filter(pet => pet.userId === user.uid).length} pets
@@ -1775,8 +1757,6 @@ const getOwnerProfileImage = (pet) => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pets Count</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -1810,15 +1790,6 @@ const getOwnerProfileImage = (pet) => {
                             <p className="text-xs text-gray-600">{user.email || 'No email'}</p>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
-                        <div>
-                          <p className="text-sm">{user.phone || 'No phone'}</p>
-                          <p className="text-xs text-gray-500">{user.email || 'No email'}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-sm text-gray-700">
-                        <p className="max-w-xs truncate">{user.address || 'No address provided'}</p>
                       </td>
                       <td className="px-4 py-2 text-sm">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -1887,7 +1858,7 @@ const getOwnerProfileImage = (pet) => {
 
             {/* Summary Stats */}
             {users.length > 0 && (
-              <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
                   <div className="flex items-center">
                     <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 mr-2" />
@@ -1906,17 +1877,6 @@ const getOwnerProfileImage = (pet) => {
                       <p className="text-xs sm:text-sm font-medium text-gray-900">Deactivated Users</p>
                       <p className="text-base sm:text-lg font-semibold text-gray-900">
                         {deactivatedUsers.length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
-                  <div className="flex items-center">
-                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 mr-2" />
-                    <div>
-                      <p className="text-xs sm:text-sm font-medium text-gray-900">Total Users</p>
-                      <p className="text-base sm:text-lg font-semibold text-gray-900">
-                        {users.length}
                       </p>
                     </div>
                   </div>
@@ -2483,15 +2443,6 @@ const getOwnerProfileImage = (pet) => {
                       <p className="text-gray-900">{selectedUser.email || 'No email provided'}</p>
           </div>
                     
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Phone Number</label>
-                      <p className="text-gray-900">{selectedUser.phone || 'No phone provided'}</p>
-        </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Address</label>
-                      <p className="text-gray-900">{selectedUser.address || 'No address provided'}</p>
-                    </div>
                   </div>
                 </div>
                 

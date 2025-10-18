@@ -712,12 +712,12 @@ const SuperAdminDashboard = () => {
 
                  <div className="overflow-x-auto -mx-3 sm:mx-0">
                    <div className="inline-block min-w-full align-middle">
-                     <AdminList
-                       admins={admins}
-                       onToggleStatus={handleToggleStatus}
-                       onEdit={handleOpenEditPassword}
-                       onDelete={handleDeleteAdmin}
-                     />
+                   <AdminList
+                     admins={admins}
+                     onToggleStatus={handleToggleStatus}
+                     onEdit={handleOpenEditPassword}
+                     onDelete={handleDeleteAdmin}
+                   />
                    </div>
                  </div>
                </div>
