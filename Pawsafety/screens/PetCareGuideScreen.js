@@ -47,18 +47,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         'Choose a balanced diet appropriate for age and size.',
         'Create a safe, comfortable sleeping area.',
         'Use an ID tag and keep microchip info updated.'
-      ],
-      sources: [
-        {
-          title: 'AVMA Pet Owner Resources',
-          url: 'https://www.avma.org/resources-tools/pet-owners',
-          description: 'Basic pet care essentials'
-        },
-        {
-          title: 'ASPCA Pet Care Guidelines',
-          url: 'https://www.aspca.org/pet-care',
-          description: 'Comprehensive pet care basics'
-        }
       ]
     },
     {
@@ -74,23 +62,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         ...(species === 'dog' && ageGroup === 'adult' ? ['Adult dog: feed 1–2x/day; adjust portions by body condition score.'] : []),
         ...(species === 'cat' && ageGroup === 'young' ? ['Kitten: energy-dense kitten food; 3–4 meals/day or free-feed dry.'] : []),
         ...(species === 'cat' && ageGroup === 'adult' ? ['Adult cat: scheduled meals help weight control; promote wet food + water.'] : [])
-      ],
-      sources: [
-        {
-          title: 'WSAVA Global Nutrition Guidelines',
-          url: 'https://wsava.org/global-guidelines/global-nutrition-guidelines/',
-          description: 'International feeding standards'
-        },
-        {
-          title: 'Pet Poison Helpline',
-          url: 'https://www.petpoisonhelpline.com/',
-          description: 'Toxic foods and substances'
-        },
-        {
-          title: 'AAFCO Pet Food Labeling',
-          url: 'https://www.aafco.org/',
-          description: 'Pet food standards and regulations'
-        }
       ]
     },
     {
@@ -105,18 +76,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         species === 'dog' 
           ? (ageGroup === 'young' ? 'Puppy: several short play sessions; avoid high-impact jumps.' : 'Adult dog: 30–60 min activity daily; include sniff walks.')
           : (ageGroup === 'young' ? 'Kitten: multiple short play bursts with wand toys daily.' : 'Adult cat: 2–3 interactive play sessions; encourage climbing/perches.')
-      ],
-      sources: [
-        {
-          title: 'AVMA Exercise Guidelines',
-          url: 'https://www.avma.org/resources-tools/pet-owners/petcare/exercise',
-          description: 'Pet exercise recommendations'
-        },
-        {
-          title: 'International Association of Animal Behavior Consultants',
-          url: 'https://iaabc.org/',
-          description: 'Enrichment and behavioral needs'
-        }
       ]
     },
     {
@@ -131,18 +90,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         species === 'dog' 
           ? 'Dogs: ear checks after baths/swims; long coats may need professional grooming.'
           : 'Cats: scoop litter daily; longhaired cats need more frequent brushing.'
-      ],
-      sources: [
-        {
-          title: 'Veterinary Oral Health Council',
-          url: 'https://www.vohc.org/',
-          description: 'Pet dental care guidelines'
-        },
-        {
-          title: 'Pet Grooming Association',
-          url: 'https://www.petgroomingassociation.com/',
-          description: 'Professional grooming standards'
-        }
       ]
     },
     {
@@ -154,18 +101,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         'Annual vet checkups; keep vaccines and deworming up to date.',
         'Use flea/tick prevention as recommended by your vet.',
         'Watch for appetite, energy, or bathroom habit changes.'
-      ],
-      sources: [
-        {
-          title: 'AVMA Preventive Care Guidelines',
-          url: 'https://www.avma.org/resources-tools/pet-owners/petcare/preventive-care',
-          description: 'Preventive healthcare recommendations'
-        },
-        {
-          title: 'CDC Pet Health',
-          url: 'https://www.cdc.gov/healthypets/',
-          description: 'Pet health and zoonotic diseases'
-        }
       ]
     },
     {
@@ -181,23 +116,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         'Newly adopted/impounded pets: book a wellness and vaccine check within 3–7 days.',
         ...(species === 'dog' ? [ageGroup === 'young' ? 'For your selection: Puppy—DA2PP at 6–8w, 10–12w, 14–16w; Rabies at ~12–16w.' : 'For your selection: Adult dog—booster 1 year after series, then every 1–3 years as advised.'] : []),
         ...(species === 'cat' ? [ageGroup === 'young' ? 'For your selection: Kitten—FVRCP at 6–8w, 10–12w, 14–16w; Rabies at ~12–16w.' : 'For your selection: Adult cat—booster 1 year after series, then every 1–3 years as advised.'] : [])
-      ],
-      sources: [
-        {
-          title: 'AAHA Vaccination Guidelines',
-          url: 'https://www.aaha.org/aaha-guidelines/vaccination-guidelines/',
-          description: 'Canine vaccination protocols'
-        },
-        {
-          title: 'AAFP Feline Vaccination Guidelines',
-          url: 'https://catvets.com/guidelines/practice-guidelines/vaccination-guidelines',
-          description: 'Feline vaccination recommendations'
-        },
-        {
-          title: 'WSAVA Vaccination Guidelines',
-          url: 'https://wsava.org/global-guidelines/vaccination-guidelines/',
-          description: 'Global vaccination standards'
-        }
       ]
     },
     {
@@ -209,18 +127,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         'Keep harmful items out of reach (meds, cleaners, plants).',
         'Secure fences/doors; supervise outdoor time.',
         'Use a harness and proper leash when outside.'
-      ],
-      sources: [
-        {
-          title: 'ASPCA Pet Safety',
-          url: 'https://www.aspca.org/pet-care/general-pet-care/pet-safety',
-          description: 'Pet safety guidelines'
-        },
-        {
-          title: 'Pet Poison Helpline',
-          url: 'https://www.petpoisonhelpline.com/',
-          description: 'Toxic substances and plants'
-        }
       ]
     },
     {
@@ -232,18 +138,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         'Use positive reinforcement (treats/praise).',
         'Short, consistent sessions (5–10 minutes).',
         'Gradual exposure to people, pets, places.'
-      ],
-      sources: [
-        {
-          title: 'American Veterinary Society of Animal Behavior',
-          url: 'https://avsab.org/',
-          description: 'Evidence-based training methods'
-        },
-        {
-          title: 'Association of Professional Dog Trainers',
-          url: 'https://apdt.com/',
-          description: 'Professional training standards'
-        }
       ]
     },
     {
@@ -255,18 +149,6 @@ const PetCareGuideScreen = ({ navigation }) => {
         'First-aid kit, extra food/water (3 days), meds, copies of records.',
         'Carrier/crate, leash, ID copies, recent photo.',
         'Know the nearest 24/7 vet clinic.'
-      ],
-      sources: [
-        {
-          title: 'AVMA Emergency Preparedness',
-          url: 'https://www.avma.org/resources-tools/pet-owners/emergency-care',
-          description: 'Pet emergency preparedness'
-        },
-        {
-          title: 'Red Cross Pet First Aid',
-          url: 'https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/pet-safety',
-          description: 'Pet first aid guidelines'
-        }
       ]
     }
   ];
@@ -587,50 +469,6 @@ const PetCareGuideScreen = ({ navigation }) => {
       marginLeft: SPACING.xs,
       fontStyle: 'italic',
     },
-    // Section Sources Styles
-    sectionSourcesContainer: {
-      marginTop: SPACING.lg,
-      paddingTop: SPACING.md,
-      borderTopWidth: 1,
-      borderTopColor: COLORS.border,
-    },
-    sectionSourcesHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: SPACING.sm,
-    },
-    sectionSourcesTitle: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.darkPurple,
-      marginLeft: SPACING.xs,
-    },
-    sectionSourceLink: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: 'rgba(138, 43, 226, 0.05)',
-      borderRadius: RADIUS.small,
-      padding: SPACING.sm,
-      marginVertical: SPACING.xs,
-      borderWidth: 1,
-      borderColor: 'rgba(138, 43, 226, 0.1)',
-    },
-    sectionSourceContent: {
-      flex: 1,
-    },
-    sectionSourceTitle: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
-      color: COLORS.text,
-      marginBottom: 2,
-    },
-    sectionSourceDescription: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-    },
   }), [COLORS]);
 
   const BulletPoint = ({ children, icon = 'fiber-manual-record' }) => (
@@ -685,30 +523,6 @@ const PetCareGuideScreen = ({ navigation }) => {
             {section.content.map((item, index) => (
               <BulletPoint key={index}>{item}</BulletPoint>
             ))}
-            
-            {/* Section Sources */}
-            {section.sources && section.sources.length > 0 && (
-              <View style={styles.sectionSourcesContainer}>
-                <View style={styles.sectionSourcesHeader}>
-                  <MaterialIcons name="link" size={16} color={COLORS.darkPurple} />
-                  <Text style={styles.sectionSourcesTitle}>Sources</Text>
-                </View>
-                {section.sources.map((source, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.sectionSourceLink}
-                    onPress={() => Linking.openURL(source.url)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.sectionSourceContent}>
-                      <Text style={styles.sectionSourceTitle}>{source.title}</Text>
-                      <Text style={styles.sectionSourceDescription}>{source.description}</Text>
-                    </View>
-                    <Ionicons name="open-outline" size={16} color={COLORS.secondaryText} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
           </View>
         )}
       </View>
@@ -849,7 +663,7 @@ const PetCareGuideScreen = ({ navigation }) => {
               </View>
               <View style={styles.sourceLinkTextContainer}>
                 <Text style={styles.sourceLinkTitle}>American Veterinary Medical Association</Text>
-                <Text style={styles.sourceLinkSubtitle}>AVMA - Pet Owner Resources & Guidelines</Text>
+                <Text style={styles.sourceLinkSubtitle}>AVMA - Pet Owner Resources</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
             </TouchableOpacity>
@@ -864,127 +678,7 @@ const PetCareGuideScreen = ({ navigation }) => {
               </View>
               <View style={styles.sourceLinkTextContainer}>
                 <Text style={styles.sourceLinkTitle}>World Small Animal Veterinary Association</Text>
-                <Text style={styles.sourceLinkSubtitle}>WSAVA - Global Standards & Guidelines</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://www.aspca.org/pet-care')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>American Society for the Prevention of Cruelty to Animals</Text>
-                <Text style={styles.sourceLinkSubtitle}>ASPCA - Pet Care & Safety Guidelines</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://www.aaha.org/aaha-guidelines/vaccination-guidelines/')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>American Animal Hospital Association</Text>
-                <Text style={styles.sourceLinkSubtitle}>AAHA - Vaccination & Care Guidelines</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://catvets.com/guidelines/practice-guidelines/vaccination-guidelines')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>American Association of Feline Practitioners</Text>
-                <Text style={styles.sourceLinkSubtitle}>AAFP - Feline Care Guidelines</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://www.cdc.gov/healthypets/')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>Centers for Disease Control and Prevention</Text>
-                <Text style={styles.sourceLinkSubtitle}>CDC - Pet Health & Zoonotic Diseases</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://www.petpoisonhelpline.com/')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>Pet Poison Helpline</Text>
-                <Text style={styles.sourceLinkSubtitle}>Toxicology & Pet Safety Information</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://avsab.org/')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>American Veterinary Society of Animal Behavior</Text>
-                <Text style={styles.sourceLinkSubtitle}>AVSAB - Evidence-Based Training Methods</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://www.vohc.org/')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>Veterinary Oral Health Council</Text>
-                <Text style={styles.sourceLinkSubtitle}>VOHC - Pet Dental Care Guidelines</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.sourceLink}
-              onPress={() => Linking.openURL('https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/pet-safety')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.sourceLinkTextContainer}>
-                <Text style={styles.sourceLinkTitle}>American Red Cross</Text>
-                <Text style={styles.sourceLinkSubtitle}>Pet First Aid & Emergency Preparedness</Text>
+                <Text style={styles.sourceLinkSubtitle}>WSAVA - Global Standards</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
             </TouchableOpacity>

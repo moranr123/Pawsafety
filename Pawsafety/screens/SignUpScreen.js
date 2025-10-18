@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   Alert,
   ScrollView,
   Image,
-  Modal
+  Modal,
+  Dimensions
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
@@ -33,6 +34,7 @@ const SignUpScreen = ({ navigation }) => {
   const [canResend, setCanResend] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [screenData, setScreenData] = useState(Dimensions.get('window'));
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -178,64 +180,137 @@ const SignUpScreen = ({ navigation }) => {
     }
   };
 
+  // Handle screen dimension changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenData(window);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Dynamic responsive calculations based on current screen data
+  const currentWidth = screenData.width;
+  const currentHeight = screenData.height;
+  const isSmallDevice = currentWidth < 375 || currentHeight < 667;
+  const isTablet = currentWidth > 768;
+  const wp = (percentage) => (currentWidth * percentage) / 100;
+  const hp = (percentage) => (currentHeight * percentage) / 100;
+
+  // Responsive placeholder text color
+  const getPlaceholderTextColor = () => {
+    if (isSmallDevice) {
+      return COLORS.lightGray;
+    } else if (isTablet) {
+      return COLORS.secondaryText;
+    } else {
+      return COLORS.secondaryText;
+    }
+  };
+
+  // Responsive placeholder text size
+  const getPlaceholderTextSize = () => {
+    if (isSmallDevice) {
+      return 12;
+    } else if (isTablet) {
+      return 16;
+    } else {
+      return 14;
+    }
+  };
+
+  // Responsive placeholder text style
+  const getPlaceholderTextStyle = () => ({
+    fontSize: getPlaceholderTextSize(),
+    color: getPlaceholderTextColor(),
+    fontFamily: FONTS.family,
+  });
+
+  // Responsive placeholder text for different screen sizes
+  const getResponsivePlaceholder = (text) => {
+    if (isSmallDevice) {
+      return text.length > 12 ? text.substring(0, 12) + '...' : text;
+    } else if (isTablet) {
+      return text;
+    } else {
+      return text.length > 18 ? text.substring(0, 18) + '...' : text;
+    }
+  };
+
+  const styleSheet = useMemo(() => styles(isSmallDevice, isTablet, wp, hp, COLORS), [isSmallDevice, isTablet, currentWidth, currentHeight, COLORS]);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styleSheet.container}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        style={styleSheet.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.logoContainer}>
-            <Image source={require('../assets/LogoBlue.png')} style={styles.logoImage} />
-            <Text style={styles.appName}>PawSafety</Text>
-            <Text style={styles.tagline}>Join our pet-loving community</Text>
+        <ScrollView contentContainerStyle={styleSheet.scrollContainer}>
+          <View style={styleSheet.logoContainer}>
+            <Image source={require('../assets/LogoBlue.png')} style={styleSheet.logoImage} />
+            <Text style={styleSheet.appName}>PawSafety</Text>
+            <Text style={styleSheet.tagline}>Join our pet-loving community</Text>
           </View>
 
-          <View style={styles.formContainer}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Sign up to get started</Text>
+          <View style={styleSheet.formContainer}>
+            <Text style={styleSheet.title}>Create Account</Text>
+            <Text style={styleSheet.subtitle}>Sign up to get started</Text>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Full Name</Text>
+            <View style={styleSheet.inputContainer}>
+              <Text style={styleSheet.inputLabel}>Full Name</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter your full name"
-                placeholderTextColor="#A0A0A0"
+                style={styleSheet.input}
+                placeholder={isSmallDevice ? "Full name" : "Enter your full name"}
+                placeholderTextColor={getPlaceholderTextColor()}
                 value={fullName}
                 onChangeText={handleNameChange}
                 autoCapitalize="words"
                 autoCorrect={false}
+                textAlignVertical="center"
+                includeFontPadding={false}
+                multiline={false}
+                numberOfLines={1}
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
+            <View style={styleSheet.inputContainer}>
+              <Text style={styleSheet.inputLabel}>Email</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#A0A0A0"
+                style={styleSheet.input}
+                placeholder={isSmallDevice ? "Email" : "Enter your email"}
+                placeholderTextColor={getPlaceholderTextColor()}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                textAlignVertical="center"
+                includeFontPadding={false}
+                multiline={false}
+                numberOfLines={1}
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <View style={styles.passwordInputContainer}>
+            <View style={styleSheet.inputContainer}>
+              <Text style={styleSheet.inputLabel}>Password</Text>
+              <View style={styleSheet.passwordInputContainer}>
                 <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Enter your password (min. 6 characters)"
-                  placeholderTextColor="#A0A0A0"
+                  style={styleSheet.passwordInput}
+                  placeholder={isSmallDevice ? "Password" : "Enter password"}
+                  placeholderTextColor={getPlaceholderTextColor()}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  textAlignVertical="center"
+                  includeFontPadding={false}
+                  multiline={false}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
                 />
                 <TouchableOpacity
-                  style={styles.eyeIcon}
+                  style={styleSheet.eyeIcon}
                   onPress={() => setShowPassword(!showPassword)}
                 >
                   <MaterialIcons
@@ -247,20 +322,27 @@ const SignUpScreen = ({ navigation }) => {
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Confirm Password</Text>
-              <View style={styles.passwordInputContainer}>
+            <View style={styleSheet.inputContainer}>
+              <Text style={styleSheet.inputLabel}>Confirm Password</Text>
+              <View style={styleSheet.passwordInputContainer}>
                 <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Confirm your password"
-                  placeholderTextColor="#A0A0A0"
+                  style={styleSheet.passwordInput}
+                  placeholder={isSmallDevice ? "Confirm" : "Confirm password"}
+                  placeholderTextColor={getPlaceholderTextColor()}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
+                  textAlignVertical="center"
+                  includeFontPadding={false}
+                  multiline={false}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  returnKeyType="done"
+                  blurOnSubmit={true}
                 />
                 <TouchableOpacity
-                  style={styles.eyeIcon}
+                  style={styleSheet.eyeIcon}
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 >
                   <MaterialIcons
@@ -273,19 +355,25 @@ const SignUpScreen = ({ navigation }) => {
             </View>
 
             <TouchableOpacity
-              style={[styles.signUpButton, loading && styles.signUpButtonDisabled]}
+              style={[styleSheet.signUpButton, loading && styleSheet.signUpButtonDisabled]}
               onPress={handleSignUp}
               disabled={loading}
+              activeOpacity={0.8}
             >
-              <Text style={styles.signUpButtonText}>
+              <Text 
+                style={styleSheet.signUpButtonText}
+                numberOfLines={1}
+                adjustsFontSizeToFit={true}
+                minimumFontScale={0.8}
+              >
                 {loading ? 'Creating Account...' : 'Sign Up'}
               </Text>
             </TouchableOpacity>
 
-            <View style={styles.loginContainer}>
-              <Text style={styles.loginText}>Already have an account? </Text>
+            <View style={styleSheet.loginContainer}>
+              <Text style={styleSheet.loginText}>Already have an account? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.loginLink}>Sign In</Text>
+                <Text style={styleSheet.loginLink}>Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -299,35 +387,35 @@ const SignUpScreen = ({ navigation }) => {
         transparent={true}
         onRequestClose={handleSuccessModalClose}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.successIcon}>✅</Text>
-              <Text style={styles.modalTitle}>Account Created!</Text>
+        <View style={styleSheet.modalOverlay}>
+          <View style={styleSheet.modalContent}>
+            <View style={styleSheet.modalHeader}>
+              <Text style={styleSheet.successIcon}>✅</Text>
+              <Text style={styleSheet.modalTitle}>Account Created!</Text>
             </View>
             
-            <View style={styles.modalBody}>
+            <View style={styleSheet.modalBody}>
               {emailVerificationSent ? (
                 <>
-                  <Text style={styles.modalMessage}>
+                  <Text style={styleSheet.modalMessage}>
                     Your PawSafety account has been created successfully!
                   </Text>
-                  <Text style={styles.verificationMessage}>
+                  <Text style={styleSheet.verificationMessage}>
                     📧 We've sent a verification email to:
                   </Text>
-                  <Text style={styles.emailText}>{email}</Text>
-                  <Text style={styles.verificationInstructions}>
+                  <Text style={styleSheet.emailText}>{email}</Text>
+                  <Text style={styleSheet.verificationInstructions}>
                     Please check your email and click the verification link before signing in.
                   </Text>
-                  <Text style={styles.spamFolderReminder}>
-                    📁 <Text style={styles.spamFolderHighlight}>Please check your spam/junk folder</Text> if you don't see the email in your inbox.
+                  <Text style={styleSheet.spamFolderReminder}>
+                    📁 <Text style={styleSheet.spamFolderHighlight}>Please check your spam/junk folder</Text> if you don't see the email in your inbox.
                   </Text>
                   <TouchableOpacity 
-                    style={[styles.resendButton, !canResend && styles.resendButtonDisabled]}
+                    style={[styleSheet.resendButton, !canResend && styles.resendButtonDisabled]}
                     onPress={resendVerificationEmail}
                     disabled={!canResend}
                   >
-                    <Text style={[styles.resendButtonText, !canResend && styles.resendButtonTextDisabled]}>
+                    <Text style={[styleSheet.resendButtonText, !canResend && styles.resendButtonTextDisabled]}>
                       {canResend 
                         ? 'Resend Verification Email' 
                         : `Resend in ${resendCooldown}s`
@@ -336,17 +424,17 @@ const SignUpScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 </>
               ) : (
-                <Text style={styles.modalMessage}>
+                <Text style={styleSheet.modalMessage}>
                   Your PawSafety account has been successfully created. You can now sign in with your credentials.
                 </Text>
               )}
             </View>
             
             <TouchableOpacity 
-              style={styles.modalButton}
+              style={styleSheet.modalButton}
               onPress={handleSuccessModalClose}
             >
-              <Text style={styles.modalButtonText}>Go to Sign In</Text>
+              <Text style={styleSheet.modalButtonText}>Go to Sign In</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -355,7 +443,7 @@ const SignUpScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = (isSmallDevice, isTablet, wp, hp, COLORS) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -366,104 +454,133 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: SPACING.lg,
+    padding: isSmallDevice ? 15 : 20,
+    minHeight: hp(100),
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: SPACING.xxl,
+    marginBottom: isSmallDevice ? 20 : 40,
   },
   logoImage: {
-    width: 80,
-    height: 80,
-    marginBottom: SPACING.sm,
+    width: wp(isSmallDevice ? 18 : isTablet ? 12 : 20),
+    height: wp(isSmallDevice ? 18 : isTablet ? 12 : 20),
+    marginBottom: 10,
     resizeMode: 'contain',
   },
   appName: {
-    fontSize: FONTS.sizes.title,
+    fontSize: isSmallDevice ? FONTS.sizes.xxlarge : FONTS.sizes.title,
     fontFamily: FONTS.family,
     fontWeight: FONTS.weights.bold,
-    color: COLORS.darkPurple,
+    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   tagline: {
-    fontSize: FONTS.sizes.medium,
+    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
     fontFamily: FONTS.family,
-    color: COLORS.gray,
+    color: COLORS.secondaryText,
     textAlign: 'center',
   },
   formContainer: {
     backgroundColor: COLORS.cardBackground,
     borderRadius: RADIUS.xlarge,
-    padding: SPACING.xl,
+    padding: isSmallDevice ? SPACING.lg : SPACING.xl,
+    width: '100%',
+    maxWidth: wp(90),
+    alignSelf: 'center',
     ...SHADOWS.medium,
   },
   title: {
-    fontSize: FONTS.sizes.xxxlarge,
+    fontSize: isSmallDevice ? FONTS.sizes.xxlarge : FONTS.sizes.xxxlarge,
     fontFamily: FONTS.family,
     fontWeight: FONTS.weights.bold,
-    color: COLORS.darkPurple,
+    color: COLORS.text,
     textAlign: 'center',
     marginBottom: SPACING.xs,
   },
   subtitle: {
-    fontSize: FONTS.sizes.medium,
+    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
     fontFamily: FONTS.family,
-    color: COLORS.gray,
+    color: COLORS.secondaryText,
     textAlign: 'center',
-    marginBottom: SPACING.xl,
+    marginBottom: isSmallDevice ? SPACING.lg : SPACING.xl,
   },
   inputContainer: {
     marginBottom: SPACING.lg,
   },
   inputLabel: {
-    fontSize: FONTS.sizes.medium,
+    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
     fontFamily: FONTS.family,
     fontWeight: FONTS.weights.semiBold,
-    color: COLORS.darkPurple,
+    color: COLORS.text,
     marginBottom: SPACING.sm,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   input: {
     backgroundColor: COLORS.inputBackground,
     borderRadius: RADIUS.medium,
-    padding: SPACING.md,
-    fontSize: FONTS.sizes.medium,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: isSmallDevice ? SPACING.sm : SPACING.md,
+    fontSize: isSmallDevice ? 14 : 16,
     fontFamily: FONTS.family,
     borderWidth: 1,
     borderColor: COLORS.mediumBlue,
-    color: COLORS.darkPurple,
+    color: COLORS.text,
+    height: isSmallDevice ? 50 : 56,
+    minHeight: 50,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   signUpButton: {
     backgroundColor: COLORS.golden,
     borderRadius: RADIUS.medium,
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: 0,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: SPACING.sm,
     marginBottom: SPACING.lg,
+    height: isSmallDevice ? 50 : 56,
+    minHeight: 50,
+    flexDirection: 'row',
   },
   signUpButtonDisabled: {
-    backgroundColor: COLORS.gray,
+    backgroundColor: COLORS.secondaryText,
   },
   signUpButtonText: {
-    color: COLORS.darkPurple,
-    fontSize: FONTS.sizes.large,
+    color: COLORS.white,
+    fontSize: 16,
     fontFamily: FONTS.family,
-    fontWeight: FONTS.weights.bold,
+    fontWeight: '700',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    lineHeight: 20,
+    marginVertical: 0,
+    marginHorizontal: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    flex: 1,
   },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    paddingHorizontal: isSmallDevice ? SPACING.sm : SPACING.md,
   },
   loginText: {
-    fontSize: FONTS.sizes.medium,
+    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
     fontFamily: FONTS.family,
-    color: COLORS.gray,
+    color: COLORS.secondaryText,
+    textAlign: 'center',
   },
   loginLink: {
-    fontSize: FONTS.sizes.medium,
+    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
     fontFamily: FONTS.family,
     color: COLORS.darkPurple,
     fontWeight: FONTS.weights.bold,
+    textDecorationLine: 'underline',
   },
   
   // Modal Styles
@@ -590,16 +707,34 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.medium,
     borderWidth: 1,
     borderColor: COLORS.mediumBlue,
+    height: isSmallDevice ? 50 : 56,
+    minHeight: 50,
+    justifyContent: 'space-between',
+    paddingRight: SPACING.xs,
   },
   passwordInput: {
     flex: 1,
-    padding: SPACING.md,
-    fontSize: FONTS.sizes.medium,
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.sm,
+    paddingVertical: 0,
+    fontSize: isSmallDevice ? 14 : 16,
     fontFamily: FONTS.family,
-    color: COLORS.darkPurple,
+    color: COLORS.text,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    textAlign: 'left',
   },
   eyeIcon: {
-    padding: SPACING.md,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    minWidth: 35,
+    maxWidth: 40,
   },
 });
 

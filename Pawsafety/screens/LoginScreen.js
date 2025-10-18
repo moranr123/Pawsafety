@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,18 @@ import {
   Platform,
   Alert,
   ScrollView,
-  Image
+  Image,
+  Dimensions
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, LAYOUT } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { createUserDocument } from '../services/userService';
+import { getResponsiveDimensions } from '../utils/responsive';
+import { ResponsiveText, ResponsiveView, ResponsiveButton, ResponsiveInput, ResponsiveContainer } from '../components/ResponsiveComponents';
 
 const LoginScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -28,6 +31,15 @@ const LoginScreen = ({ navigation }) => {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [canResend, setCanResend] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [screenData, setScreenData] = useState(Dimensions.get('window'));
+
+  // Handle screen dimension changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenData(window);
+    });
+    return () => subscription?.remove();
+  }, []);
 
   // Cooldown timer effect
   React.useEffect(() => {
@@ -136,6 +148,54 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
+  // Dynamic responsive calculations based on current screen data
+  const currentWidth = screenData.width;
+  const currentHeight = screenData.height;
+  const isSmallDevice = currentWidth < 375 || currentHeight < 667;
+  const isTablet = currentWidth > 768;
+  const wp = (percentage) => (currentWidth * percentage) / 100;
+  const hp = (percentage) => (currentHeight * percentage) / 100;
+
+  // Responsive placeholder text color
+  const getPlaceholderTextColor = () => {
+    if (isSmallDevice) {
+      return COLORS.lightGray;
+    } else if (isTablet) {
+      return COLORS.secondaryText;
+    } else {
+      return COLORS.secondaryText;
+    }
+  };
+
+  // Responsive placeholder text size
+  const getPlaceholderTextSize = () => {
+    if (isSmallDevice) {
+      return 12;
+    } else if (isTablet) {
+      return 16;
+    } else {
+      return 14;
+    }
+  };
+
+  // Responsive placeholder text style
+  const getPlaceholderTextStyle = () => ({
+    fontSize: getPlaceholderTextSize(),
+    color: getPlaceholderTextColor(),
+    fontFamily: FONTS.family,
+  });
+
+  // Responsive placeholder text for different screen sizes
+  const getResponsivePlaceholder = (text) => {
+    if (isSmallDevice) {
+      return text.length > 12 ? text.substring(0, 12) + '...' : text;
+    } else if (isTablet) {
+      return text;
+    } else {
+      return text.length > 18 ? text.substring(0, 18) + '...' : text;
+    }
+  };
+
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
@@ -147,20 +207,21 @@ const LoginScreen = ({ navigation }) => {
     scrollContainer: {
       flexGrow: 1,
       justifyContent: 'center',
-      padding: SPACING.lg,
+      padding: isSmallDevice ? SPACING.md : SPACING.lg,
+      minHeight: hp(100),
     },
     logoContainer: {
       alignItems: 'center',
-      marginBottom: SPACING.xxl,
+      marginBottom: isSmallDevice ? SPACING.lg : SPACING.xxl,
     },
     logoImage: {
-      width: 80,
-      height: 80,
+      width: wp(isSmallDevice ? 18 : isTablet ? 12 : 20),
+      height: wp(isSmallDevice ? 18 : isTablet ? 12 : 20),
       marginBottom: SPACING.sm,
       resizeMode: 'contain',
     },
     appName: {
-      fontSize: FONTS.sizes.title,
+      fontSize: isSmallDevice ? FONTS.sizes.xxlarge : FONTS.sizes.title,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: COLORS.text,
@@ -175,11 +236,14 @@ const LoginScreen = ({ navigation }) => {
     formContainer: {
       backgroundColor: COLORS.cardBackground,
       borderRadius: RADIUS.xlarge,
-      padding: SPACING.xl,
+      padding: isSmallDevice ? SPACING.lg : SPACING.xl,
+      width: '100%',
+      maxWidth: wp(90),
+      alignSelf: 'center',
       ...SHADOWS.medium,
     },
     title: {
-      fontSize: FONTS.sizes.xxxlarge,
+      fontSize: isSmallDevice ? FONTS.sizes.xxlarge : FONTS.sizes.xxxlarge,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: COLORS.text,
@@ -191,7 +255,7 @@ const LoginScreen = ({ navigation }) => {
       fontFamily: FONTS.family,
       color: COLORS.secondaryText,
       textAlign: 'center',
-      marginBottom: SPACING.xl,
+      marginBottom: isSmallDevice ? SPACING.lg : SPACING.xl,
     },
     inputContainer: {
       marginBottom: SPACING.lg,
@@ -202,38 +266,71 @@ const LoginScreen = ({ navigation }) => {
       fontWeight: FONTS.weights.semiBold,
       color: COLORS.text,
       marginBottom: SPACING.sm,
+      textAlignVertical: 'center',
+      includeFontPadding: false,
     },
     input: {
       backgroundColor: COLORS.inputBackground,
       borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      fontSize: FONTS.sizes.medium,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: isSmallDevice ? SPACING.sm : SPACING.md,
+      fontSize: isSmallDevice ? 14 : 16,
       fontFamily: FONTS.family,
       borderWidth: 1,
       borderColor: COLORS.mediumBlue,
       color: COLORS.text,
+      height: isSmallDevice ? 50 : 56,
+      minHeight: 50,
+      textAlignVertical: 'center',
+      includeFontPadding: false,
+    },
+    placeholderText: {
+      fontSize: getPlaceholderTextSize(),
+      color: getPlaceholderTextColor(),
+      fontFamily: FONTS.family,
     },
     loginButton: {
       backgroundColor: COLORS.darkPurple,
       borderRadius: RADIUS.medium,
-      padding: SPACING.lg,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: 0,
       alignItems: 'center',
+      justifyContent: 'center',
       marginTop: SPACING.sm,
       marginBottom: SPACING.lg,
+      height: 60,
+      minHeight: 60,
+      flexDirection: 'row',
     },
     loginButtonDisabled: {
       backgroundColor: COLORS.secondaryText,
     },
+    buttonTextContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100%',
+    },
     loginButtonText: {
       color: COLORS.white,
-      fontSize: FONTS.sizes.large,
+      fontSize: 16,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
+      fontWeight: '700',
+      textAlign: 'center',
+      textAlignVertical: 'center',
+      includeFontPadding: false,
+      lineHeight: 20,
+      marginVertical: 0,
+      marginHorizontal: 0,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      flex: 1,
     },
     signupContainer: {
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
+      flexWrap: 'wrap',
     },
     signupText: {
       fontSize: FONTS.sizes.medium,
@@ -253,18 +350,36 @@ const LoginScreen = ({ navigation }) => {
       borderRadius: RADIUS.medium,
       borderWidth: 1,
       borderColor: COLORS.mediumBlue,
+      height: isSmallDevice ? 50 : 56,
+      minHeight: 50,
+      justifyContent: 'space-between',
+      paddingRight: SPACING.xs,
     },
     passwordInput: {
       flex: 1,
-      padding: SPACING.md,
-      fontSize: FONTS.sizes.medium,
+      paddingLeft: SPACING.md,
+      paddingRight: SPACING.sm,
+      paddingVertical: 0,
+      fontSize: isSmallDevice ? 14 : 16,
       fontFamily: FONTS.family,
       color: COLORS.text,
+      textAlignVertical: 'center',
+      includeFontPadding: false,
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
+      textAlign: 'left',
     },
     eyeIcon: {
-      padding: SPACING.md,
+      paddingHorizontal: SPACING.xs,
+      paddingVertical: SPACING.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      minWidth: 35,
+      maxWidth: 40,
     },
-  }), [COLORS]);
+  }), [COLORS, currentWidth, currentHeight, isSmallDevice, isTablet, getPlaceholderTextColor, getPlaceholderTextSize, getResponsivePlaceholder]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -287,13 +402,17 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.inputLabel}>Email</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor={COLORS.secondaryText}
+                placeholder={getResponsivePlaceholder("Enter email")}
+                placeholderTextColor={getPlaceholderTextColor()}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                textAlignVertical="center"
+                includeFontPadding={false}
+                multiline={false}
+                numberOfLines={1}
               />
             </View>
 
@@ -302,12 +421,19 @@ const LoginScreen = ({ navigation }) => {
               <View style={styles.passwordInputContainer}>
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="Enter your password"
-                  placeholderTextColor={COLORS.secondaryText}
+                  placeholder={isSmallDevice ? "Password" : "Enter password"}
+                  placeholderTextColor={getPlaceholderTextColor()}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  textAlignVertical="center"
+                  includeFontPadding={false}
+                  multiline={false}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  returnKeyType="done"
+                  blurOnSubmit={true}
                 />
                 <TouchableOpacity
                   style={styles.eyeIcon}
@@ -326,8 +452,14 @@ const LoginScreen = ({ navigation }) => {
               style={[styles.loginButton, loading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={loading}
+              activeOpacity={0.8}
             >
-              <Text style={styles.loginButtonText}>
+              <Text 
+                style={styles.loginButtonText}
+                numberOfLines={1}
+                adjustsFontSizeToFit={true}
+                minimumFontScale={0.8}
+              >
                 {loading ? 'Signing In...' : 'Sign In'}
               </Text>
             </TouchableOpacity>

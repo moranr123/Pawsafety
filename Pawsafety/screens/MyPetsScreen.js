@@ -24,8 +24,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db, storage } from '../services/firebase';
 import { collection, query, where, onSnapshot, deleteDoc, doc, addDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, LAYOUT } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { getResponsiveDimensions, getGridColumns } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
@@ -1014,6 +1015,9 @@ Thank you for helping reunite pets with their families! ❤️`;
     return petInfo;
   };
 
+  const { isSmallDevice, isTablet, wp, hp } = getResponsiveDimensions();
+  const gridColumns = getGridColumns();
+
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
@@ -1021,8 +1025,8 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     header: {
       backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: 50,
+      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
+      paddingTop: isSmallDevice ? 45 : 50,
       paddingBottom: SPACING.md,
       borderBottomWidth: 1,
       borderBottomColor: 'rgba(255, 255, 255, 0.1)',
@@ -1077,17 +1081,23 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: SPACING.lg,
+      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
       paddingTop: SPACING.lg,
     },
     content: {
       paddingBottom: SPACING.xl,
+    },
+    gridContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
     },
     petCard: {
       backgroundColor: COLORS.cardBackground,
       borderRadius: RADIUS.large,
       marginBottom: SPACING.lg,
       ...SHADOWS.medium,
+      width: isTablet ? '48%' : '100%',
     },
     petHeader: {
       flexDirection: 'row',
@@ -1097,9 +1107,9 @@ Thank you for helping reunite pets with their families! ❤️`;
       borderBottomColor: COLORS.lightBlue,
     },
     petImage: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
+      width: isSmallDevice ? 50 : isTablet ? 70 : 60,
+      height: isSmallDevice ? 50 : isTablet ? 70 : 60,
+      borderRadius: isSmallDevice ? 25 : isTablet ? 35 : 30,
       backgroundColor: COLORS.lightBlue,
       justifyContent: 'center',
       alignItems: 'center',
@@ -1107,9 +1117,9 @@ Thank you for helping reunite pets with their families! ❤️`;
       overflow: 'hidden',
     },
     petPhoto: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
+      width: isSmallDevice ? 50 : isTablet ? 70 : 60,
+      height: isSmallDevice ? 50 : isTablet ? 70 : 60,
+      borderRadius: isSmallDevice ? 25 : isTablet ? 35 : 30,
     },
     petEmoji: {
       fontSize: 30,
@@ -2674,19 +2684,21 @@ Thank you for helping reunite pets with their families! ❤️`;
             </View>
           ) : (
             <>
-              {pets.map((pet) => (
-                <PetCard 
-                  key={pet.id} 
-                  pet={pet}
-                  onUpdateStatus={handleUpdatePetStatus}
-                  onEditPet={handleEditPet}
-                  onDeletePet={(petId, petName) => Alert.alert('Delete Pet', `Are you sure you want to delete ${petName}?`)}
-                  onReportLost={(pet) => {setSelectedPetForReport(pet); setShowReportLostModal(true);}}
-                  onMarkFound={(pet) => handleMarkFound(pet)}
-                  onShowQR={(pet) => setSelectedPetQR(pet)}
-                  styles={modernPetCardStyles}
-                />
-              ))}
+              <View style={isTablet ? styles.gridContainer : null}>
+                {pets.map((pet) => (
+                  <PetCard 
+                    key={pet.id} 
+                    pet={pet}
+                    onUpdateStatus={handleUpdatePetStatus}
+                    onEditPet={handleEditPet}
+                    onDeletePet={(petId, petName) => Alert.alert('Delete Pet', `Are you sure you want to delete ${petName}?`)}
+                    onReportLost={(pet) => {setSelectedPetForReport(pet); setShowReportLostModal(true);}}
+                    onMarkFound={(pet) => handleMarkFound(pet)}
+                    onShowQR={(pet) => setSelectedPetQR(pet)}
+                    styles={modernPetCardStyles}
+                  />
+                ))}
+              </View>
               
               <TouchableOpacity 
                 style={styles.addPetButton}

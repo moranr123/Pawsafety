@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
-  Alert
+  Alert,
+  Dimensions,
+  Platform
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -49,6 +51,23 @@ const HomeTabScreen = ({ navigation }) => {
   const [hiddenIncidentIds, setHiddenIncidentIds] = useState(new Set());
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
   const [userManualVisible, setUserManualVisible] = useState(false);
+  const [screenData, setScreenData] = useState(Dimensions.get('window'));
+
+  // Handle screen dimension changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenData(window);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Dynamic responsive calculations
+  const currentWidth = screenData.width;
+  const currentHeight = screenData.height;
+  const isSmallDevice = currentWidth < 375 || currentHeight < 667;
+  const isTablet = currentWidth > 768;
+  const wp = (percentage) => (currentWidth * percentage) / 100;
+  const hp = (percentage) => (currentHeight * percentage) / 100;
 
   // Check if user should see manual today (once per day per account)
   useEffect(() => {
@@ -175,15 +194,21 @@ const HomeTabScreen = ({ navigation }) => {
       const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
       const lastTransfer = (() => { try { return Number((globalThis.__PAW_LAST_TRANSFER__) || 0); } catch (_) { return 0; } })();
       const lastRegistration = (() => { try { return Number((globalThis.__PAW_LAST_REGISTRATION__) || 0); } catch (_) { return 0; } })();
+      const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
+      const lastStray = (() => { try { return Number((globalThis.__PAW_LAST_STRAY__) || 0); } catch (_) { return 0; } })();
+      
       const unreadApp = (appNotifs || []).filter((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp).length;
       const unreadPet = (petNotifs || []).filter((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet).length;
       const unreadTransfer = (transferNotifs || []).filter((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0) > lastTransfer).length;
       const unreadRegistration = (registrationNotifs || []).filter((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0) > lastRegistration).length;
-      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration);
+      const unreadIncident = (incidentNotifs || []).filter((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident).length;
+      const unreadStray = (recentReports || []).filter((s) => (s.reportTime?.toDate ? s.reportTime.toDate().getTime() : 0) > lastStray).length;
+      
+      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadStray);
     } catch (e) {
       return 0;
     }
-  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, lastReadUpdate]);
+  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, recentReports, lastReadUpdate]);
 
   useEffect(() => {
     let loadingCount = 1; // Track only reports query
@@ -345,11 +370,24 @@ const HomeTabScreen = ({ navigation }) => {
       const latestTransfer = Math.max(0, ...transferNotifs.map((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0)));
       const latestRegistration = Math.max(0, ...registrationNotifs.map((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0)));
       const latestIncident = Math.max(0, ...incidentNotifs.map((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0)));
+      const latestStray = Math.max(0, ...recentReports.map((s) => (s.reportTime?.toDate ? s.reportTime.toDate().getTime() : 0)));
+      
       if (latestApp) await AsyncStorage.setItem('PAW_LAST_SEEN_APP_NOTIF', String(latestApp));
       if (latestPet) await AsyncStorage.setItem('PAW_LAST_SEEN_PET_NOTIF', String(latestPet));
       if (latestTransfer) await AsyncStorage.setItem('PAW_LAST_SEEN_TRANSFER_NOTIF', String(latestTransfer));
       if (latestRegistration) await AsyncStorage.setItem('PAW_LAST_SEEN_REGISTRATION_NOTIF', String(latestRegistration));
       if (latestIncident) await AsyncStorage.setItem('PAW_LAST_SEEN_INCIDENT_NOTIF', String(latestIncident));
+      if (latestStray) await AsyncStorage.setItem('PAW_LAST_SEEN_STRAY_NOTIF', String(latestStray));
+      
+      // Update global timestamps for badge calculation
+      globalThis.__PAW_LAST_APP__ = latestApp;
+      globalThis.__PAW_LAST_PET__ = latestPet;
+      globalThis.__PAW_LAST_TRANSFER__ = latestTransfer;
+      globalThis.__PAW_LAST_REGISTRATION__ = latestRegistration;
+      globalThis.__PAW_LAST_INCIDENT__ = latestIncident;
+      globalThis.__PAW_LAST_STRAY__ = latestStray;
+      
+      setLastReadUpdate(Date.now()); // Trigger badge recalculation
     } catch (e) {}
     setShowBanner(false);
     setNotifVisible(true);
@@ -362,12 +400,24 @@ const HomeTabScreen = ({ navigation }) => {
       const latestTransfer = Math.max(0, ...transferNotifs.map((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0)));
       const latestRegistration = Math.max(0, ...registrationNotifs.map((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0)));
       const latestIncident = Math.max(0, ...incidentNotifs.map((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0)));
+      const latestStray = Math.max(0, ...recentReports.map((s) => (s.reportTime?.toDate ? s.reportTime.toDate().getTime() : 0)));
+      
       if (latestApp) await AsyncStorage.setItem('PAW_LAST_SEEN_APP_NOTIF', String(latestApp));
       if (latestPet) await AsyncStorage.setItem('PAW_LAST_SEEN_PET_NOTIF', String(latestPet));
       if (latestTransfer) await AsyncStorage.setItem('PAW_LAST_SEEN_TRANSFER_NOTIF', String(latestTransfer));
       if (latestRegistration) await AsyncStorage.setItem('PAW_LAST_SEEN_REGISTRATION_NOTIF', String(latestRegistration));
       if (latestIncident) await AsyncStorage.setItem('PAW_LAST_SEEN_INCIDENT_NOTIF', String(latestIncident));
-      try { globalThis.__PAW_LAST_APP__ = latestApp; globalThis.__PAW_LAST_PET__ = latestPet; globalThis.__PAW_LAST_TRANSFER__ = latestTransfer; globalThis.__PAW_LAST_REGISTRATION__ = latestRegistration; globalThis.__PAW_LAST_INCIDENT__ = latestIncident; } catch (_) {}
+      if (latestStray) await AsyncStorage.setItem('PAW_LAST_SEEN_STRAY_NOTIF', String(latestStray));
+      
+      try { 
+        globalThis.__PAW_LAST_APP__ = latestApp; 
+        globalThis.__PAW_LAST_PET__ = latestPet; 
+        globalThis.__PAW_LAST_TRANSFER__ = latestTransfer; 
+        globalThis.__PAW_LAST_REGISTRATION__ = latestRegistration; 
+        globalThis.__PAW_LAST_INCIDENT__ = latestIncident;
+        globalThis.__PAW_LAST_STRAY__ = latestStray;
+        setLastReadUpdate(Date.now()); // Trigger badge recalculation
+      } catch (_) {}
     } catch (e) {}
   };
 
@@ -801,7 +851,7 @@ const HomeTabScreen = ({ navigation }) => {
           <View style={styles.headerIcons}>
             <TouchableOpacity 
               style={[styles.iconButton, { position: 'relative' }]}
-              onPress={() => setNotifVisible(true)}
+              onPress={updateLastSeenAndOpen}
             >
               <MaterialIcons name="notifications" size={24} color={COLORS.white} />
               {!!notifUnreadCount && (
@@ -837,61 +887,99 @@ const HomeTabScreen = ({ navigation }) => {
         </View>
       </View>
       {showBanner && (
-        <View style={{ paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm }}>
+        <View style={{ 
+          paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg, 
+          paddingTop: isSmallDevice ? SPACING.xs : SPACING.sm 
+        }}>
           <View
             style={{
               backgroundColor: COLORS.darkPurple,
-              borderRadius: 14,
-              paddingVertical: SPACING.sm,
-              paddingHorizontal: SPACING.md,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              borderRadius: isSmallDevice ? 12 : 14,
+              paddingVertical: isSmallDevice ? SPACING.md : SPACING.lg,
+              paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
               ...SHADOWS.light,
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <MaterialIcons name="notifications-active" size={20} color="#ffffff" />
-              <View>
-                <Text style={{ color: '#ffffff', fontWeight: '800' }}>
-                  {bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays} new notification{(bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays) > 1 ? 's' : ''}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                  {bannerCounts.apps > 0 ? (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
-                      <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Applications: {bannerCounts.apps}</Text>
-                    </View>
-                  ) : null}
-                  {bannerCounts.pets > 0 ? (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
-                      <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Pets: {bannerCounts.pets}</Text>
-                    </View>
-                  ) : null}
-                  {bannerCounts.transfers > 0 ? (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
-                      <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Transfers: {bannerCounts.transfers}</Text>
-                    </View>
-                  ) : null}
-                  {bannerCounts.registrations > 0 ? (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
-                      <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700' }}>Registrations: {bannerCounts.registrations}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
+            {/* Title Section */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: isSmallDevice ? 8 : 10, marginBottom: isSmallDevice ? SPACING.sm : SPACING.md }}>
+              <MaterialIcons 
+                name="notifications-active" 
+                size={isSmallDevice ? 20 : isTablet ? 26 : 22} 
+                color="#ffffff" 
+              />
+              <Text style={{ 
+                color: '#ffffff', 
+                fontWeight: '800',
+                fontSize: Platform.OS === 'android' 
+                  ? (isSmallDevice ? FONTS.sizes.small - 1 : isTablet ? FONTS.sizes.small + 1 : FONTS.sizes.small)
+                  : (isSmallDevice ? FONTS.sizes.small : isTablet ? FONTS.sizes.small + 2 : FONTS.sizes.small + 1),
+                lineHeight: Platform.OS === 'android' ? (isSmallDevice ? 16 : 18) : (isSmallDevice ? 18 : 20),
+                flex: 1,
+              }}>
+                {bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays} new notification{(bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays) > 1 ? 's' : ''}
+              </Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            
+            {/* Button Section */}
+            <View style={{ flexDirection: 'row', gap: isSmallDevice ? 8 : 10, justifyContent: 'center' }}>
               <TouchableOpacity
                 onPress={updateLastSeenAndOpen}
-                style={{ backgroundColor: '#ffffff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                style={{ 
+                  backgroundColor: '#ffffff', 
+                  paddingHorizontal: isSmallDevice ? 16 : 20, 
+                  paddingVertical: isSmallDevice ? 6 : 8, 
+                  borderRadius: isSmallDevice ? 8 : 10,
+                  minWidth: isSmallDevice ? 80 : 90,
+                  minHeight: isSmallDevice ? 28 : 32,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  elevation: 2,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 2,
+                }}
               >
-                <Text style={{ color: COLORS.darkPurple, fontWeight: '800' }}>View</Text>
+                <Text style={{ 
+                  color: COLORS.darkPurple, 
+                  fontWeight: '800',
+                  fontSize: Platform.OS === 'android' 
+                    ? (isSmallDevice ? FONTS.sizes.small - 2 : isTablet ? FONTS.sizes.small : FONTS.sizes.small - 1)
+                    : (isSmallDevice ? FONTS.sizes.small - 1 : isTablet ? FONTS.sizes.small + 1 : FONTS.sizes.small),
+                  textAlign: 'center',
+                  textAlignVertical: 'center',
+                  includeFontPadding: false,
+                }}>View</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowBanner(false)}
-                style={{ borderWidth: 1, borderColor: '#ffffff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                style={{ 
+                  borderWidth: 2, 
+                  borderColor: '#ffffff', 
+                  paddingHorizontal: isSmallDevice ? 16 : 20, 
+                  paddingVertical: isSmallDevice ? 6 : 8, 
+                  borderRadius: isSmallDevice ? 8 : 10,
+                  minWidth: isSmallDevice ? 80 : 90,
+                  minHeight: isSmallDevice ? 28 : 32,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  elevation: 2,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 2,
+                }}
               >
-                <Text style={{ color: '#ffffff', fontWeight: '800' }}>Dismiss</Text>
+                <Text style={{ 
+                  color: '#ffffff', 
+                  fontWeight: '800',
+                  fontSize: Platform.OS === 'android' 
+                    ? (isSmallDevice ? FONTS.sizes.small - 2 : isTablet ? FONTS.sizes.small : FONTS.sizes.small - 1)
+                    : (isSmallDevice ? FONTS.sizes.small - 1 : isTablet ? FONTS.sizes.small + 1 : FONTS.sizes.small),
+                  textAlign: 'center',
+                  textAlignVertical: 'center',
+                  includeFontPadding: false,
+                }}>Dismiss</Text>
               </TouchableOpacity>
             </View>
           </View>
