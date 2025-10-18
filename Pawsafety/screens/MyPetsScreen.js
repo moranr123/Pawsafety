@@ -20,6 +20,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db, storage } from '../services/firebase';
 import { collection, query, where, onSnapshot, deleteDoc, doc, addDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -28,17 +29,165 @@ import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
-// Styles for the PetCard component
-const petCardStyles = StyleSheet.create({
+
+// Memoized PetCard component to prevent unnecessary re-renders
+const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onDeletePet, onReportLost, onMarkFound, onShowQR, styles }) => {
+  const [imageError, setImageError] = useState(false);
+  
+  return (
+    <View style={styles.petCard}>
+      <View style={styles.petImageContainer}>
+        {pet.petImage && !imageError ? (
+          <Image 
+            source={{ uri: pet.petImage }} 
+            style={styles.petImage} 
+            onError={() => setImageError(true)}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.placeholderIcon}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
+            <Text style={styles.placeholderText}>No Photo</Text>
+          </View>
+        )}
+      </View>
+      
+      <View style={styles.petInfo}>
+        <View style={styles.petHeader}>
+          <Text style={styles.petName}>{pet.petName}</Text>
+          <View style={styles.petTypeIcon}>
+            <Text style={{ fontSize: 16 }}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
+          </View>
+        </View>
+        
+        <Text style={styles.petDetails}>
+          {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
+        </Text>
+        
+        <Text style={styles.ownerInfo}>
+          Owner: {pet.ownerFullName || 'Unknown'}
+        </Text>
+        
+        {pet.description && (
+          <Text style={styles.description}>{pet.description}</Text>
+        )}
+      </View>
+      
+      {/* Status Buttons */}
+      <View style={styles.statusButtonsContainer}>
+        {pet.petStatus === 'pregnant' ? (
+          <TouchableOpacity 
+            style={[styles.statusButton, styles.undoButton]} 
+            onPress={() => onUpdateStatus(pet.id, 'healthy')}
+          >
+            <Text style={styles.statusButtonText}>✅ Undo Pregnant</Text>
+          </TouchableOpacity>
+        ) : pet.petStatus === 'deceased' ? (
+          <TouchableOpacity 
+            style={[styles.statusButton, styles.undoButton]} 
+            onPress={() => onUpdateStatus(pet.id, 'healthy')}
+          >
+            <Text style={styles.statusButtonText}>✅ Undo Deceased</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            {pet.petGender === 'female' && (
+              <TouchableOpacity 
+                style={[styles.statusButton, styles.pregnantButton]} 
+                onPress={() => onUpdateStatus(pet.id, 'pregnant')}
+              >
+                <Text style={styles.statusButtonText}>🤰 Mark Pregnant</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              style={[styles.statusButton, styles.deceasedButton]} 
+              onPress={() => onUpdateStatus(pet.id, 'deceased')}
+            >
+              <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      <View style={styles.actionButtons}>
+        {(pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.qrButton]} 
+            onPress={() => onShowQR(pet)}
+          >
+            <MaterialIcons name="qr-code" size={16} color="#FFFFFF" />
+            <Text style={styles.actionButtonText}>QR Code</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.pendingQRButton]} 
+            disabled={true}
+          >
+            <MaterialIcons name="qr-code" size={16} color="#6B7280" />
+            <Text style={styles.pendingQRButtonText}>QR Pending</Text>
+          </TouchableOpacity>
+        )}
+        {pet.status === 'lost' ? (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.foundButton]} 
+            onPress={() => onMarkFound(pet)}
+          >
+            <MaterialIcons name="check-circle" size={16} color="#FFFFFF" />
+            <Text style={styles.actionButtonText}>Mark Found</Text>
+          </TouchableOpacity>
+        ) : (pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.lostButton]} 
+            onPress={() => onReportLost(pet)}
+          >
+            <MaterialIcons name="report-problem" size={16} color="#FFFFFF" />
+            <Text style={styles.actionButtonText}>Report Lost</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.disabledButton]} 
+            disabled={true}
+          >
+            <MaterialIcons name="report-problem" size={16} color="#9CA3AF" />
+            <Text style={styles.disabledButtonText}>Report Lost</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.editButton]} 
+          onPress={() => onEditPet(pet)}
+        >
+          <MaterialIcons name="edit" size={16} color="#FFFFFF" />
+          <Text style={styles.actionButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.deleteButton]} 
+          onPress={() => onDeletePet(pet.id, pet.petName)}
+        >
+          <MaterialIcons name="delete" size={16} color="#FFFFFF" />
+          <Text style={styles.actionButtonText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
+const MyPetsScreen = ({ navigation }) => {
+  const { colors: COLORS } = useTheme();
+  
+  // Modern pet card styles
+  const modernPetCardStyles = StyleSheet.create({
   petCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 16,
-    ...SHADOWS.medium,
+      backgroundColor: '#F8FAFC',
+      borderRadius: 24,
+      marginBottom: 24,
+      ...SHADOWS.medium,
     overflow: 'hidden',
+      borderWidth: 3,
+      borderColor: '#3B82F6',
+      elevation: 6,
   },
   petImageContainer: {
-    height: 200,
+      height: 220,
     backgroundColor: '#F8FAFC',
   },
   petImage: {
@@ -50,283 +199,162 @@ const petCardStyles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
   },
   placeholderIcon: {
-    fontSize: 60,
+      fontSize: 60,
     marginBottom: 8,
   },
   placeholderText: {
-    fontSize: 14,
-    color: '#64748B',
+      fontSize: 14,
+      color: '#64748B',
     fontWeight: '500',
   },
   petInfo: {
-    padding: 16,
+    padding: 20,
   },
   petHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+      alignItems: 'center',
+    marginBottom: 12,
   },
   petName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
+      fontSize: 26,
+      fontWeight: '900',
+      color: '#1E40AF',
     flex: 1,
   },
   petTypeIcon: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
+      backgroundColor: '#F3F4F6',
+    borderRadius: 24,
+      width: 48,
+      height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+      borderColor: '#E5E7EB',
   },
   petDetails: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 4,
+    fontSize: 15,
+      color: '#6B7280',
+    marginBottom: 6,
+    fontWeight: '500',
   },
   ownerInfo: {
     fontSize: 14,
-    color: '#64748B',
-    marginBottom: 8,
+      color: '#9CA3AF',
+    marginBottom: 12,
   },
   description: {
     fontSize: 14,
-    color: '#475569',
+      color: '#4B5563',
     marginTop: 8,
-    lineHeight: 20,
+      lineHeight: 20,
   },
   statusButtonsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 10,
   },
   statusButton: {
     flex: 1,
-    borderRadius: 8,
-    padding: 8,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
+      borderWidth: 1,
   },
   pregnantButton: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
+      backgroundColor: '#FFFBEB',
     borderColor: '#F59E0B',
   },
   deceasedButton: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
+      backgroundColor: '#FEF2F2',
     borderColor: '#EF4444',
   },
   undoButton: {
-    backgroundColor: '#DCFCE7',
-    borderWidth: 1,
+      backgroundColor: '#F0FDF4',
     borderColor: '#16A34A',
   },
   statusButtonText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
   },
   actionButtons: {
     flexDirection: 'row',
-    padding: 16,
-    paddingTop: 0,
-    gap: 8,
+      flexWrap: 'wrap',
+      paddingHorizontal: 20,
+      paddingVertical: 20,
+      paddingTop: 12,
+      gap: 12,
+      backgroundColor: '#E0F2FE',
+      borderTopWidth: 3,
+      borderTopColor: '#0EA5E9',
   },
   actionButton: {
-    flex: 1,
-    borderRadius: 8,
-    padding: 12,
+      width: '48%',
+      borderRadius: 16,
+      paddingVertical: 16,
+      paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    elevation: 2,
   },
   qrButton: {
-    backgroundColor: '#3B82F6',
+      backgroundColor: '#1D4ED8',
+      ...SHADOWS.small,
+      borderWidth: 2,
+      borderColor: '#1E40AF',
   },
   pendingQRButton: {
-    backgroundColor: '#9CA3AF',
-    opacity: 0.6,
+      backgroundColor: '#E5E7EB',
+      opacity: 0.7,
   },
   foundButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#10B981',
+      ...SHADOWS.small,
   },
   lostButton: {
     backgroundColor: '#F59E0B',
+      ...SHADOWS.small,
   },
   editButton: {
     backgroundColor: '#8B5CF6',
+      ...SHADOWS.small,
   },
   deleteButton: {
     backgroundColor: '#EF4444',
+      ...SHADOWS.small,
   },
   disabledButton: {
-    backgroundColor: '#E5E7EB',
+      backgroundColor: '#F3F4F6',
     opacity: 0.6,
   },
   actionButtonText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
   },
   pendingQRButtonText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+      color: '#6B7280',
     textAlign: 'center',
-    opacity: 0.7,
   },
   disabledButtonText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#9CA3AF',
     textAlign: 'center',
-    opacity: 0.7,
   },
 });
-
-// Memoized PetCard component to prevent unnecessary re-renders
-const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onDeletePet, onReportLost, onMarkFound, onShowQR }) => {
-  const [imageError, setImageError] = useState(false);
-  
-  return (
-    <View style={petCardStyles.petCard}>
-      <View style={petCardStyles.petImageContainer}>
-        {pet.petImage && !imageError ? (
-          <Image 
-            source={{ uri: pet.petImage }} 
-            style={petCardStyles.petImage} 
-            onError={() => setImageError(true)}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={petCardStyles.imagePlaceholder}>
-            <Text style={petCardStyles.placeholderIcon}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
-            <Text style={petCardStyles.placeholderText}>No Photo</Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={petCardStyles.petInfo}>
-        <View style={petCardStyles.petHeader}>
-          <Text style={petCardStyles.petName}>{pet.petName}</Text>
-          <View style={petCardStyles.petTypeIcon}>
-            <Text style={{ fontSize: 16 }}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
-          </View>
-        </View>
-        
-        <Text style={petCardStyles.petDetails}>
-          {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
-        </Text>
-        
-        <Text style={petCardStyles.ownerInfo}>
-          Owner: {pet.ownerFullName || 'Unknown'}
-        </Text>
-        
-        {pet.description && (
-          <Text style={petCardStyles.description}>{pet.description}</Text>
-        )}
-      </View>
-      
-      {/* Status Buttons */}
-      <View style={petCardStyles.statusButtonsContainer}>
-        {pet.petStatus === 'pregnant' ? (
-          <TouchableOpacity 
-            style={[petCardStyles.statusButton, petCardStyles.undoButton]} 
-            onPress={() => onUpdateStatus(pet.id, 'healthy')}
-          >
-            <Text style={petCardStyles.statusButtonText}>✅ Undo Pregnant</Text>
-          </TouchableOpacity>
-        ) : pet.petStatus === 'deceased' ? (
-          <TouchableOpacity 
-            style={[petCardStyles.statusButton, petCardStyles.undoButton]} 
-            onPress={() => onUpdateStatus(pet.id, 'healthy')}
-          >
-            <Text style={petCardStyles.statusButtonText}>✅ Undo Deceased</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            {pet.petGender === 'female' && (
-              <TouchableOpacity 
-                style={[petCardStyles.statusButton, petCardStyles.pregnantButton]} 
-                onPress={() => onUpdateStatus(pet.id, 'pregnant')}
-              >
-                <Text style={petCardStyles.statusButtonText}>🤰 Mark Pregnant</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity 
-              style={[petCardStyles.statusButton, petCardStyles.deceasedButton]} 
-              onPress={() => onUpdateStatus(pet.id, 'deceased')}
-            >
-              <Text style={petCardStyles.statusButtonText}>🕊️ Mark Deceased</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      <View style={petCardStyles.actionButtons}>
-        {(pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
-          <TouchableOpacity 
-            style={[petCardStyles.actionButton, petCardStyles.qrButton]} 
-            onPress={() => onShowQR(pet)}
-          >
-            <Text style={petCardStyles.actionButtonText}>QR Code</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={[petCardStyles.actionButton, petCardStyles.pendingQRButton]} 
-            disabled={true}
-          >
-            <Text style={petCardStyles.pendingQRButtonText}>QR Pending</Text>
-          </TouchableOpacity>
-        )}
-        {pet.status === 'lost' ? (
-          <TouchableOpacity 
-            style={[petCardStyles.actionButton, petCardStyles.foundButton]} 
-            onPress={() => onMarkFound(pet)}
-          >
-            <Text style={petCardStyles.actionButtonText}>Mark Found</Text>
-          </TouchableOpacity>
-        ) : (pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
-          <TouchableOpacity 
-            style={[petCardStyles.actionButton, petCardStyles.lostButton]} 
-            onPress={() => onReportLost(pet)}
-          >
-            <Text style={petCardStyles.actionButtonText}>Report Lost</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={[petCardStyles.actionButton, petCardStyles.disabledButton]} 
-            disabled={true}
-          >
-            <Text style={petCardStyles.disabledButtonText}>Report Lost</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity 
-          style={[petCardStyles.actionButton, petCardStyles.editButton]} 
-          onPress={() => onEditPet(pet)}
-        >
-          <Text style={petCardStyles.actionButtonText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[petCardStyles.actionButton, petCardStyles.deleteButton]} 
-          onPress={() => onDeletePet(pet.id, pet.petName)}
-        >
-          <Text style={petCardStyles.actionButtonText}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-});
-
-const MyPetsScreen = ({ navigation }) => {
-  const { colors: COLORS } = useTheme();
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPetQR, setSelectedPetQR] = useState(null);
@@ -368,6 +396,8 @@ const MyPetsScreen = ({ navigation }) => {
     petImage: ''
   });
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [showUserManual, setShowUserManual] = useState(false);
+  const hasShownManualToday = useRef(false);
   const qrRef = useRef(null);
   const user = auth.currentUser;
 
@@ -431,6 +461,56 @@ const MyPetsScreen = ({ navigation }) => {
       unsubscribeNotifications();
     };
   }, [user]);
+
+  // Check if user should see manual today (once per day per account)
+  useEffect(() => {
+    const checkDailyManual = async () => {
+      try {
+        // Skip if we've already shown the manual today in this session
+        if (hasShownManualToday.current) {
+          return;
+        }
+
+        const user = auth.currentUser;
+        if (!user) return; // No user logged in
+
+        // Use user-specific storage key
+        const storageKey = `PAW_MY_PETS_MANUAL_LAST_SHOWN_${user.uid}`;
+        const lastShownDate = await AsyncStorage.getItem(storageKey);
+        const today = new Date().toDateString();
+        
+        // Show manual if it hasn't been shown today for this user
+        if (lastShownDate !== today) {
+          hasShownManualToday.current = true;
+          setShowUserManual(true);
+        }
+      } catch (error) {
+        console.error('Error checking daily manual:', error);
+      }
+    };
+    
+    // Only check on initial load, not on every re-render
+    checkDailyManual();
+  }, []); // Empty dependency array ensures this only runs once
+
+  // Handle manual close and mark as shown for today
+  const handleManualClose = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        setShowUserManual(false);
+        return;
+      }
+
+      const today = new Date().toDateString();
+      const storageKey = `PAW_MY_PETS_MANUAL_LAST_SHOWN_${user.uid}`;
+      await AsyncStorage.setItem(storageKey, today);
+      setShowUserManual(false);
+    } catch (error) {
+      console.error('Error saving manual shown date:', error);
+      setShowUserManual(false);
+    }
+  };
 
   const handleDeletePet = (petId, petName) => {
     Alert.alert(
@@ -952,6 +1032,16 @@ Thank you for helping reunite pets with their families! ❤️`;
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    },
+    helpButton: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderRadius: 12,
+      padding: SPACING.sm,
     },
     headerTitle: {
       fontSize: 20,
@@ -2332,161 +2422,207 @@ Thank you for helping reunite pets with their families! ❤️`;
       textAlign: 'center',
       opacity: 0.7,
     },
+    // User Manual Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: SPACING.lg,
+    },
+    modalContent: {
+      backgroundColor: COLORS.cardBackground,
+      borderRadius: RADIUS.large,
+      padding: SPACING.lg,
+      marginHorizontal: SPACING.lg,
+      maxHeight: '90%',
+      width: '90%',
+      maxWidth: 500,
+      ...SHADOWS.heavy,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: SPACING.lg,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.lightBlue,
+    },
+    modalTitle: {
+      fontSize: FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      flex: 1,
+    },
+    closeButton: {
+      padding: SPACING.sm,
+    },
+    modalScrollView: {
+      maxHeight: 400,
+    },
+    manualContent: {
+      paddingBottom: SPACING.md,
+    },
+    section: {
+      marginBottom: SPACING.lg,
+    },
+    sectionTitle: {
+      fontSize: FONTS.sizes.large,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      marginBottom: SPACING.md,
+    },
+    sectionText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 22,
+    },
+    featureItem: {
+      flexDirection: 'row',
+      marginBottom: SPACING.lg,
+      alignItems: 'flex-start',
+    },
+    featureIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#F3F4F6',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.md,
+    },
+    featureContent: {
+      flex: 1,
+    },
+    featureTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    featureDescription: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 20,
+    },
+    statusItem: {
+      flexDirection: 'row',
+      marginBottom: SPACING.md,
+      alignItems: 'flex-start',
+    },
+    statusEmoji: {
+      fontSize: FONTS.sizes.large,
+      marginRight: SPACING.sm,
+      marginTop: 2,
+    },
+    statusContent: {
+      flex: 1,
+    },
+    statusTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    statusDescription: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 18,
+    },
+    tipsSection: {
+      backgroundColor: COLORS.lightBlue,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+    },
+    tipsTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.md,
+    },
+    tipItem: {
+      flexDirection: 'row',
+      marginBottom: SPACING.sm,
+      alignItems: 'flex-start',
+    },
+    tipBullet: {
+      fontSize: FONTS.sizes.medium,
+      color: COLORS.text,
+      marginRight: SPACING.sm,
+      marginTop: 2,
+    },
+    tipText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 18,
+      flex: 1,
+    },
+    notesSection: {
+      backgroundColor: '#FEF2F2',
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+      borderLeftWidth: 4,
+      borderLeftColor: '#EF4444',
+    },
+    notesTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.md,
+    },
+    noteItem: {
+      flexDirection: 'row',
+      marginBottom: SPACING.sm,
+      alignItems: 'flex-start',
+    },
+    noteBullet: {
+      fontSize: FONTS.sizes.medium,
+      color: '#EF4444',
+      marginRight: SPACING.sm,
+      marginTop: 2,
+    },
+    noteText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 18,
+      flex: 1,
+    },
+    modalFooter: {
+      paddingTop: SPACING.md,
+      borderTopWidth: 1,
+      borderTopColor: COLORS.lightBlue,
+    },
+    gotItButton: {
+      backgroundColor: COLORS.darkPurple,
+      borderRadius: RADIUS.medium,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.xl,
+      alignItems: 'center',
+      marginTop: SPACING.lg,
+      ...SHADOWS.medium,
+    },
+    gotItButtonText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.white,
+    },
   }), [COLORS, reportForm.lastSeenLocation, reportForm.timeLost]);
 
-  const PetCard = ({ pet }) => {
-    const [imageError, setImageError] = useState(false);
-    
-    return (
-      <View style={styles.petCard}>
-        <View style={styles.petHeader}>
-          <View style={styles.petImage}>
-            {pet.petImage && pet.petImage !== 'placeholder' && !imageError ? (
-              <Image 
-                source={{ uri: pet.petImage }} 
-                style={styles.petPhoto}
-                resizeMode="cover"
-                onError={() => {
-                  console.log('Failed to load pet image for:', pet.petName);
-                  setImageError(true);
-                }}
-              />
-            ) : (
-              <Text style={styles.petEmoji}>
-                {pet.petType === 'dog' ? '🐕' : '🐱'}
-              </Text>
-            )}
-          </View>
-          <View style={styles.petInfo}>
-            <View style={styles.petNameContainer}>
-              <Text style={styles.petName}>{pet.petName}</Text>
-              {pet.status === 'lost' && (
-                <View style={styles.lostBadge}>
-                  <Text style={styles.lostBadgeText}>LOST</Text>
-                </View>
-              )}
-              {pet.registrationStatus === 'pending' && (
-                <View style={styles.pendingBadge}>
-                  <Text style={styles.pendingBadgeText}>PENDING</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.petBreed}>{pet.breed}</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.editPetButton}
-            onPress={() => handleEditPet(pet)}
-          >
-            <MaterialIcons name="edit" size={20} color={COLORS.darkPurple} />
-          </TouchableOpacity>
-        </View>
-      
-      <View style={styles.petDetails}>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Type:</Text>
-          <Text style={styles.detailValue}>{pet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Gender:</Text>
-          <Text style={styles.detailValue}>{pet.petGender === 'male' ? '♂️ Male' : '♀️ Female'}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Owner:</Text>
-          <Text style={styles.detailValue}>{pet.ownerFullName}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Contact:</Text>
-          <Text style={styles.detailValue}>{pet.contactNumber}</Text>
-        </View>
-        {pet.description && (
-          <Text style={styles.description}>{pet.description}</Text>
-        )}
-      </View>
-      
-      {/* Status Buttons */}
-      <View style={styles.statusButtonsContainer}>
-        {pet.petStatus === 'pregnant' ? (
-          <TouchableOpacity 
-            style={[styles.statusButton, styles.undoButton]} 
-            onPress={() => handleUpdatePetStatus(pet.id, 'healthy')}
-          >
-            <Text style={styles.statusButtonText}>✅ Undo Pregnant</Text>
-          </TouchableOpacity>
-        ) : pet.petStatus === 'deceased' ? (
-          <TouchableOpacity 
-            style={[styles.statusButton, styles.undoButton]} 
-            onPress={() => handleUpdatePetStatus(pet.id, 'healthy')}
-          >
-            <Text style={styles.statusButtonText}>✅ Undo Deceased</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            {pet.petGender === 'female' && (
-              <TouchableOpacity 
-                style={[styles.statusButton, styles.pregnantButton]} 
-                onPress={() => handleUpdatePetStatus(pet.id, 'pregnant')}
-              >
-                <Text style={styles.statusButtonText}>🤰 Mark Pregnant</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity 
-              style={[styles.statusButton, styles.deceasedButton]} 
-              onPress={() => handleUpdatePetStatus(pet.id, 'deceased')}
-            >
-              <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      <View style={styles.actionButtons}>
-        {(pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.qrButton]} 
-            onPress={() => setSelectedPetQR(pet)}
-          >
-            <Text style={styles.actionButtonText}>QR Code</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.pendingQRButton]} 
-            disabled={true}
-          >
-            <Text style={styles.pendingQRButtonText}>QR Pending</Text>
-          </TouchableOpacity>
-        )}
-        {pet.status === 'lost' ? (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.foundButton]} 
-            onPress={() => handleMarkFound(pet)}
-          >
-            <Text style={styles.actionButtonText}>Mark Found</Text>
-          </TouchableOpacity>
-        ) : (pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.lostButton]} 
-            onPress={() => handleReportLost(pet)}
-          >
-            <Text style={styles.actionButtonText}>Report Lost</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.disabledButton]} 
-            disabled={true}
-          >
-            <Text style={styles.disabledButtonText}>Report Lost</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.deleteButton]} 
-          onPress={() => handleDeletePet(pet.id, pet.petName)}
-        >
-          <Text style={styles.actionButtonText}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-    );
-  };
 
   return (
     <>
@@ -2495,10 +2631,18 @@ Thank you for helping reunite pets with their families! ❤️`;
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>My Pets</Text>
+          <View style={styles.headerActions}>
           <View style={styles.statsContainer}>
             <Text style={styles.statsText}>
               {pets.length} {pets.length === 1 ? 'Pet' : 'Pets'}
             </Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.helpButton}
+              onPress={() => setShowUserManual(true)}
+            >
+              <MaterialIcons name="help-outline" size={24} color={COLORS.white} />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -2540,6 +2684,7 @@ Thank you for helping reunite pets with their families! ❤️`;
                   onReportLost={(pet) => {setSelectedPetForReport(pet); setShowReportLostModal(true);}}
                   onMarkFound={(pet) => handleMarkFound(pet)}
                   onShowQR={(pet) => setSelectedPetQR(pet)}
+                  styles={modernPetCardStyles}
                 />
               ))}
               
@@ -3193,6 +3338,198 @@ Thank you for helping reunite pets with their families! ❤️`;
         </View>
       </View>
     )}
+
+    {/* User Manual Modal */}
+    <Modal
+      visible={showUserManual}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setShowUserManual(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>📚 My Pets User Manual</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={handleManualClose}
+            >
+              <MaterialIcons name="close" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+            <View style={styles.manualContent}>
+              
+              {/* Overview */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🐾 Overview</Text>
+                <Text style={styles.sectionText}>
+                  The My Pets screen helps you manage all your registered pets. Here you can view pet information, 
+                  generate QR codes, report lost pets, and manage pet status.
+                </Text>
+              </View>
+
+              {/* Pet Card Features */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>📱 Pet Card Features</Text>
+                
+                <View style={styles.featureItem}>
+                  <View style={styles.featureIcon}>
+                    <MaterialIcons name="qr-code" size={20} color="#1D4ED8" />
+                  </View>
+                  <View style={styles.featureContent}>
+                    <Text style={styles.featureTitle}>QR Code</Text>
+                    <Text style={styles.featureDescription}>
+                      Generate a unique QR code for your pet. This code contains your pet's information and can be scanned by others to help reunite you with your pet if they get lost.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.featureItem}>
+                  <View style={styles.featureIcon}>
+                    <MaterialIcons name="report-problem" size={20} color="#F59E0B" />
+                  </View>
+                  <View style={styles.featureContent}>
+                    <Text style={styles.featureTitle}>Report Lost</Text>
+                    <Text style={styles.featureDescription}>
+                      If your pet goes missing, tap this button to create a lost pet report. This will notify other users in your area to help find your pet.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.featureItem}>
+                  <View style={styles.featureIcon}>
+                    <MaterialIcons name="check-circle" size={20} color="#10B981" />
+                  </View>
+                  <View style={styles.featureContent}>
+                    <Text style={styles.featureTitle}>Mark Found</Text>
+                    <Text style={styles.featureDescription}>
+                      When your lost pet is found, tap this button to mark them as found. This will update the lost pet report and notify others.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.featureItem}>
+                  <View style={styles.featureIcon}>
+                    <MaterialIcons name="edit" size={20} color="#8B5CF6" />
+                  </View>
+                  <View style={styles.featureContent}>
+                    <Text style={styles.featureTitle}>Edit Pet</Text>
+                    <Text style={styles.featureDescription}>
+                      Update your pet's information including name, breed, description, owner details, and profile photo.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.featureItem}>
+                  <View style={styles.featureIcon}>
+                    <MaterialIcons name="delete" size={20} color="#EF4444" />
+                  </View>
+                  <View style={styles.featureContent}>
+                    <Text style={styles.featureTitle}>Delete Pet</Text>
+                    <Text style={styles.featureDescription}>
+                      Remove a pet from your account. This will also delete any associated lost pet reports.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Status Management */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>📊 Status Management</Text>
+                
+                <View style={styles.statusItem}>
+                  <Text style={styles.statusEmoji}>🤰</Text>
+                  <View style={styles.statusContent}>
+                    <Text style={styles.statusTitle}>Mark Pregnant</Text>
+                    <Text style={styles.statusDescription}>
+                      For female pets only. Mark when your pet is pregnant to track their health status.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.statusItem}>
+                  <Text style={styles.statusEmoji}>🕊️</Text>
+                  <View style={styles.statusContent}>
+                    <Text style={styles.statusTitle}>Mark Deceased</Text>
+                    <Text style={styles.statusDescription}>
+                      Update your pet's status if they have passed away. You can undo this action if marked by mistake.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.statusItem}>
+                  <Text style={styles.statusEmoji}>✅</Text>
+                  <View style={styles.statusContent}>
+                    <Text style={styles.statusTitle}>Undo Status</Text>
+                    <Text style={styles.statusDescription}>
+                      If you marked your pet as pregnant or deceased by mistake, tap "Undo" to revert to healthy status.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Tips */}
+              <View style={styles.tipsSection}>
+                <Text style={styles.tipsTitle}>💡 Tips for Better Pet Management</Text>
+                <View style={styles.tipItem}>
+                  <Text style={styles.tipBullet}>•</Text>
+                  <Text style={styles.tipText}>Keep your pet's information up to date, especially contact details</Text>
+                </View>
+                <View style={styles.tipItem}>
+                  <Text style={styles.tipBullet}>•</Text>
+                  <Text style={styles.tipText}>Use clear, recent photos of your pet for better identification</Text>
+                </View>
+                <View style={styles.tipItem}>
+                  <Text style={styles.tipBullet}>•</Text>
+                  <Text style={styles.tipText}>Report lost pets immediately for better chances of reunion</Text>
+                </View>
+                <View style={styles.tipItem}>
+                  <Text style={styles.tipBullet}>•</Text>
+                  <Text style={styles.tipText}>Share your pet's QR code with trusted friends and family</Text>
+                </View>
+                <View style={styles.tipItem}>
+                  <Text style={styles.tipBullet}>•</Text>
+                  <Text style={styles.tipText}>Regularly check for updates on your lost pet reports</Text>
+                </View>
+              </View>
+
+              {/* Important Notes */}
+              <View style={styles.notesSection}>
+                <Text style={styles.notesTitle}>⚠️ Important Notes</Text>
+                <View style={styles.noteItem}>
+                  <Text style={styles.noteBullet}>•</Text>
+                  <Text style={styles.noteText}>QR codes are only available for registered pets</Text>
+                </View>
+                <View style={styles.noteItem}>
+                  <Text style={styles.noteBullet}>•</Text>
+                  <Text style={styles.noteText}>Lost pet reports are visible to other users in your area</Text>
+                </View>
+                <View style={styles.noteItem}>
+                  <Text style={styles.noteBullet}>•</Text>
+                  <Text style={styles.noteText}>Deleting a pet will remove all associated data permanently</Text>
+                </View>
+                <View style={styles.noteItem}>
+                  <Text style={styles.noteBullet}>•</Text>
+                  <Text style={styles.noteText}>Contact information is not shared publicly in lost reports</Text>
+                </View>
+              </View>
+
+            </View>
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.gotItButton}
+              onPress={handleManualClose}
+            >
+              <Text style={styles.gotItButtonText}>Got It!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
     </>
   );
 };
