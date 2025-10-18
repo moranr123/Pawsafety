@@ -39,6 +39,18 @@ const SignUpScreen = ({ navigation }) => {
     return emailRegex.test(email);
   };
 
+  const validateNameInput = (text) => {
+    // Only allow letters, spaces, hyphens, and apostrophes
+    const nameRegex = /^[a-zA-Z\s\-']*$/;
+    return nameRegex.test(text);
+  };
+
+  const handleNameChange = (text) => {
+    if (validateNameInput(text)) {
+      setFullName(text);
+    }
+  };
+
   const handleSignUp = async () => {
     if (!fullName || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -47,6 +59,11 @@ const SignUpScreen = ({ navigation }) => {
 
     if (fullName.trim().length < 2) {
       Alert.alert('Error', 'Please enter a valid full name');
+      return;
+    }
+
+    if (!validateNameInput(fullName)) {
+      Alert.alert('Error', 'Full name can only contain letters, spaces, hyphens, and apostrophes');
       return;
     }
 
@@ -185,7 +202,7 @@ const SignUpScreen = ({ navigation }) => {
                 placeholder="Enter your full name"
                 placeholderTextColor="#A0A0A0"
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={handleNameChange}
                 autoCapitalize="words"
                 autoCorrect={false}
               />

@@ -35,6 +35,7 @@ const StrayReportScreen = ({ navigation, route }) => {
   const [reportType, setReportType] = useState(route?.params?.initialType || 'Stray');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [showInstructionModal, setShowInstructionModal] = useState(false);
   const [mapRegion, setMapRegion] = useState({
     latitude: 14.5995, // Default to Philippines coordinates
     longitude: 120.9842,
@@ -250,6 +251,10 @@ const StrayReportScreen = ({ navigation, route }) => {
     },
     backButton: {
       marginRight: SPACING.md,
+    },
+    helpButton: {
+      marginLeft: SPACING.md,
+      padding: SPACING.sm,
     },
     scrollView: {
       flex: 1,
@@ -543,6 +548,187 @@ const StrayReportScreen = ({ navigation, route }) => {
       width: '100%',
       height: 350,
     },
+    // Instruction Modal Styles
+    instructionModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: SPACING.lg,
+    },
+    instructionModalContent: {
+      backgroundColor: COLORS.cardBackground,
+      borderRadius: RADIUS.large,
+      padding: SPACING.lg,
+      marginHorizontal: SPACING.lg,
+      maxHeight: '90%',
+      width: '90%',
+      maxWidth: 500,
+      ...SHADOWS.heavy,
+    },
+    instructionModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: SPACING.lg,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.lightBlue,
+    },
+    instructionModalTitle: {
+      fontSize: FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      flex: 1,
+    },
+    instructionCloseButton: {
+      padding: SPACING.sm,
+    },
+    instructionScrollView: {
+      maxHeight: 400,
+    },
+    instructionContent: {
+      paddingBottom: SPACING.md,
+    },
+    instructionSubtitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      textAlign: 'center',
+      marginBottom: SPACING.lg,
+      lineHeight: 22,
+    },
+    stepContainer: {
+      flexDirection: 'row',
+      marginBottom: SPACING.lg,
+      alignItems: 'flex-start',
+    },
+    stepNumber: {
+      backgroundColor: COLORS.darkPurple,
+      borderRadius: 20,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.md,
+    },
+    stepNumberText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.white,
+    },
+    stepContent: {
+      flex: 1,
+    },
+    stepTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    stepDescription: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 20,
+    },
+    tipContainer: {
+      backgroundColor: COLORS.lightBlue,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+    },
+    tipTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    tipText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 20,
+    },
+    noteContainer: {
+      backgroundColor: COLORS.background,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      borderLeftWidth: 4,
+      borderLeftColor: COLORS.golden,
+      marginBottom: SPACING.md,
+    },
+    noteTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    noteText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 20,
+    },
+    reportTypesContainer: {
+      backgroundColor: COLORS.inputBackground,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+    },
+    reportTypesTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.md,
+    },
+    reportTypeItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: SPACING.md,
+    },
+    reportTypeEmoji: {
+      fontSize: FONTS.sizes.large,
+      marginRight: SPACING.sm,
+      marginTop: 2,
+    },
+    reportTypeInfo: {
+      flex: 1,
+    },
+    reportTypeName: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    reportTypeDesc: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 18,
+    },
+    instructionGotItButton: {
+      backgroundColor: COLORS.darkPurple,
+      borderRadius: RADIUS.medium,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.xl,
+      alignItems: 'center',
+      marginTop: SPACING.lg,
+      ...SHADOWS.medium,
+    },
+    instructionGotItButtonText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.white,
+    },
 
   }), [COLORS, width, location, selectedImages.length]);
 
@@ -559,6 +745,12 @@ const StrayReportScreen = ({ navigation, route }) => {
               <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.formTitle}>Stray Pet Report Form</Text>
+            <TouchableOpacity 
+              style={styles.helpButton}
+              onPress={() => setShowInstructionModal(true)}
+            >
+              <MaterialIcons name="help-outline" size={24} color={COLORS.text} />
+            </TouchableOpacity>
           </View>
           
           {/* Report Type Selection */}
@@ -779,6 +971,165 @@ const StrayReportScreen = ({ navigation, route }) => {
               disabled={!location}
             >
               <Text style={styles.modalButtonText}>Confirm Location</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Instruction Modal */}
+      <Modal
+        visible={showInstructionModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowInstructionModal(false)}
+      >
+        <View style={styles.instructionModalOverlay}>
+          <View style={styles.instructionModalContent}>
+            <View style={styles.instructionModalHeader}>
+              <Text style={styles.instructionModalTitle}>📋 How to File a Report</Text>
+              <TouchableOpacity
+                style={styles.instructionCloseButton}
+                onPress={() => setShowInstructionModal(false)}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.secondaryText} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.instructionScrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.instructionContent}>
+                <Text style={styles.instructionSubtitle}>
+                  Follow these simple steps to file a pet report:
+                </Text>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>1</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>📝 Select Report Type</Text>
+                    <Text style={styles.stepDescription}>
+                      • Choose the appropriate report type:{'\n'}
+                      • 🐾 Stray Pet - for lost or wandering pets{'\n'}
+                      • 🔍 Found Pet - for pets you found{'\n'}
+                      • 🚨 Incident Report - for pet-related incidents
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>2</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>📸 Add Photos</Text>
+                    <Text style={styles.stepDescription}>
+                      • Take clear photos of the pet (required){'\n'}
+                      • Include multiple angles if possible{'\n'}
+                      • Tap the photo area to add from camera or gallery{'\n'}
+                      • You can add up to 6 photos
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>3</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>📍 Set Location</Text>
+                    <Text style={styles.stepDescription}>
+                      • Tap "Tap to set location" to open the map{'\n'}
+                      • Pin the exact location where you saw the pet{'\n'}
+                      • You can drag the marker to adjust the position{'\n'}
+                      • Or enter location manually if needed
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>4</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>📝 Add Description</Text>
+                    <Text style={styles.stepDescription}>
+                      • Describe the pet's appearance in detail{'\n'}
+                      • Include size, color, breed, condition{'\n'}
+                      • Mention any injuries or special markings{'\n'}
+                      • Add behavior observations if relevant
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>5</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>✅ Submit Report</Text>
+                    <Text style={styles.stepDescription}>
+                      • Review all information before submitting{'\n'}
+                      • Tap "Submit Report" to send your report{'\n'}
+                      • Your report will be visible to other users{'\n'}
+                      • You can view your reports in "My Reports"
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.tipContainer}>
+                  <Text style={styles.tipTitle}>💡 Tips for Better Reports:</Text>
+                  <Text style={styles.tipText}>
+                    • Take photos in good lighting{'\n'}
+                    • Be as specific as possible in descriptions{'\n'}
+                    • Include landmarks in location descriptions{'\n'}
+                    • Report immediately for better chances of reunion{'\n'}
+                    • Check "My Reports" for updates on your submissions
+                  </Text>
+                </View>
+
+                <View style={styles.noteContainer}>
+                  <Text style={styles.noteTitle}>📋 Important Notes:</Text>
+                  <Text style={styles.noteText}>
+                    • All fields marked with * are required{'\n'}
+                    • Your report will be public and visible to other users{'\n'}
+                    • Location data helps others find the pet{'\n'}
+                    • You can edit or delete your reports later{'\n'}
+                    • Contact information is not shared publicly
+                  </Text>
+                </View>
+
+                <View style={styles.reportTypesContainer}>
+                  <Text style={styles.reportTypesTitle}>📋 Report Types Explained:</Text>
+                  <View style={styles.reportTypeItem}>
+                    <Text style={styles.reportTypeEmoji}>🐾</Text>
+                    <View style={styles.reportTypeInfo}>
+                      <Text style={styles.reportTypeName}>Stray Pet</Text>
+                      <Text style={styles.reportTypeDesc}>For pets that appear lost or wandering without an owner</Text>
+                    </View>
+                  </View>
+                  <View style={styles.reportTypeItem}>
+                    <Text style={styles.reportTypeEmoji}>🔍</Text>
+                    <View style={styles.reportTypeInfo}>
+                      <Text style={styles.reportTypeName}>Found Pet</Text>
+                      <Text style={styles.reportTypeDesc}>For pets you have found and are helping to reunite with their owner</Text>
+                    </View>
+                  </View>
+                  <View style={styles.reportTypeItem}>
+                    <Text style={styles.reportTypeEmoji}>🚨</Text>
+                    <View style={styles.reportTypeInfo}>
+                      <Text style={styles.reportTypeName}>Incident Report</Text>
+                      <Text style={styles.reportTypeDesc}>For pet-related incidents, accidents, or concerning situations</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.instructionGotItButton}
+              onPress={() => setShowInstructionModal(false)}
+            >
+              <Text style={styles.instructionGotItButtonText}>Got It!</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -64,6 +64,7 @@ const RegisterPetScreen = ({ navigation }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [registeredPet, setRegisteredPet] = useState(null);
+  const [showInstructionModal, setShowInstructionModal] = useState(false);
 
   // Set default owner name from logged-in user and request permissions
   useEffect(() => {
@@ -462,6 +463,12 @@ const RegisterPetScreen = ({ navigation }) => {
     },
     placeholderContainer: {
       width: 44, // Same width as back button to balance the layout
+    },
+    helpButton: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderRadius: 12,
+      padding: SPACING.sm,
+      marginLeft: SPACING.md,
     },
     scrollView: {
       flex: 1,
@@ -882,6 +889,140 @@ const RegisterPetScreen = ({ navigation }) => {
       textAlign: 'center',
       lineHeight: 18,
     },
+    // Instruction Modal Styles
+    instructionModalContent: {
+      backgroundColor: COLORS.cardBackground,
+      borderRadius: RADIUS.large,
+      padding: SPACING.lg,
+      marginHorizontal: SPACING.lg,
+      maxHeight: '90%',
+      width: '90%',
+      maxWidth: 500,
+      ...SHADOWS.heavy,
+    },
+    instructionModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: SPACING.lg,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.lightBlue,
+    },
+    instructionModalTitle: {
+      fontSize: FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      flex: 1,
+    },
+    instructionCloseButton: {
+      padding: SPACING.sm,
+    },
+    instructionScrollView: {
+      maxHeight: 400,
+    },
+    instructionContent: {
+      paddingBottom: SPACING.md,
+    },
+    instructionSubtitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      textAlign: 'center',
+      marginBottom: SPACING.lg,
+      lineHeight: 22,
+    },
+    stepContainer: {
+      flexDirection: 'row',
+      marginBottom: SPACING.lg,
+      alignItems: 'flex-start',
+    },
+    stepNumber: {
+      backgroundColor: COLORS.darkPurple,
+      borderRadius: 20,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.md,
+    },
+    stepNumberText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.white,
+    },
+    stepContent: {
+      flex: 1,
+    },
+    stepTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    stepDescription: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 20,
+    },
+    tipContainer: {
+      backgroundColor: COLORS.lightBlue,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+    },
+    tipTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    tipText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 20,
+    },
+    noteContainer: {
+      backgroundColor: COLORS.background,
+      borderRadius: RADIUS.medium,
+      padding: SPACING.md,
+      borderLeftWidth: 4,
+      borderLeftColor: COLORS.golden,
+    },
+    noteTitle: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semiBold,
+      color: COLORS.text,
+      marginBottom: SPACING.xs,
+    },
+    noteText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: COLORS.secondaryText,
+      lineHeight: 20,
+    },
+    instructionGotItButton: {
+      backgroundColor: COLORS.darkPurple,
+      borderRadius: RADIUS.medium,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.xl,
+      alignItems: 'center',
+      marginTop: SPACING.lg,
+      ...SHADOWS.medium,
+    },
+    instructionGotItButtonText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.white,
+    },
   }), [COLORS]);
 
   return (
@@ -895,7 +1036,12 @@ const RegisterPetScreen = ({ navigation }) => {
             <MaterialIcons name="arrow-back" size={20} color={COLORS.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Register Pet</Text>
-          <View style={styles.placeholderContainer} />
+          <TouchableOpacity 
+            style={styles.helpButton}
+            onPress={() => setShowInstructionModal(true)}
+          >
+            <MaterialIcons name="help-outline" size={20} color={COLORS.white} />
+          </TouchableOpacity>
         </View>
         </View>
 
@@ -1217,6 +1363,120 @@ const RegisterPetScreen = ({ navigation }) => {
               )}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Instruction Modal */}
+      <Modal
+        visible={showInstructionModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowInstructionModal(false)}
+      >
+        <View style={styles.centeredModalOverlay}>
+          <View style={styles.instructionModalContent}>
+            <View style={styles.instructionModalHeader}>
+              <Text style={styles.instructionModalTitle}>📋 How to Register Your Pet</Text>
+              <TouchableOpacity
+                style={styles.instructionCloseButton}
+                onPress={() => setShowInstructionModal(false)}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.secondaryText} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.instructionScrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.instructionContent}>
+                <Text style={styles.instructionSubtitle}>
+                  Follow these simple steps to register your pet with PawSafety:
+                </Text>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>1</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>📸 Add Pet Photos</Text>
+                    <Text style={styles.stepDescription}>
+                      • Take a clear photo of your pet (required){'\n'}
+                      • Add a photo of your pet's booklet or registration document (required){'\n'}
+                      • Tap the photo areas to select from camera or gallery
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>2</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>🐾 Pet Information</Text>
+                    <Text style={styles.stepDescription}>
+                      • Enter your pet's name{'\n'}
+                      • Select pet type (Dog or Cat){'\n'}
+                      • Choose gender (Male or Female){'\n'}
+                      • Select breed from the dropdown list
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>3</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>📝 Additional Details</Text>
+                    <Text style={styles.stepDescription}>
+                      • Add a description of your pet's personality or special features{'\n'}
+                      • Verify your full name (auto-filled from your account){'\n'}
+                      • Enter your contact number
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepContainer}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>4</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>✅ Submit for Review</Text>
+                    <Text style={styles.stepDescription}>
+                      • Tap "Register Pet" to submit your registration{'\n'}
+                      • Your pet's information will be sent to the agricultural admin for review{'\n'}
+                      • You'll receive a notification once approved
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.tipContainer}>
+                  <Text style={styles.tipTitle}>💡 Tips for Success:</Text>
+                  <Text style={styles.tipText}>
+                    • Make sure photos are clear and well-lit{'\n'}
+                    • Double-check all information before submitting{'\n'}
+                    • Keep your contact information up to date{'\n'}
+                    • The review process usually takes 1-2 business days
+                  </Text>
+                </View>
+
+                <View style={styles.noteContainer}>
+                  <Text style={styles.noteTitle}>📋 Important Notes:</Text>
+                  <Text style={styles.noteText}>
+                    • All fields marked with * are required{'\n'}
+                    • Your pet's information is secure and private{'\n'}
+                    • Once approved, you'll get a QR code for easy pet identification{'\n'}
+                    • You can view your registered pets in "My Pets" section
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.instructionGotItButton}
+              onPress={() => setShowInstructionModal(false)}
+            >
+              <Text style={styles.instructionGotItButtonText}>Got It!</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
