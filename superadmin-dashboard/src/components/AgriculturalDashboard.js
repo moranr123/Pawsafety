@@ -344,6 +344,9 @@ const AgriculturalDashboard = () => {
           ...doc.data() 
         }));
         
+        // Log all notification types for debugging
+        console.log('📋 All notification types:', notificationsList.map(n => ({ id: n.id, type: n.type, title: n.title })));
+        
         // Sort manually by createdAt (newest first)
         notificationsList.sort((a, b) => {
           const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
@@ -355,9 +358,9 @@ const AgriculturalDashboard = () => {
         setNotifications(notificationsList);
         
         // Count unread notifications
-              const unread = notificationsList.filter(notification => !notification.read).length;
-      console.log('Unread notifications count:', unread);
-      setUnreadCount(unread);
+        const unread = notificationsList.filter(notification => !notification.read).length;
+        console.log('Unread notifications count:', unread);
+        setUnreadCount(unread);
       
       // Auto-delete test notifications
       const testNotifications = notificationsList.filter(n => n.type === 'test');

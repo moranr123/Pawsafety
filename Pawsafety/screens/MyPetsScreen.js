@@ -885,32 +885,49 @@ const MyPetsScreen = ({ navigation }) => {
 
   const handleUpdatePetStatus = useCallback(async (petId, newStatus) => {
     try {
+      console.log('🔄 Updating pet status:', { petId, newStatus });
+      
       // Find the pet to get its details for the notification
       const pet = pets.find(p => p.id === petId);
+      console.log('📋 Pet found:', pet ? { id: pet.id, name: pet.petName, owner: pet.ownerFullName } : 'Pet not found');
       
       await updateDoc(doc(db, 'pets', petId), {
         petStatus: newStatus,
         updatedAt: serverTimestamp()
       });
       
+      console.log('✅ Pet status updated successfully');
+      
       // Create admin notification for significant status changes
       if (newStatus === 'pregnant' || newStatus === 'deceased') {
+        console.log('🔔 Creating admin notification for status:', newStatus);
+        
+        const notificationData = {
+          type: newStatus === 'pregnant' ? 'pet_pregnant' : 'pet_deceased',
+          title: newStatus === 'pregnant' ? 'Pet Marked as Pregnant' : 'Pet Marked as Deceased',
+          message: `Pet "${pet?.petName || 'Unknown Pet'}" (${pet?.petType || 'Unknown Type'}) has been marked as ${newStatus} by ${pet?.ownerFullName || 'Unknown Owner'}`,
+          petId: petId,
+          petName: pet?.petName,
+          ownerName: pet?.ownerFullName,
+          petType: pet?.petType,
+          petStatus: newStatus,
+          read: false,
+          createdAt: new Date()
+        };
+        
+        console.log('📝 Notification data:', notificationData);
+        
         try {
-          await addDoc(collection(db, 'admin_notifications'), {
-            type: newStatus === 'pregnant' ? 'pet_pregnant' : 'pet_deceased',
-            title: newStatus === 'pregnant' ? 'Pet Marked as Pregnant' : 'Pet Marked as Deceased',
-            message: `Pet "${pet?.petName || 'Unknown Pet'}" (${pet?.petType || 'Unknown Type'}) has been marked as ${newStatus} by ${pet?.ownerFullName || 'Unknown Owner'}`,
-            petId: petId,
-            petName: pet?.petName,
-            ownerName: pet?.ownerFullName,
-            petType: pet?.petType,
-            petStatus: newStatus,
-            read: false,
-            createdAt: new Date()
-          });
+          const notificationRef = await addDoc(collection(db, 'admin_notifications'), notificationData);
+          console.log('✅ Admin notification created successfully with ID:', notificationRef.id);
           console.log(`✅ Admin notification created for pet ${newStatus}:`, pet?.petName);
         } catch (notificationError) {
           console.error('❌ Error creating admin notification:', notificationError);
+          console.error('❌ Notification error details:', {
+            code: notificationError.code,
+            message: notificationError.message,
+            stack: notificationError.stack
+          });
         }
       }
       
@@ -920,7 +937,12 @@ const MyPetsScreen = ({ navigation }) => {
                           'Pet status updated';
       Alert.alert('Success', statusMessage);
     } catch (error) {
-      console.error('Error updating pet status:', error);
+      console.error('❌ Error updating pet status:', error);
+      console.error('❌ Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
       Alert.alert('Error', 'Failed to update pet status. Please try again.');
     }
   }, [pets]);
