@@ -77,38 +77,12 @@ const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onDeletePet, onReportLos
       
       {/* Status Buttons */}
       <View style={styles.statusButtonsContainer}>
-        {pet.petStatus === 'pregnant' ? (
-          <TouchableOpacity 
-            style={[styles.statusButton, styles.undoButton]} 
-            onPress={() => onUpdateStatus(pet.id, 'healthy')}
-          >
-            <Text style={styles.statusButtonText}>✅ Undo Pregnant</Text>
-          </TouchableOpacity>
-        ) : pet.petStatus === 'deceased' ? (
-          <TouchableOpacity 
-            style={[styles.statusButton, styles.undoButton]} 
-            onPress={() => onUpdateStatus(pet.id, 'healthy')}
-          >
-            <Text style={styles.statusButtonText}>✅ Undo Deceased</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            {pet.petGender === 'female' && (
-              <TouchableOpacity 
-                style={[styles.statusButton, styles.pregnantButton]} 
-                onPress={() => onUpdateStatus(pet.id, 'pregnant')}
-              >
-                <Text style={styles.statusButtonText}>🤰 Mark Pregnant</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity 
-              style={[styles.statusButton, styles.deceasedButton]} 
-              onPress={() => onUpdateStatus(pet.id, 'deceased')}
-            >
-              <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
-            </TouchableOpacity>
-          </>
-        )}
+        <TouchableOpacity 
+          style={[styles.statusButton, styles.deceasedButton]} 
+          onPress={() => onUpdateStatus(pet.id, pet.petName)}
+        >
+          <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.actionButtons}>
@@ -883,68 +857,83 @@ const MyPetsScreen = ({ navigation }) => {
      );
    };
 
-  const handleUpdatePetStatus = useCallback(async (petId, newStatus) => {
-    try {
-      console.log('🔄 Updating pet status:', { petId, newStatus });
-      
-      // Find the pet to get its details for the notification
-      const pet = pets.find(p => p.id === petId);
-      console.log('📋 Pet found:', pet ? { id: pet.id, name: pet.petName, owner: pet.ownerFullName } : 'Pet not found');
-      
-      await updateDoc(doc(db, 'pets', petId), {
-        petStatus: newStatus,
-        updatedAt: serverTimestamp()
-      });
-      
-      console.log('✅ Pet status updated successfully');
-      
-      // Create admin notification for significant status changes
-      if (newStatus === 'pregnant' || newStatus === 'deceased') {
-        console.log('🔔 Creating admin notification for status:', newStatus);
-        
-        const notificationData = {
-          type: newStatus === 'pregnant' ? 'pet_pregnant' : 'pet_deceased',
-          title: newStatus === 'pregnant' ? 'Pet Marked as Pregnant' : 'Pet Marked as Deceased',
-          message: `Pet "${pet?.petName || 'Unknown Pet'}" (${pet?.petType || 'Unknown Type'}) has been marked as ${newStatus} by ${pet?.ownerFullName || 'Unknown Owner'}`,
-          petId: petId,
-          petName: pet?.petName,
-          ownerName: pet?.ownerFullName,
-          petType: pet?.petType,
-          petStatus: newStatus,
-          read: false,
-          createdAt: new Date()
-        };
-        
-        console.log('📝 Notification data:', notificationData);
-        
-        try {
-          const notificationRef = await addDoc(collection(db, 'admin_notifications'), notificationData);
-          console.log('✅ Admin notification created successfully with ID:', notificationRef.id);
-          console.log(`✅ Admin notification created for pet ${newStatus}:`, pet?.petName);
-        } catch (notificationError) {
-          console.error('❌ Error creating admin notification:', notificationError);
-          console.error('❌ Notification error details:', {
-            code: notificationError.code,
-            message: notificationError.message,
-            stack: notificationError.stack
-          });
+  const handleUpdatePetStatus = useCallback(async (petId, petName) => {
+    // Show confirmation dialog for marking pet as deceased
+    Alert.alert(
+      'Mark Pet as Deceased',
+      `Are you sure you want to mark "${petName}" as deceased? This will permanently delete the pet record and notify the Agricultural Dashboard administrator.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes, Mark as Deceased',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('🔄 Marking pet as deceased:', { petId, petName });
+              
+              // Find the pet to get its details for the notification
+              const pet = pets.find(p => p.id === petId);
+              console.log('📋 Pet found:', pet ? { id: pet.id, name: pet.petName, owner: pet.ownerFullName } : 'Pet not found');
+              
+              if (!pet) {
+                Alert.alert('Error', 'Pet not found. Please try again.');
+                return;
+              }
+              
+              // Create admin notification BEFORE deleting the pet
+              console.log('🔔 Creating admin notification for deceased pet');
+              
+              const notificationData = {
+                type: 'pet_deceased',
+                title: 'Pet Marked as Deceased',
+                message: `Pet "${pet.petName || 'Unknown Pet'}" (${pet.petType || 'Unknown Type'}) has been marked as deceased by ${pet.ownerFullName || 'Unknown Owner'}. The pet record has been removed from the system.`,
+                petId: petId,
+                petName: pet.petName,
+                ownerName: pet.ownerFullName,
+                petType: pet.petType,
+                petStatus: 'deceased',
+                read: false,
+                createdAt: new Date()
+              };
+              
+              console.log('📝 Notification data:', notificationData);
+              
+              try {
+                const notificationRef = await addDoc(collection(db, 'admin_notifications'), notificationData);
+                console.log('✅ Admin notification created successfully with ID:', notificationRef.id);
+              } catch (notificationError) {
+                console.error('❌ Error creating admin notification:', notificationError);
+                console.error('❌ Notification error details:', {
+                  code: notificationError.code,
+                  message: notificationError.message,
+                  stack: notificationError.stack
+                });
+              }
+              
+              // Delete the pet from the database
+              await deleteDoc(doc(db, 'pets', petId));
+              console.log('✅ Pet deleted successfully');
+              
+              Alert.alert(
+                'Pet Marked as Deceased', 
+                `${petName} has been marked as deceased and removed from your pets. The Agricultural Dashboard has been notified.`
+              );
+            } catch (error) {
+              console.error('❌ Error marking pet as deceased:', error);
+              console.error('❌ Error details:', {
+                code: error.code,
+                message: error.message,
+                stack: error.stack
+              });
+              Alert.alert('Error', 'Failed to mark pet as deceased. Please try again.');
+            }
+          }
         }
-      }
-      
-      const statusMessage = newStatus === 'pregnant' ? 'Pet marked as pregnant' : 
-                          newStatus === 'deceased' ? 'Pet marked as deceased' : 
-                          newStatus === 'healthy' ? 'Pet status reset to healthy' :
-                          'Pet status updated';
-      Alert.alert('Success', statusMessage);
-    } catch (error) {
-      console.error('❌ Error updating pet status:', error);
-      console.error('❌ Error details:', {
-        code: error.code,
-        message: error.message,
-        stack: error.stack
-      });
-      Alert.alert('Error', 'Failed to update pet status. Please try again.');
-    }
+      ]
+    );
   }, [pets]);
 
    const handleSubmitEdit = async () => {
