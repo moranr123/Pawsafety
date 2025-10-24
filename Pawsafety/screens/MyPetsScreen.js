@@ -2692,7 +2692,7 @@ Thank you for helping reunite pets with their families! ❤️`;
                     pet={pet}
                     onUpdateStatus={handleUpdatePetStatus}
                     onEditPet={handleEditPet}
-                    onDeletePet={(petId, petName) => Alert.alert('Delete Pet', `Are you sure you want to delete ${petName}?`)}
+                    onDeletePet={handleDeletePet}
                     onReportLost={(pet) => {setSelectedPetForReport(pet); setShowReportLostModal(true);}}
                     onMarkFound={(pet) => handleMarkFound(pet)}
                     onShowQR={(pet) => setSelectedPetQR(pet)}
