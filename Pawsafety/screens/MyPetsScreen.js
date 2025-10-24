@@ -1435,7 +1435,7 @@ Thank you for helping reunite pets with their families! ❤️`;
       backgroundColor: COLORS.mediumBlue,
     },
     closeButton: {
-      backgroundColor: COLORS.secondaryText,
+      backgroundColor: '#EF4444',
     },
     modalButtonText: {
       fontSize: FONTS.sizes.medium,
@@ -2512,6 +2512,7 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     closeButton: {
       padding: SPACING.sm,
+      backgroundColor: '#EF4444',
     },
     modalScrollView: {
       maxHeight: 400,
