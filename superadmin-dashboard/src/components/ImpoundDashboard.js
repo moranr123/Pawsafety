@@ -2368,7 +2368,19 @@ const ImpoundDashboard = () => {
                     <p className="text-xs sm:text-sm font-medium text-gray-900 mb-2 line-clamp-3">
                       {r.description ? r.description.substring(0, 100) + (r.description.length > 100 ? '...' : '') : 'No description'}
                     </p>
-                    <p className="text-xs sm:text-sm text-gray-600 mb-1 truncate">{r.locationName || 'N/A'}</p>
+                    <div className="flex items-center mb-1">
+                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <button 
+                        onClick={() => openGoogleMaps(r.location, r.locationName)}
+                        className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline truncate cursor-pointer text-left"
+                        title="Click to open in Google Maps"
+                      >
+                        {r.locationName || 'N/A'}
+                      </button>
+                    </div>
                     <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">{r.contactNumber || 'N/A'}</p>
                     <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full mt-auto">
                       <button onClick={() => openReportDetails(r)} className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors">View</button>
