@@ -1057,7 +1057,6 @@ const HomeTabScreen = ({ navigation }) => {
           ) : recentReports.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No reports yet</Text>
-              <Text style={styles.emptySubtext}>Be the first to report a stray pet!</Text>
             </View>
           ) : (
             <ScrollView 
@@ -1081,7 +1080,6 @@ const HomeTabScreen = ({ navigation }) => {
                   
                   <View style={styles.reportContent}>
                     <View style={styles.reportHeader}>
-                      <Text style={styles.reportName}>Stray Report</Text>
                       <View style={[styles.statusBadge, { backgroundColor: getStatusColor(report.status) }]}>
                         <Text style={styles.statusBadgeText}>{report.status || 'Stray'}</Text>
                       </View>
