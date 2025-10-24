@@ -391,4 +391,174 @@ warning: in the working copy of 'Pawsafety/screens/MyPetsScreen.js', LF will be 
 [31m-    fontSize: 12,[m
 [31m-    fontWeight: 'bold',[m
 [32m+[m[32m    fontSize: 13,[m
-[32m+[m[32m    fontWeight: '600',
+[32m+[m[32m    fontWeight: '600',warning: in the working copy of 'superadmin-dashboard/src/components/ImpoundDashboard.js', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/superadmin-dashboard/src/components/ImpoundDashboard.js b/superadmin-dashboard/src/components/ImpoundDashboard.js[m
+[1mindex 2c926f9c..0ca471c1 100644[m
+[1m--- a/superadmin-dashboard/src/components/ImpoundDashboard.js[m
+[1m+++ b/superadmin-dashboard/src/components/ImpoundDashboard.js[m
+[36m@@ -437,6 +437,17 @@[m [mconst ImpoundDashboard = () => {[m
+   const [reportsExpanded, setReportsExpanded] = useState(true);[m
+   const [adoptionExpanded, setAdoptionExpanded] = useState(true);[m
+   const [imageLoadingStates, setImageLoadingStates] = useState({});[m
+[32m+[m[41m  [m
+[32m+[m[32m  // Database totals for insights[m
+[32m+[m[32m  const [dbTotals, setDbTotals] = useState({[m
+[32m+[m[32m    totalReports: 0,[m
+[32m+[m[32m    strayReports: 0,[m
+[32m+[m[32m    lostReports: 0,[m
+[32m+[m[32m    incidentReports: 0,[m
+[32m+[m[32m    foundReports: 0,[m
+[32m+[m[32m    adoptionApplications: 0,[m
+[32m+[m[32m    adoptedPets: 0[m
+[32m+[m[32m  });[m
+ [m
+   // Helper functions for image loading states[m
+   const setImageLoading = (imageId, isLoading) => {[m
+[36m@@ -812,6 +823,66 @@[m [mconst ImpoundDashboard = () => {[m
+     return unsubscribe;[m
+   }, []);[m
+ [m
+[32m+[m[32m  // Fetch database totals for insights[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    const fetchDbTotals = async () => {[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        // Fetch all stray reports count[m
+[32m+[m[32m        const strayReportsQuery = query(collection(db, 'stray_reports'));[m
+[32m+[m[32m        const strayReportsSnapshot = await getDocs(strayReportsQuery);[m
+[32m+[m[32m        const strayReportsCount = strayReportsSnapshot.size;[m
+[32m+[m
+[32m+[m[32m        // Fetch lost reports count[m
+[32m+[m[32m        const lostReportsQuery = query(collection(db, 'stray_reports'), where('status', '==', 'Lost'));[m
+[32m+[m[32m        const lostReportsSnapshot = await getDocs(lostReportsQuery);[m
+[32m+[m[32m        const lostReportsCount = lostReportsSnapshot.size;[m
+[32m+[m
+[32m+[m[32m        // Fetch incident reports count[m
+[32m+[m[32m        const incidentReportsQuery = query(collection(db, 'stray_reports'), where('status', '==', 'Incident'));[m
+[32m+[m[32m        const incidentReportsSnapshot = await getDocs(incidentReportsQuery);[m
+[32m+[m[32m        const incidentReportsCount = incidentReportsSnapshot.size;[m
+[32m+[m
+[32m+[m[32m        // Fetch found reports count (excluding those found by owner)[m
+[32m+[m[32m        const foundReportsQuery = query(collection(db, 'stray_reports'), where('status', '==', 'Found'));[m
+[32m+[m[32m        const foundReportsSnapshot = await getDocs(foundReportsQuery);[m
+[32m+[m[32m        const foundReportsCount = foundReportsSnapshot.docs.filter(doc => doc.data().foundBy !== 'owner').length;[m
+[32m+[m
+[32m+[m[32m        // Fetch adoption applications count[m
+[32m+[m[32m        const adoptionAppsQuery = query(collection(db, 'adoption_applications'));[m
+[32m+[m[32m        const adoptionAppsSnapshot = await getDocs(adoptionAppsQuery);[m
+[32m+[m[32m        const adoptionAppsCount = adoptionAppsSnapshot.size;[m
+[32m+[m
+[32m+[m[32m        // Fetch adopted pets count (transferred from impound)[m
+[32m+[m[32m        const adoptedPetsQuery = query(collection(db, 'pets'), where('transferredFrom', '==', 'impound'));[m
+[32m+[m[32m        const adoptedPetsSnapshot = await getDocs(adoptedPetsQuery);[m
+[32m+[m[32m        const adoptedPetsCount = adoptedPetsSnapshot.size;[m
+[32m+[m
+[32m+[m[32m        // Calculate total reports[m
+[32m+[m[32m        const totalReportsCount = strayReportsCount;[m
+[32m+[m
+[32m+[m[32m        setDbTotals({[m
+[32m+[m[32m          totalReports: totalReportsCount,[m
+[32m+[m[32m          strayReports: strayReportsCount,[m
+[32m+[m[32m          lostReports: lostReportsCount,[m
+[32m+[m[32m          incidentReports: incidentReportsCount,[m
+[32m+[m[32m          foundReports: foundReportsCount,[m
+[32m+[m[32m          adoptionApplications: adoptionAppsCount,[m
+[32m+[m[32m          adoptedPets: adoptedPetsCount[m
+[32m+[m[32m        });[m
+[32m+[m[32m      } catch (error) {[m
+[32m+[m[32m        console.error('Error fetching database totals:', error);[m
+[32m+[m[32m      }[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    // Fetch immediately[m
+[32m+[m[32m    fetchDbTotals();[m
+[32m+[m[41m    [m
+[32m+[m[32m    // Set up periodic refresh every 30 seconds[m
+[32m+[m[32m    const interval = setInterval(fetchDbTotals, 30000);[m
+[32m+[m[41m    [m
+[32m+[m[32m    return () => clearInterval(interval);[m
+[32m+[m[32m  }, []);[m
+[32m+[m
+   // Seed edit form when opening edit modal[m
+   useEffect(() => {[m
+     if (editingAdoptable && showEditAdoptableModal) {[m
+[36m@@ -2804,7 +2875,7 @@[m [mconst ImpoundDashboard = () => {[m
+                 </div>[m
+                   <div className="ml-3 sm:ml-4">[m
+                         <p className="text-xs sm:text-sm font-medium text-blue-600">Total Reports</p>[m
+[31m-                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{(strayReports || []).length + (lostReports || []).length + (incidentReports || []).length}</p>[m
+[32m+[m[32m                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{dbTotals.totalReports}</p>[m
+                       </div>[m
+                     </div>[m
+                     <div className="text-right">[m
+[36m@@ -2825,7 +2896,7 @@[m [mconst ImpoundDashboard = () => {[m
+                 </div>[m
+                   <div className="ml-4">[m
+                         <p className="text-sm font-medium text-blue-600">Stray Reports</p>[m
+[31m-                        <p className="text-2xl font-bold text-gray-900">{(strayReports || []).length}</p>[m
+[32m+[m[32m                        <p className="text-2xl font-bold text-gray-900">{dbTotals.strayReports}</p>[m
+                       </div>[m
+                     </div>[m
+                     <div className="text-right">[m
+[36m@@ -2846,7 +2917,7 @@[m [mconst ImpoundDashboard = () => {[m
+                   </div>[m
+                   <div className="ml-4">[m
+                         <p className="text-sm font-medium text-blue-600">Lost Pet Reports</p>[m
+[31m-                        <p className="text-2xl font-bold text-gray-900">{(lostReports || []).length}</p>[m
+[32m+[m[32m                        <p className="text-2xl font-bold text-gray-900">{dbTotals.lostReports}</p>[m
+                       </div>[m
+                     </div>[m
+                     <div className="text-right">[m
+[36m@@ -2867,7 +2938,7 @@[m [mconst ImpoundDashboard = () => {[m
+                   </div>[m
+                   <div className="ml-4">[m
+                         <p className="text-sm font-medium text-blue-600">Incident Reports</p>[m
+[31m-                        <p className="text-2xl font-bold text-gray-900">{(incidentReports || []).length}</p>[m
+[32m+[m[32m                        <p className="text-2xl font-bold text-gray-900">{dbTotals.incidentReports}</p>[m
+                       </div>[m
+                     </div>[m
+                     <div className="text-right">[m
+[36m@@ -2888,7 +2959,7 @@[m [mconst ImpoundDashboard = () => {[m
+                   </div>[m
+                   <div className="ml-4">[m
+                         <p className="text-sm font-medium text-blue-600">Found Pet Reports</p>[m
+[31m-                        <p className="text-2xl font-bold text-gray-900">{(foundReports || []).length}</p>[m
+[32m+[m[32m                        <p className="text-2xl font-bold text-gray-900">{dbTotals.foundReports}</p>[m
+                       </div>[m
+                     </div>[m
+                     <div className="text-right">[m
+[36m@@ -2909,7 +2980,7 @@[m [mconst ImpoundDashboard = () => {[m
+                   </div>[m
+                   <div className="ml-4">[m
+                         <p className="text-sm font-medium text-blue-600">Adoption Applications</p>[m
+[31m-                        <p className="text-2xl font-bold text-gray-900">{(adoptionApplications || []).length}</p>[m
+[32m+[m[32m                        <p className="text-2xl font-bold text-gray-900">{dbTotals.adoptionApplications}</p>[m
+                       </div>[m
+                     </div>[m
+                     <div className="text-right">[m
+[36m@@ -2930,7 +3001,7 @@[m [mconst ImpoundDashboard = () => {[m
+                   </div>[m
+                   <div className="ml-4">[m
+                         <p className="text-sm font-medium text-blue-600">Adopted Pets</p>[m
+[31m-                        <p className="text-2xl font-bold text-gray-900">{(adoptedPets || []).length}</p>[m
+[32m+[m[32m                        <p className="text-2xl font-bold text-gray-900">{dbTotals.adoptedPets}</p>[m
+                       </div>[m
+                     </div>[m
+                     <div className="text-right">[m
+[36m@@ -3027,7 +3098,7 @@[m [mconst ImpoundDashboard = () => {[m
+                   </svg>[m
+                   </div>[m
+                 <div className="mt-4 flex justify-between text-sm text-white">[m
+[31m-                  <span>Total Adopted: {(adoptedPets || []).length}</span>[m
+[32m+[m[32m                  <span>Total Adopted: {dbTotals.adoptedPets}</span>[m
+                   <div className="flex items-center space-x-2">[m
+                     <span>Growth: {calculateAdoptedPetsGrowth(chartData) >= 0 ? '+' : ''}{calculateAdoptedPetsGrowth(chartData)}% this month</span>[m
+                     {isDataLoading && ([m
+[36m@@ -3119,7 +3190,7 @@[m [mconst ImpoundDashboard = () => {[m
+                   </svg>[m
+               </div>[m
+                 <div className="mt-4 flex justify-between text-sm text-white">[m
+[31m-                  <span>Total Reports: {(strayReports || []).length}</span>[m
+[32m+[m[32m                  <span>Total Reports: {dbTotals.strayReports}</span>[m
+                   <div className="flex items-center space-x-2">[m
+                     <span>Growth: {calculateStrayReportsGrowth(strayChartData) >= 0 ? '+' : ''}{calculateStrayReportsGrowth(strayChartData)}% this month</span>[m
+                     {isDataLoading && ([m

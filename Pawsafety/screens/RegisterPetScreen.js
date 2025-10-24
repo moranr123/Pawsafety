@@ -1397,7 +1397,7 @@ const RegisterPetScreen = ({ navigation }) => {
                 style={[styles.qrModalButton, styles.viewPetsButton]}
                 onPress={() => {
                   setShowQRModal(false);
-                  navigation.navigate('MyPets');
+                  navigation.navigate('Tabs', { screen: 'MyPets' });
                 }}
               >
                 <Text style={styles.qrModalButtonText}>View My Pets</Text>

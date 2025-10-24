@@ -437,6 +437,17 @@ const ImpoundDashboard = () => {
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [adoptionExpanded, setAdoptionExpanded] = useState(true);
   const [imageLoadingStates, setImageLoadingStates] = useState({});
+  
+  // Database totals for insights
+  const [dbTotals, setDbTotals] = useState({
+    totalReports: 0,
+    strayReports: 0,
+    lostReports: 0,
+    incidentReports: 0,
+    foundReports: 0,
+    adoptionApplications: 0,
+    adoptedPets: 0
+  });
 
   // Helper functions for image loading states
   const setImageLoading = (imageId, isLoading) => {
@@ -810,6 +821,66 @@ const ImpoundDashboard = () => {
       setAdoptedPets(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return unsubscribe;
+  }, []);
+
+  // Fetch database totals for insights
+  useEffect(() => {
+    const fetchDbTotals = async () => {
+      try {
+        // Fetch all stray reports count
+        const strayReportsQuery = query(collection(db, 'stray_reports'));
+        const strayReportsSnapshot = await getDocs(strayReportsQuery);
+        const strayReportsCount = strayReportsSnapshot.size;
+
+        // Fetch lost reports count
+        const lostReportsQuery = query(collection(db, 'stray_reports'), where('status', '==', 'Lost'));
+        const lostReportsSnapshot = await getDocs(lostReportsQuery);
+        const lostReportsCount = lostReportsSnapshot.size;
+
+        // Fetch incident reports count
+        const incidentReportsQuery = query(collection(db, 'stray_reports'), where('status', '==', 'Incident'));
+        const incidentReportsSnapshot = await getDocs(incidentReportsQuery);
+        const incidentReportsCount = incidentReportsSnapshot.size;
+
+        // Fetch found reports count (excluding those found by owner)
+        const foundReportsQuery = query(collection(db, 'stray_reports'), where('status', '==', 'Found'));
+        const foundReportsSnapshot = await getDocs(foundReportsQuery);
+        const foundReportsCount = foundReportsSnapshot.docs.filter(doc => doc.data().foundBy !== 'owner').length;
+
+        // Fetch adoption applications count
+        const adoptionAppsQuery = query(collection(db, 'adoption_applications'));
+        const adoptionAppsSnapshot = await getDocs(adoptionAppsQuery);
+        const adoptionAppsCount = adoptionAppsSnapshot.size;
+
+        // Fetch adopted pets count (transferred from impound)
+        const adoptedPetsQuery = query(collection(db, 'pets'), where('transferredFrom', '==', 'impound'));
+        const adoptedPetsSnapshot = await getDocs(adoptedPetsQuery);
+        const adoptedPetsCount = adoptedPetsSnapshot.size;
+
+        // Calculate total reports
+        const totalReportsCount = strayReportsCount;
+
+        setDbTotals({
+          totalReports: totalReportsCount,
+          strayReports: strayReportsCount,
+          lostReports: lostReportsCount,
+          incidentReports: incidentReportsCount,
+          foundReports: foundReportsCount,
+          adoptionApplications: adoptionAppsCount,
+          adoptedPets: adoptedPetsCount
+        });
+      } catch (error) {
+        console.error('Error fetching database totals:', error);
+      }
+    };
+
+    // Fetch immediately
+    fetchDbTotals();
+    
+    // Set up periodic refresh every 30 seconds
+    const interval = setInterval(fetchDbTotals, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Seed edit form when opening edit modal
@@ -2804,7 +2875,7 @@ const ImpoundDashboard = () => {
                 </div>
                   <div className="ml-3 sm:ml-4">
                         <p className="text-xs sm:text-sm font-medium text-blue-600">Total Reports</p>
-                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{(strayReports || []).length + (lostReports || []).length + (incidentReports || []).length}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{dbTotals.totalReports}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2825,7 +2896,7 @@ const ImpoundDashboard = () => {
                 </div>
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Stray Reports</p>
-                        <p className="text-2xl font-bold text-gray-900">{(strayReports || []).length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{dbTotals.strayReports}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2846,7 +2917,7 @@ const ImpoundDashboard = () => {
                   </div>
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Lost Pet Reports</p>
-                        <p className="text-2xl font-bold text-gray-900">{(lostReports || []).length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{dbTotals.lostReports}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2867,7 +2938,7 @@ const ImpoundDashboard = () => {
                   </div>
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Incident Reports</p>
-                        <p className="text-2xl font-bold text-gray-900">{(incidentReports || []).length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{dbTotals.incidentReports}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2888,7 +2959,7 @@ const ImpoundDashboard = () => {
                   </div>
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Found Pet Reports</p>
-                        <p className="text-2xl font-bold text-gray-900">{(foundReports || []).length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{dbTotals.foundReports}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2909,7 +2980,7 @@ const ImpoundDashboard = () => {
                   </div>
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Adoption Applications</p>
-                        <p className="text-2xl font-bold text-gray-900">{(adoptionApplications || []).length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{dbTotals.adoptionApplications}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -2930,7 +3001,7 @@ const ImpoundDashboard = () => {
                   </div>
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Adopted Pets</p>
-                        <p className="text-2xl font-bold text-gray-900">{(adoptedPets || []).length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{dbTotals.adoptedPets}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -3027,7 +3098,7 @@ const ImpoundDashboard = () => {
                   </svg>
                   </div>
                 <div className="mt-4 flex justify-between text-sm text-white">
-                  <span>Total Adopted: {(adoptedPets || []).length}</span>
+                  <span>Total Adopted: {dbTotals.adoptedPets}</span>
                   <div className="flex items-center space-x-2">
                     <span>Growth: {calculateAdoptedPetsGrowth(chartData) >= 0 ? '+' : ''}{calculateAdoptedPetsGrowth(chartData)}% this month</span>
                     {isDataLoading && (
@@ -3119,7 +3190,7 @@ const ImpoundDashboard = () => {
                   </svg>
               </div>
                 <div className="mt-4 flex justify-between text-sm text-white">
-                  <span>Total Reports: {(strayReports || []).length}</span>
+                  <span>Total Reports: {dbTotals.strayReports}</span>
                   <div className="flex items-center space-x-2">
                     <span>Growth: {calculateStrayReportsGrowth(strayChartData) >= 0 ? '+' : ''}{calculateStrayReportsGrowth(strayChartData)}% this month</span>
                     {isDataLoading && (

@@ -1060,31 +1060,6 @@ const getOwnerProfileImage = (pet) => {
               </div>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={async () => {
-                    console.log('🔄 Manually refreshing notifications...');
-                    try {
-                      const snapshot = await getDocs(collection(db, 'admin_notifications'));
-                      const notificationsList = snapshot.docs.map(doc => ({ 
-                        id: doc.id, 
-                        ...doc.data() 
-                      }));
-                      console.log('📋 Manual refresh - All notifications:', notificationsList);
-                      setNotifications(notificationsList);
-                      const unread = notificationsList.filter(notification => !notification.read).length;
-                      setUnreadCount(unread);
-                    } catch (error) {
-                      console.error('❌ Error manually refreshing notifications:', error);
-                    }
-                  }}
-                  className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors border border-blue-200 hover:border-blue-300 text-xs font-medium"
-                  title="Refresh notifications"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Refresh</span>
-                </button>
-                <button
                   onClick={() => {
                     deleteAllNotifications();
                     setShowNotifications(false);
