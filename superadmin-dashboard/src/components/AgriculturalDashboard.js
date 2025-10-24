@@ -185,12 +185,6 @@ const AgriculturalDashboard = () => {
 
   // Firebase data listeners
   useEffect(() => {
-    // Debug Firebase configuration
-    console.log('🔧 Firebase configuration check:');
-    console.log('Project ID:', process.env.REACT_APP_FIREBASE_PROJECT_ID);
-    console.log('Auth Domain:', process.env.REACT_APP_FIREBASE_AUTH_DOMAIN);
-    console.log('API Key:', process.env.REACT_APP_FIREBASE_API_KEY ? 'Set' : 'Not set');
-    
     // Listen to pets collection
     const petsQuery = query(collection(db, 'pets'), orderBy('createdAt', 'desc'));
     const unsubscribePets = onSnapshot(petsQuery, (snapshot) => {
@@ -340,11 +334,25 @@ const AgriculturalDashboard = () => {
 
     // Listen to admin notifications
     console.log('Setting up admin notifications listener...');
-    const adminNotificationsQuery = collection(db, 'admin_notifications');
+    console.log('Current user:', currentUser?.email, 'UID:', currentUser?.uid);
+    
+    const adminNotificationsQuery = query(collection(db, 'admin_notifications'), orderBy('createdAt', 'desc'));
     const unsubscribeNotifications = onSnapshot(
       adminNotificationsQuery, 
       (snapshot) => {
-        console.log('Admin notifications snapshot received:', snapshot.size, 'documents');
+        console.log('✅ Admin notifications snapshot received:', snapshot.size, 'documents');
+        
+        // Log doc changes for real-time updates
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            console.log('🆕 New notification added:', { 
+              id: change.doc.id, 
+              type: change.doc.data().type, 
+              title: change.doc.data().title 
+            });
+          }
+        });
+        
         const notificationsList = snapshot.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data() 
@@ -361,12 +369,12 @@ const AgriculturalDashboard = () => {
         
         // Sort manually by createdAt (newest first)
         notificationsList.sort((a, b) => {
-          const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
-          const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : (a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt));
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : (b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt));
           return dateB.getTime() - dateA.getTime();
         });
         
-        console.log('Parsed notifications:', notificationsList);
+        console.log('Parsed and sorted notifications:', notificationsList.length, 'total');
         setNotifications(notificationsList);
         
         // Count unread notifications
@@ -382,7 +390,10 @@ const AgriculturalDashboard = () => {
       }
     },
     (error) => {
-      console.error('Error listening to admin notifications:', error);
+      console.error('❌ Error listening to admin notifications:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      console.error('Full error:', error);
     }
   );
 

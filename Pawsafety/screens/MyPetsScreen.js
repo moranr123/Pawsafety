@@ -77,12 +77,20 @@ const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onDeletePet, onReportLos
       
       {/* Status Buttons */}
       <View style={styles.statusButtonsContainer}>
-        <TouchableOpacity 
-          style={[styles.statusButton, styles.deceasedButton]} 
-          onPress={() => onUpdateStatus(pet.id, pet.petName)}
-        >
-          <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
-        </TouchableOpacity>
+        {pet.registrationStatus === 'registered' ? (
+          <TouchableOpacity 
+            style={[styles.statusButton, styles.deceasedButton]} 
+            onPress={() => onUpdateStatus(pet.id, pet.petName)}
+          >
+            <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
+          </TouchableOpacity>
+        ) : (
+          <View 
+            style={[styles.statusButton, styles.deceasedButton, styles.disabledButton]}
+          >
+            <Text style={[styles.statusButtonText, styles.disabledButtonText]}>🕊️ Mark Deceased (Registration Required)</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.actionButtons}>
@@ -896,7 +904,7 @@ const MyPetsScreen = ({ navigation }) => {
                 petType: pet.petType,
                 petStatus: 'deceased',
                 read: false,
-                createdAt: new Date()
+                createdAt: serverTimestamp()
               };
               
               console.log('📝 Notification data:', notificationData);
