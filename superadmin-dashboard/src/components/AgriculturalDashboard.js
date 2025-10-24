@@ -215,24 +215,39 @@ const AgriculturalDashboard = () => {
           }
         } else if (change.type === 'removed') {
           const deletedPet = { id: change.doc.id, ...change.doc.data() };
-          console.log('🗑️ Pet deleted:', deletedPet.petName);
+          console.log('🗑️ Pet removed from collection:', deletedPet.petName);
           
-          // Create admin notification for pet deletion
-          try {
-            await addDoc(collection(db, 'admin_notifications'), {
-              type: 'pet_deleted',
-              title: 'Pet Deleted',
-              message: `Pet "${deletedPet.petName}" (${deletedPet.petType || 'Unknown Type'}) has been deleted by ${deletedPet.ownerFullName || 'Unknown Owner'}`,
-              petId: deletedPet.id,
-              petName: deletedPet.petName,
-              ownerName: deletedPet.ownerFullName,
-              petType: deletedPet.petType,
-              read: false,
-              createdAt: new Date()
-            });
-            console.log('✅ Admin notification created for pet deletion:', deletedPet.petName);
-          } catch (error) {
-            console.error('❌ Error creating admin notification for pet deletion:', error);
+          // Check if this removal was due to marking as deceased by looking for recent deceased notifications
+          // This prevents duplicate notifications when pets are marked as deceased
+          const recentDeceasedNotifications = notifications.filter(n => 
+            n.type === 'pet_deceased' && 
+            n.petId === deletedPet.id &&
+            n.createdAt && 
+            (n.createdAt.toDate ? n.createdAt.toDate() : new Date(n.createdAt)) > new Date(Date.now() - 5000) // Within last 5 seconds
+          );
+          
+          if (recentDeceasedNotifications.length > 0) {
+            console.log('🕊️ Pet marked as deceased, skipping pet_deleted notification:', deletedPet.petName);
+          } else {
+            console.log('🗑️ Pet actually deleted (not deceased):', deletedPet.petName);
+            
+            // Create admin notification for pet deletion
+            try {
+              await addDoc(collection(db, 'admin_notifications'), {
+                type: 'pet_deleted',
+                title: 'Pet Deleted',
+                message: `Pet "${deletedPet.petName}" (${deletedPet.petType || 'Unknown Type'}) has been deleted by ${deletedPet.ownerFullName || 'Unknown Owner'}`,
+                petId: deletedPet.id,
+                petName: deletedPet.petName,
+                ownerName: deletedPet.ownerFullName,
+                petType: deletedPet.petType,
+                read: false,
+                createdAt: new Date()
+              });
+              console.log('✅ Admin notification created for pet deletion:', deletedPet.petName);
+            } catch (error) {
+              console.error('❌ Error creating admin notification for pet deletion:', error);
+            }
           }
         }
       });
@@ -2277,7 +2292,7 @@ const getOwnerProfileImage = (pet) => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     ) : (
-                      <FileText className="h-6 w-6" />
+                    <FileText className="h-6 w-6" />
                     )}
                   </div>
                   <div>
@@ -2533,9 +2548,9 @@ const getOwnerProfileImage = (pet) => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     ) : (
-                      <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                    <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     )}
                     <div>
                       <h4 className={`text-sm font-semibold mb-1 ${
