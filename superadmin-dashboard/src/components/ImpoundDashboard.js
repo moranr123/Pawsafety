@@ -394,6 +394,21 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
 
 const ImpoundDashboard = () => {
   const { currentUser, logout } = useAuth();
+  
+  // Function to open Google Maps with coordinates
+  const openGoogleMaps = (location, locationName) => {
+    if (!location || !location.latitude || !location.longitude) {
+      alert('Location coordinates not available');
+      return;
+    }
+    
+    const { latitude, longitude } = location;
+    const encodedLocationName = encodeURIComponent(locationName || 'Pet Location');
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+    
+    // Open in new tab
+    window.open(googleMapsUrl, '_blank');
+  };
   const [activeTab, setActiveTab] = useState('analytics');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeApplicationTab, setActiveApplicationTab] = useState('pending');
@@ -2126,7 +2141,15 @@ const ImpoundDashboard = () => {
                           </button>
                           </div>
                                 </div>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{notification.locationName || 'Unknown location'}</p>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                          <button 
+                            onClick={() => openGoogleMaps(notification.location, notification.locationName)}
+                            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                            title="Click to open in Google Maps"
+                          >
+                            {notification.locationName || 'Unknown location'}
+                          </button>
+                        </p>
                                 <div className="flex items-center justify-between mt-2">
                           <p className="text-xs text-gray-400">{notification.reportTime?.toDate?.()?.toLocaleString() || 'Recently'}</p>
                           <button
@@ -2190,7 +2213,13 @@ const ImpoundDashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      <p className="text-xs sm:text-sm text-gray-600 truncate">{r.locationName || 'N/A'}</p>
+                      <button 
+                        onClick={() => openGoogleMaps(r.location, r.locationName)}
+                        className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline truncate cursor-pointer text-left"
+                        title="Click to open in Google Maps"
+                      >
+                        {r.locationName || 'N/A'}
+                      </button>
                 </div>
                     <div className="flex items-center mb-2 sm:mb-3">
                       <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2259,7 +2288,13 @@ const ImpoundDashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      <p className="text-xs sm:text-sm text-gray-600 truncate">{r.locationName || 'N/A'}</p>
+                      <button 
+                        onClick={() => openGoogleMaps(r.location, r.locationName)}
+                        className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline truncate cursor-pointer text-left"
+                        title="Click to open in Google Maps"
+                      >
+                        {r.locationName || 'N/A'}
+                      </button>
                 </div>
                     <div className="flex items-center mb-2 sm:mb-3">
                       <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2396,7 +2431,13 @@ const ImpoundDashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      <p className="text-xs sm:text-sm text-gray-600 truncate">{r.locationName || 'N/A'}</p>
+                      <button 
+                        onClick={() => openGoogleMaps(r.location, r.locationName)}
+                        className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline truncate cursor-pointer text-left"
+                        title="Click to open in Google Maps"
+                      >
+                        {r.locationName || 'N/A'}
+                      </button>
                     </div>
                     <div className="flex items-center mb-2 sm:mb-3">
                       <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3452,7 +3493,13 @@ const ImpoundDashboard = () => {
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">Location:</span>
-                          <p className="text-gray-900 font-medium">{selectedReport.locationName || 'Not provided'}</p>
+                          <button 
+                            onClick={() => openGoogleMaps(selectedReport.location, selectedReport.locationName)}
+                            className="text-gray-900 font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                            title="Click to open in Google Maps"
+                          >
+                            {selectedReport.locationName || 'Not provided'}
+                          </button>
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">Report Date:</span>
@@ -3987,7 +4034,14 @@ const ImpoundDashboard = () => {
                   Please provide a reason for declining this incident report:
                 </p>
                 <p className="text-sm text-gray-500 mb-3">
-                  <strong>Location:</strong> {selectedIncidentForDecline.locationName || 'N/A'}
+                  <strong>Location:</strong> 
+                  <button 
+                    onClick={() => openGoogleMaps(selectedIncidentForDecline.location, selectedIncidentForDecline.locationName)}
+                    className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
+                    title="Click to open in Google Maps"
+                  >
+                    {selectedIncidentForDecline.locationName || 'N/A'}
+                  </button>
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
                   <strong>Description:</strong> {selectedIncidentForDecline.description ? 
@@ -4056,7 +4110,14 @@ const ImpoundDashboard = () => {
                   Please provide a reason for declining this stray report:
                 </p>
                 <p className="text-sm text-gray-500 mb-3">
-                  <strong>Location:</strong> {selectedStrayForDecline.locationName || 'N/A'}
+                  <strong>Location:</strong> 
+                  <button 
+                    onClick={() => openGoogleMaps(selectedStrayForDecline.location, selectedStrayForDecline.locationName)}
+                    className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
+                    title="Click to open in Google Maps"
+                  >
+                    {selectedStrayForDecline.locationName || 'N/A'}
+                  </button>
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
                   <strong>Description:</strong> {selectedStrayForDecline.description ? 
@@ -4182,7 +4243,15 @@ const ImpoundDashboard = () => {
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">Location:</span>
-                          <p className="text-gray-900 font-medium">{selectedNotification.locationName || 'Not provided'}</p>
+                          <p className="text-gray-900 font-medium">
+                            <button 
+                              onClick={() => openGoogleMaps(selectedNotification.location, selectedNotification.locationName)}
+                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                              title="Click to open in Google Maps"
+                            >
+                              {selectedNotification.locationName || 'Not provided'}
+                            </button>
+                          </p>
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">Report Date:</span>
