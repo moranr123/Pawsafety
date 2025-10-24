@@ -190,7 +190,7 @@ const AgriculturalDashboard = () => {
     const unsubscribePets = onSnapshot(petsQuery, (snapshot) => {
       const allPets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Check for new pets and create admin notifications
+      // Check for pet changes and create admin notifications
       snapshot.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
           const newPet = { id: change.doc.id, ...change.doc.data() };
@@ -212,6 +212,27 @@ const AgriculturalDashboard = () => {
             console.log('✅ Admin notification created for new pet:', newPet.petName);
           } catch (error) {
             console.error('❌ Error creating admin notification for new pet:', error);
+          }
+        } else if (change.type === 'removed') {
+          const deletedPet = { id: change.doc.id, ...change.doc.data() };
+          console.log('🗑️ Pet deleted:', deletedPet.petName);
+          
+          // Create admin notification for pet deletion
+          try {
+            await addDoc(collection(db, 'admin_notifications'), {
+              type: 'pet_deleted',
+              title: 'Pet Deleted',
+              message: `Pet "${deletedPet.petName}" (${deletedPet.petType || 'Unknown Type'}) has been deleted by ${deletedPet.ownerFullName || 'Unknown Owner'}`,
+              petId: deletedPet.id,
+              petName: deletedPet.petName,
+              ownerName: deletedPet.ownerFullName,
+              petType: deletedPet.petType,
+              read: false,
+              createdAt: new Date()
+            });
+            console.log('✅ Admin notification created for pet deletion:', deletedPet.petName);
+          } catch (error) {
+            console.error('❌ Error creating admin notification for pet deletion:', error);
           }
         }
       });
