@@ -2258,15 +2258,31 @@ const getOwnerProfileImage = (pet) => {
             data-notification-detail-modal
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+            <div className={`p-6 text-white ${
+              selectedNotification.type === 'pet_deleted' 
+                ? 'bg-gradient-to-r from-red-600 to-red-700'
+                : selectedNotification.type === 'pet_deceased'
+                ? 'bg-gradient-to-r from-gray-600 to-gray-700'
+                : 'bg-gradient-to-r from-blue-600 to-purple-600'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mr-4">
-                    <FileText className="h-6 w-6" />
+                    {selectedNotification.type === 'pet_deleted' ? (
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    ) : selectedNotification.type === 'pet_deceased' ? (
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <FileText className="h-6 w-6" />
+                    )}
                   </div>
                   <div>
                     <h2 className="text-xl font-bold">Notification Details</h2>
-                    <p className="text-blue-100 text-sm">
+                    <p className="text-white/80 text-sm">
                       {selectedNotification.title || 'Pet Registration Notification'}
                     </p>
                   </div>
@@ -2289,15 +2305,67 @@ const getOwnerProfileImage = (pet) => {
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="space-y-6">
 
-                {/* Pet Owner's Input Details */}
+                {/* Notification Message */}
+                <div className={`p-4 rounded-lg border ${
+                  selectedNotification.type === 'pet_deleted' 
+                    ? 'bg-red-50 border-red-200'
+                    : selectedNotification.type === 'pet_deceased'
+                    ? 'bg-gray-50 border-gray-200'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <div className="flex items-start">
+                    {selectedNotification.type === 'pet_deleted' ? (
+                      <svg className="h-5 w-5 text-red-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    ) : selectedNotification.type === 'pet_deceased' ? (
+                      <svg className="h-5 w-5 text-gray-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    )}
+                    <div>
+                      <h4 className={`text-sm font-semibold mb-1 ${
+                        selectedNotification.type === 'pet_deleted' 
+                          ? 'text-red-900'
+                          : selectedNotification.type === 'pet_deceased'
+                          ? 'text-gray-900'
+                          : 'text-blue-900'
+                      }`}>
+                        {selectedNotification.title || 'Notification'}
+                      </h4>
+                      <p className={`text-sm ${
+                        selectedNotification.type === 'pet_deleted' 
+                          ? 'text-red-700'
+                          : selectedNotification.type === 'pet_deceased'
+                          ? 'text-gray-700'
+                          : 'text-blue-700'
+                      }`}>
+                        {selectedNotification.message || 'No additional details available.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pet Details - Only show if pet exists and notification has petId */}
                 {selectedNotification.petId && (() => {
                   const petDetails = pets.find(pet => pet.id === selectedNotification.petId);
                   return petDetails ? (
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Pet Owner's Registration Details</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        {selectedNotification.type === 'pet_deleted' 
+                          ? 'Deleted Pet Information'
+                          : selectedNotification.type === 'pet_deceased'
+                          ? 'Deceased Pet Information'
+                          : 'Pet Registration Details'
+                        }
+                      </label>
                       <div className="p-4 bg-gray-50 rounded-lg">
-                        {/* Pet Image */}
-                        {petDetails.petImage || petDetails.imageUrl || petDetails.image ? (
+                        {/* Pet Image - Only show for non-deleted pets */}
+                        {selectedNotification.type !== 'pet_deleted' && (petDetails.petImage || petDetails.imageUrl || petDetails.image) && (
                           <div className="mb-6">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">Pet Image</label>
                             <div className="relative">
@@ -2321,7 +2389,7 @@ const getOwnerProfileImage = (pet) => {
                               </div>
                             </div>
                           </div>
-                        ) : null}
+                        )}
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Pet Details */}
@@ -2373,28 +2441,130 @@ const getOwnerProfileImage = (pet) => {
                               <p className="text-gray-900 font-medium">{petDetails.address || 'Not provided'}</p>
                             </div>
                             <div>
-                              <span className="text-sm text-gray-600">Registration Date:</span>
+                              <span className="text-sm text-gray-600">
+                                {selectedNotification.type === 'pet_deleted' 
+                                  ? 'Deleted Date:'
+                                  : selectedNotification.type === 'pet_deceased'
+                                  ? 'Deceased Date:'
+                                  : 'Registration Date:'
+                                }
+                              </span>
                               <p className="text-gray-900 font-medium">
-                                {petDetails.createdAt?.toDate ? petDetails.createdAt.toDate().toLocaleDateString() : 'Not available'}
+                                {selectedNotification.createdAt?.toDate ? selectedNotification.createdAt.toDate().toLocaleDateString() : 
+                                 petDetails.createdAt?.toDate ? petDetails.createdAt.toDate().toLocaleDateString() : 'Not available'}
                               </p>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  ) : null;
+                  ) : (
+                    <div className={`p-4 rounded-lg border ${
+                      selectedNotification.type === 'pet_deleted' 
+                        ? 'bg-red-50 border-red-200'
+                        : selectedNotification.type === 'pet_deceased'
+                        ? 'bg-gray-50 border-gray-200'
+                        : 'bg-yellow-50 border-yellow-200'
+                    }`}>
+                      <div className="flex items-start">
+                        {selectedNotification.type === 'pet_deleted' ? (
+                          <svg className="h-5 w-5 text-red-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        ) : selectedNotification.type === 'pet_deceased' ? (
+                          <svg className="h-5 w-5 text-gray-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        ) : (
+                          <svg className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                        )}
+                        <div>
+                          <h4 className={`text-sm font-semibold mb-1 ${
+                            selectedNotification.type === 'pet_deleted' 
+                              ? 'text-red-900'
+                              : selectedNotification.type === 'pet_deceased'
+                              ? 'text-gray-900'
+                              : 'text-yellow-900'
+                          }`}>
+                            {selectedNotification.type === 'pet_deleted' 
+                              ? 'Pet No Longer Available'
+                              : selectedNotification.type === 'pet_deceased'
+                              ? 'Pet Information Unavailable'
+                              : 'Pet Details Not Found'
+                            }
+                          </h4>
+                          <p className={`text-sm ${
+                            selectedNotification.type === 'pet_deleted' 
+                              ? 'text-red-700'
+                              : selectedNotification.type === 'pet_deceased'
+                              ? 'text-gray-700'
+                              : 'text-yellow-700'
+                          }`}>
+                            {selectedNotification.type === 'pet_deleted' 
+                              ? 'This pet has been permanently deleted from the system and its details are no longer available.'
+                              : selectedNotification.type === 'pet_deceased'
+                              ? 'This pet has been marked as deceased and its details may no longer be accessible.'
+                              : 'The pet details referenced in this notification could not be found in the system.'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
                 })()}
 
                 {/* Additional Information */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className={`border rounded-lg p-4 ${
+                  selectedNotification.type === 'pet_deleted' 
+                    ? 'bg-red-50 border-red-200'
+                    : selectedNotification.type === 'pet_deceased'
+                    ? 'bg-gray-50 border-gray-200'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
                   <div className="flex items-start">
-                    <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    {selectedNotification.type === 'pet_deleted' ? (
+                      <svg className="h-5 w-5 text-red-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : selectedNotification.type === 'pet_deceased' ? (
+                      <svg className="h-5 w-5 text-gray-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    )}
                     <div>
-                      <h4 className="text-sm font-semibold text-blue-900 mb-1">Notification Information</h4>
-                      <p className="text-sm text-blue-700">
-                        This notification was generated when a new pet registration was submitted. You can review and manage pet registrations from the Pet Registration tab.
+                      <h4 className={`text-sm font-semibold mb-1 ${
+                        selectedNotification.type === 'pet_deleted' 
+                          ? 'text-red-900'
+                          : selectedNotification.type === 'pet_deceased'
+                          ? 'text-gray-900'
+                          : 'text-blue-900'
+                      }`}>
+                        {selectedNotification.type === 'pet_deleted' 
+                          ? 'Deletion Information'
+                          : selectedNotification.type === 'pet_deceased'
+                          ? 'Deceased Pet Information'
+                          : 'Notification Information'
+                        }
+                      </h4>
+                      <p className={`text-sm ${
+                        selectedNotification.type === 'pet_deleted' 
+                          ? 'text-red-700'
+                          : selectedNotification.type === 'pet_deceased'
+                          ? 'text-gray-700'
+                          : 'text-blue-700'
+                      }`}>
+                        {selectedNotification.type === 'pet_deleted' 
+                          ? 'This notification was generated when a pet was permanently deleted from the system. The pet owner has been notified of this action.'
+                          : selectedNotification.type === 'pet_deceased'
+                          ? 'This notification was generated when a pet was marked as deceased. The pet owner has been notified of this status change.'
+                          : 'This notification was generated when a new pet registration was submitted. You can review and manage pet registrations from the Pet Registration tab.'
+                        }
                       </p>
                     </div>
                   </div>
