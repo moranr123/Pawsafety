@@ -10,7 +10,8 @@ import {
   Modal,
   ActivityIndicator,
   TextInput,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as Location from 'expo-location';
@@ -287,25 +288,25 @@ const MyPetsScreen = ({ navigation }) => {
   },
   actionButtons: {
     flexDirection: 'row',
-      flexWrap: 'wrap',
-      paddingHorizontal: 20,
-      paddingVertical: 20,
-      paddingTop: 12,
-      gap: 12,
-      backgroundColor: '#E0F2FE',
-      borderTopWidth: 3,
-      borderTopColor: '#0EA5E9',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingTop: 12,
+    backgroundColor: '#E0F2FE',
+    borderTopWidth: 3,
+    borderTopColor: '#0EA5E9',
+    justifyContent: 'space-between',
   },
   actionButton: {
-      width: '48%',
-      borderRadius: 16,
-      paddingVertical: 16,
-      paddingHorizontal: 18,
+    width: Platform.OS === 'android' ? '48%' : '48%',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: Platform.OS === 'android' ? 12 : 18,
     alignItems: 'center',
     justifyContent: 'center',
-      flexDirection: 'row',
-      gap: 8,
+    flexDirection: 'row',
     elevation: 2,
+    marginBottom: 12,
   },
   qrButton: {
       backgroundColor: '#1D4ED8',
