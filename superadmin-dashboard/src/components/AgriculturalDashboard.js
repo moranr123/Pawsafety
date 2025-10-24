@@ -185,6 +185,12 @@ const AgriculturalDashboard = () => {
 
   // Firebase data listeners
   useEffect(() => {
+    // Debug Firebase configuration
+    console.log('🔧 Firebase configuration check:');
+    console.log('Project ID:', process.env.REACT_APP_FIREBASE_PROJECT_ID);
+    console.log('Auth Domain:', process.env.REACT_APP_FIREBASE_AUTH_DOMAIN);
+    console.log('API Key:', process.env.REACT_APP_FIREBASE_API_KEY ? 'Set' : 'Not set');
+    
     // Listen to pets collection
     const petsQuery = query(collection(db, 'pets'), orderBy('createdAt', 'desc'));
     const unsubscribePets = onSnapshot(petsQuery, (snapshot) => {
