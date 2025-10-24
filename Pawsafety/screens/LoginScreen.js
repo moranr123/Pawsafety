@@ -142,7 +142,48 @@ const LoginScreen = ({ navigation }) => {
       
       // Navigation will be handled by auth state change
     } catch (error) {
-      Alert.alert('Login Error', error.message);
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      let errorTitle = 'Login Error';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorTitle = 'Account Not Found';
+          errorMessage = 'No account found with this email address. Please check your email or sign up for a new account.';
+          break;
+        case 'auth/wrong-password':
+          errorTitle = 'Incorrect Password';
+          errorMessage = 'The password you entered is incorrect. Please try again or reset your password.';
+          break;
+        case 'auth/invalid-email':
+          errorTitle = 'Invalid Email';
+          errorMessage = 'Please enter a valid email address.';
+          break;
+        case 'auth/invalid-credential':
+          errorTitle = 'Invalid Credentials';
+          errorMessage = 'The email or password you entered is incorrect. Please check your credentials and try again.';
+          break;
+        case 'auth/user-disabled':
+          errorTitle = 'Account Disabled';
+          errorMessage = 'This account has been disabled. Please contact support for assistance.';
+          break;
+        case 'auth/too-many-requests':
+          errorTitle = 'Too Many Attempts';
+          errorMessage = 'Too many failed login attempts. Please try again later or reset your password.';
+          break;
+        case 'auth/network-request-failed':
+          errorTitle = 'Network Error';
+          errorMessage = 'Please check your internet connection and try again.';
+          break;
+        case 'auth/operation-not-allowed':
+          errorTitle = 'Login Not Allowed';
+          errorMessage = 'Email/password login is not enabled. Please contact support.';
+          break;
+        default:
+          // For any other errors, show a generic message
+          errorMessage = error.message || 'An unexpected error occurred. Please try again.';
+      }
+      
+      Alert.alert(errorTitle, errorMessage);
     } finally {
       setLoading(false);
     }
