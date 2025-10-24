@@ -400,6 +400,7 @@ const ImpoundDashboard = () => {
   const [strayReports, setStrayReports] = useState([]);
   const [lostReports, setLostReports] = useState([]);
   const [incidentReports, setIncidentReports] = useState([]);
+  const [foundReports, setFoundReports] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [adoptionApplications, setAdoptionApplications] = useState([]);
   const [adoptablePets, setAdoptablePets] = useState([]);
@@ -707,6 +708,8 @@ const ImpoundDashboard = () => {
       setStrayReports(rows.filter((r) => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'));
       setLostReports(rows.filter((r) => (r.status || '').toLowerCase() === 'lost'));
       setIncidentReports(rows.filter((r) => (r.status || '').toLowerCase() === 'incident'));
+      // Only show found reports that were NOT marked as found by the owner
+      setFoundReports(rows.filter((r) => (r.status || '').toLowerCase() === 'found' && r.foundBy !== 'owner'));
 
       // Push notifications for new reports (stray, lost, or incident)
       if (!initialReportsLoadedRef.current) {
@@ -1669,6 +1672,28 @@ const ImpoundDashboard = () => {
                 )}
               </button>
               
+              <button
+                onClick={() => {
+                  setActiveTab('found');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'found'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <div className="flex items-center">
+                  <CheckCircle2 className="h-5 w-5 mr-3" />
+                  Found Pet Reports
+                </div>
+                {(foundReports || []).length > 0 && (
+                  <span className="bg-red-500 text-white text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center">
+                    {(foundReports || []).length > 99 ? '99+' : (foundReports || []).length}
+                  </span>
+                )}
+              </button>
+              
               <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">Adoption</div>
               
               <button
@@ -1816,7 +1841,7 @@ const ImpoundDashboard = () => {
               <button
                 onClick={() => setReportsExpanded(!reportsExpanded)}
                 className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                  ['stray', 'lost', 'incident'].includes(activeTab)
+                  ['stray', 'lost', 'incident', 'found'].includes(activeTab)
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                     : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
                 } flex items-center justify-between`}
@@ -1890,6 +1915,24 @@ const ImpoundDashboard = () => {
                     {(incidentReports || []).length > 0 && (
                       <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white">
                         {(incidentReports || []).length > 99 ? '99+' : (incidentReports || []).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Found Pet Reports */}
+                  <button
+                    onClick={() => setActiveTab('found')}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'found' 
+                        ? 'bg-slate-700 text-white shadow-md' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Found Reports</span>
+                    {(foundReports || []).length > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs bg-red-500 text-white">
+                        {(foundReports || []).length > 99 ? '99+' : (foundReports || []).length}
                       </span>
                     )}
                   </button>
@@ -2314,6 +2357,79 @@ const ImpoundDashboard = () => {
           </div>
         )}
 
+        {activeTab === 'found' && (
+          <div className="bg-gradient-to-b from-green-50 to-emerald-50 shadow-2xl rounded-xl p-4 sm:p-6 border border-green-200">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 flex items-center">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-green-600 to-emerald-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              Found Pet Reports
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              {foundReports.map((r) => (
+                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                  {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
+                    <ImageWithLoading
+                      src={r.imageUrl}
+                      alt={r.petName || 'Found Pet'}
+                      className="w-full h-40 object-cover"
+                      imageId={`found-${r.id}`}
+                      fallbackContent={
+                        <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
+                          {r.imageUrl && r.imageUrl.startsWith('file://') ? 'Old Report' : 'No Image'}
+                        </div>
+                      }
+                    />
+                  ) : (
+                    <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
+                      {r.imageUrl && r.imageUrl.startsWith('file://') ? 'Old Report' : 'No Image'}
+                    </div>
+                  )}
+                  <div className="p-3 sm:p-4 flex flex-col items-center text-center flex-1">
+                    <p className="text-sm sm:text-base font-semibold text-gray-900 truncate w-full mb-2">
+                      {r.petName ? `${r.petName} (${r.breed || r.petType || 'Pet'})` : (r.breed || r.petType || 'Found pet')}
+                    </p>
+                    <div className="flex items-center mb-1.5 sm:mb-2">
+                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <p className="text-xs sm:text-sm text-gray-600 truncate">{r.locationName || 'N/A'}</p>
+                    </div>
+                    <div className="flex items-center mb-2 sm:mb-3">
+                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <p className="text-xs sm:text-sm text-gray-600 truncate">{r.contactNumber || 'N/A'}</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5 sm:gap-2 w-full mt-auto">
+                      <button onClick={() => openReportDetails(r)} className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>View Details</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {foundReports.length === 0 && (
+                <div className="col-span-full text-center text-sm text-green-600 py-8">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  No found pet reports at the moment
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'adoption' && (
           <div className="bg-gradient-to-b from-emerald-50 to-teal-50 shadow-2xl rounded-xl p-6 border border-emerald-200">
             <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
@@ -2699,6 +2815,27 @@ const ImpoundDashboard = () => {
                   <div className="ml-4">
                         <p className="text-sm font-medium text-blue-600">Incident Reports</p>
                         <p className="text-2xl font-bold text-gray-900">{(incidentReports || []).length}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
+                    </div>
+              </div>
+            </div>
+          </div>
+
+              <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                          <CheckCircle2 className="h-6 w-6 text-white" />
+                        </div>
+                  </div>
+                  <div className="ml-4">
+                        <p className="text-sm font-medium text-blue-600">Found Pet Reports</p>
+                        <p className="text-2xl font-bold text-gray-900">{(foundReports || []).length}</p>
                       </div>
                     </div>
                     <div className="text-right">
