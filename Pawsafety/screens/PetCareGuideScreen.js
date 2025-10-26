@@ -508,7 +508,11 @@ const PetCareGuideScreen = ({ navigation }) => {
                 color={isFavorite ? '#E74C3C' : COLORS.secondaryText} 
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={() => toggleSection(section.id)}
+              activeOpacity={0.7}
+            >
               <Ionicons 
                 name={isExpanded ? 'chevron-up' : 'chevron-down'} 
                 size={18} 

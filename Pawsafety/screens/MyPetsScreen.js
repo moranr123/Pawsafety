@@ -1448,7 +1448,7 @@ Thank you for helping reunite pets with their families! ❤️`;
     // Report Lost Modal Styles
     reportModalContent: {
       backgroundColor: COLORS.white,
-      borderRadius: RADIUS.large,
+      borderRadius: RADIUS.large, 
       maxHeight: '85%',
       width: '90%',
       alignSelf: 'center',
