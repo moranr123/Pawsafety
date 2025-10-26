@@ -386,14 +386,14 @@ const StraysScreen = ({ navigation }) => {
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-end',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     modalContainer: {
       backgroundColor: '#FFFFFF',
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      maxHeight: '90%',
-      minHeight: '60%',
+      width: '95%',
+      height: '90%',
+      borderRadius: 24,
       ...SHADOWS.heavy,
     },
     modernHeader: {
@@ -401,11 +401,16 @@ const StraysScreen = ({ navigation }) => {
       justifyContent: 'space-between',
       alignItems: 'flex-start',
       paddingHorizontal: 24,
-      paddingTop: 20,
+      paddingTop: 50,
       paddingBottom: 16,
     },
     headerContent: {
       flex: 1,
+    },
+    modalCloseButton: {
+      padding: 8,
+      borderRadius: 20,
+      backgroundColor: '#F3F4F6',
     },
     modernTitle: {
       fontSize: 28,
@@ -420,6 +425,7 @@ const StraysScreen = ({ navigation }) => {
     },
     modernScrollView: {
       flex: 1,
+      paddingBottom: 20,
     },
     heroImageContainer: {
       position: 'relative',
@@ -818,6 +824,12 @@ const StraysScreen = ({ navigation }) => {
                 <Text style={styles.modernTitle}>Report Details</Text>
                 <Text style={styles.modernSubtitle}>Stray pet information</Text>
               </View>
+              <TouchableOpacity 
+                onPress={() => setModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <MaterialIcons name="close" size={28} color="#111827" />
+              </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
@@ -926,16 +938,6 @@ const StraysScreen = ({ navigation }) => {
               )}
 
             </ScrollView>
-
-            {/* Modern Action Buttons */}
-            <View style={styles.modernActionContainer}>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                style={styles.modernCloseBtn}
-              >
-                <Text style={styles.modernCloseBtnText}>Close</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>

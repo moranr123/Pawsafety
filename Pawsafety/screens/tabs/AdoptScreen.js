@@ -495,14 +495,14 @@ const AdoptScreen = () => {
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-end',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     modalContainer: {
       backgroundColor: '#FFFFFF',
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      maxHeight: '90%',
-      minHeight: '60%',
+      width: '95%',
+      height: '90%',
+      borderRadius: 24,
       ...SHADOWS.heavy,
     },
     modernHeader: {
@@ -510,11 +510,16 @@ const AdoptScreen = () => {
       justifyContent: 'space-between',
       alignItems: 'flex-start',
       paddingHorizontal: 24,
-      paddingTop: 20,
+      paddingTop: 50,
       paddingBottom: 16,
     },
     headerContent: {
       flex: 1,
+    },
+    modalCloseButton: {
+      padding: 8,
+      borderRadius: 20,
+      backgroundColor: '#F3F4F6',
     },
     modernTitle: {
       fontSize: 28,
@@ -529,6 +534,7 @@ const AdoptScreen = () => {
     },
     modernScrollView: {
       flex: 1,
+      paddingBottom: 20,
     },
     heroImageContainer: {
       position: 'relative',
@@ -590,6 +596,7 @@ const AdoptScreen = () => {
       backgroundColor: '#F8FAFC',
       borderRadius: 16,
       padding: 20,
+      overflow: 'hidden',
     },
     petDetailItem: {
       flexDirection: 'row',
@@ -597,6 +604,9 @@ const AdoptScreen = () => {
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: '#E5E7EB',
+    },
+    petDetailItemLast: {
+      borderBottomWidth: 0,
     },
     petDetailIcon: {
       width: 40,
@@ -747,6 +757,8 @@ const AdoptScreen = () => {
       backgroundColor: '#FFFFFF',
       borderTopWidth: 1,
       borderTopColor: '#F3F4F6',
+      borderBottomLeftRadius: 24,
+      borderBottomRightRadius: 24,
     },
     modernCloseBtn: {
       flex: 1,
@@ -761,7 +773,7 @@ const AdoptScreen = () => {
       color: '#374151',
     },
     modernAdoptBtn: {
-      flex: 2,
+      flex: 1,
       backgroundColor: '#8B5CF6',
       paddingVertical: 16,
       borderRadius: 12,
@@ -1090,6 +1102,12 @@ const AdoptScreen = () => {
                 <Text style={styles.modernTitle}>Pet Details</Text>
                 <Text style={styles.modernSubtitle}>Meet your new companion</Text>
               </View>
+              <TouchableOpacity 
+                onPress={() => setDetailsVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <MaterialIcons name="close" size={28} color="#111827" />
+              </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
@@ -1166,7 +1184,7 @@ const AdoptScreen = () => {
                 </View>
                 
                 {selectedPet?.age && (
-                  <View style={styles.petDetailItem}>
+                  <View style={[styles.petDetailItem, !selectedPet?.location && styles.petDetailItemLast]}>
                     <View style={styles.petDetailIcon}>
                       <MaterialIcons name="cake" size={20} color="#10B981" />
                     </View>
@@ -1178,7 +1196,7 @@ const AdoptScreen = () => {
                 )}
                 
                 {selectedPet?.location && (
-                  <View style={styles.petDetailItem}>
+                  <View style={[styles.petDetailItem, styles.petDetailItemLast]}>
                     <View style={styles.petDetailIcon}>
                       <MaterialIcons name="location-on" size={20} color="#EF4444" />
                     </View>
@@ -1298,12 +1316,6 @@ const AdoptScreen = () => {
               >
                 <MaterialIcons name="favorite" size={20} color="#FFFFFF" />
                 <Text style={styles.modernAdoptBtnText}>Adopt Me</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setDetailsVisible(false)}
-                style={styles.modernCloseBtn}
-              >
-                <Text style={styles.modernCloseBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>

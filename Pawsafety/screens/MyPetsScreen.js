@@ -2118,8 +2118,10 @@ Thank you for helping reunite pets with their families! ❤️`;
       flexShrink: 1,
     },
     centeredSection: {
-      marginBottom: SPACING.lg,
-      paddingHorizontal: SPACING.lg,
+      marginBottom: SPACING.xl,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.lightGray,
     },
     centeredSectionTitle: {
       fontSize: FONTS.sizes.large,
@@ -2131,13 +2133,13 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     centeredDatePickerContainer: {
       flexDirection: 'row',
-      gap: SPACING.sm,
-      marginBottom: SPACING.sm,
+      gap: SPACING.md,
+      marginBottom: SPACING.md,
     },
     centeredDateButton: {
       flex: 1,
       paddingVertical: SPACING.md,
-      paddingHorizontal: SPACING.md,
+      paddingHorizontal: SPACING.sm,
       borderWidth: 2,
       borderColor: COLORS.lightGray,
       borderRadius: RADIUS.medium,
@@ -2160,22 +2162,31 @@ Thank you for helping reunite pets with their families! ❤️`;
       color: COLORS.white,
     },
     centeredSelectedText: {
-      fontSize: FONTS.sizes.small,
+      fontSize: FONTS.sizes.medium,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      fontWeight: FONTS.weights.semibold,
+      color: COLORS.darkPurple,
       textAlign: 'center',
+      marginTop: SPACING.sm,
+      paddingVertical: SPACING.sm,
+      backgroundColor: COLORS.lightBlue,
+      borderRadius: RADIUS.small,
     },
     // Custom Date Picker Styles
     centeredCustomDateContainer: {
-      marginTop: SPACING.sm,
-      marginBottom: SPACING.sm,
+      marginTop: SPACING.md,
+      marginBottom: SPACING.md,
+      paddingVertical: SPACING.md,
+      backgroundColor: COLORS.inputBackground,
+      borderRadius: RADIUS.medium,
+      paddingHorizontal: SPACING.sm,
     },
     centeredCustomDateLabel: {
-      fontSize: FONTS.sizes.small,
+      fontSize: FONTS.sizes.medium,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.semibold,
       color: COLORS.text,
-      marginBottom: SPACING.xs,
+      marginBottom: SPACING.md,
       textAlign: 'center',
     },
     centeredDateInputContainer: {
@@ -2241,8 +2252,8 @@ Thank you for helping reunite pets with their families! ❤️`;
     centeredTimePickerContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      gap: SPACING.sm,
-      marginBottom: SPACING.sm,
+      gap: SPACING.md,
+      marginBottom: SPACING.md,
     },
     centeredTimeInputGroup: {
       flex: 1,
@@ -2274,6 +2285,16 @@ Thank you for helping reunite pets with their families! ❤️`;
       minWidth: 40,
       textAlign: 'center',
       paddingVertical: SPACING.sm,
+    },
+    centeredTimeInput: {
+      fontSize: FONTS.sizes.large,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: COLORS.text,
+      minWidth: 40,
+      textAlign: 'center',
+      paddingVertical: SPACING.sm,
+      flex: 1,
     },
     centeredPeriodContainer: {
       flexDirection: 'row',
@@ -2307,7 +2328,7 @@ Thank you for helping reunite pets with their families! ❤️`;
       color: COLORS.darkPurple,
       textAlign: 'center',
       marginTop: SPACING.sm,
-      padding: SPACING.sm,
+      paddingVertical: SPACING.sm,
       backgroundColor: COLORS.lightBlue,
       borderRadius: RADIUS.small,
     },
@@ -2512,7 +2533,6 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     closeButton: {
       padding: SPACING.sm,
-      backgroundColor: '#EF4444',
     },
     modalScrollView: {
       maxHeight: 400,
@@ -3122,9 +3142,19 @@ Thank you for helping reunite pets with their families! ❤️`;
                     >
                       <MaterialIcons name="remove" size={20} color={COLORS.darkPurple} />
                     </TouchableOpacity>
-                    <Text style={styles.centeredTimeValue}>
-                      {tempTime.hours.toString().padStart(2, '0')}
-                    </Text>
+                    <TextInput
+                      style={styles.centeredTimeInput}
+                      value={tempTime.hours.toString()}
+                      onChangeText={(text) => {
+                        const num = parseInt(text);
+                        if (!isNaN(num) && num >= 1 && num <= 12) {
+                          setTempTime(prev => ({ ...prev, hours: num }));
+                        }
+                      }}
+                      keyboardType="numeric"
+                      maxLength={2}
+                      textAlign="center"
+                    />
                     <TouchableOpacity
                       style={styles.centeredTimeButton}
                       onPress={() => setTempTime(prev => ({ 
@@ -3149,9 +3179,19 @@ Thank you for helping reunite pets with their families! ❤️`;
                     >
                       <MaterialIcons name="remove" size={20} color={COLORS.darkPurple} />
                     </TouchableOpacity>
-                    <Text style={styles.centeredTimeValue}>
-                      {tempTime.minutes.toString().padStart(2, '0')}
-                    </Text>
+                    <TextInput
+                      style={styles.centeredTimeInput}
+                      value={tempTime.minutes.toString()}
+                      onChangeText={(text) => {
+                        const num = parseInt(text);
+                        if (!isNaN(num) && num >= 0 && num <= 59) {
+                          setTempTime(prev => ({ ...prev, minutes: num }));
+                        }
+                      }}
+                      keyboardType="numeric"
+                      maxLength={2}
+                      textAlign="center"
+                    />
                     <TouchableOpacity
                       style={styles.centeredTimeButton}
                       onPress={() => setTempTime(prev => ({ 
@@ -3407,12 +3447,6 @@ Thank you for helping reunite pets with their families! ❤️`;
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>📚 My Pets User Manual</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleManualClose}
-            >
-              <MaterialIcons name="close" size={24} color={COLORS.text} />
-            </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
