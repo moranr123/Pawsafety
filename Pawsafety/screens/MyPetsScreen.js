@@ -33,7 +33,7 @@ const { width } = Dimensions.get('window');
 
 
 // Memoized PetCard component to prevent unnecessary re-renders
-const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onDeletePet, onReportLost, onMarkFound, onShowQR, styles }) => {
+const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onArchivePet, onReportLost, onMarkFound, onShowQR, styles }) => {
   const [imageError, setImageError] = useState(false);
   
   return (
@@ -144,11 +144,11 @@ const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onDeletePet, onReportLos
           <Text style={styles.actionButtonText}>Edit</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.actionButton, styles.deleteButton]} 
-          onPress={() => onDeletePet(pet.id, pet.petName)}
+          style={[styles.actionButton, styles.archiveButton]} 
+          onPress={() => onArchivePet(pet.id, pet.petName)}
         >
-          <MaterialIcons name="delete" size={16} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>Delete</Text>
+          <MaterialIcons name="archive" size={16} color="#FFFFFF" />
+          <Text style={styles.actionButtonText}>Archive</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -312,6 +312,10 @@ const MyPetsScreen = ({ navigation }) => {
     backgroundColor: '#8B5CF6',
       ...SHADOWS.small,
   },
+  archiveButton: {
+    backgroundColor: '#6B7280',
+      ...SHADOWS.small,
+  },
   deleteButton: {
     backgroundColor: '#EF4444',
       ...SHADOWS.small,
@@ -399,7 +403,7 @@ const MyPetsScreen = ({ navigation }) => {
       const petList = snapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 
-      }));
+      })).filter(pet => !pet.archived); // Filter out archived pets
       setPets(petList);
       setLoading(false);
     });
@@ -496,36 +500,26 @@ const MyPetsScreen = ({ navigation }) => {
     }
   };
 
-  const handleDeletePet = (petId, petName) => {
+  const handleArchivePet = (petId, petName) => {
     Alert.alert(
-      'Delete Pet',
-      `Are you sure you want to remove ${petName} from your pets?`,
+      'Archive Pet',
+      `Are you sure you want to archive ${petName}? The pet will be moved to your archived pets but can be restored later.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: 'Archive',
+          style: 'default',
           onPress: async () => {
             try {
-              // Delete the pet
-              await deleteDoc(doc(db, 'pets', petId));
+              // Archive the pet by setting archived flag
+              await updateDoc(doc(db, 'pets', petId), {
+                archived: true,
+                archivedAt: serverTimestamp()
+              });
               
-              // Also delete any corresponding stray reports
-              const strayReportsQuery = query(
-                collection(db, 'stray_reports'),
-                where('petId', '==', petId)
-              );
-              
-              const strayReportsSnapshot = await getDocs(strayReportsQuery);
-              const deletePromises = strayReportsSnapshot.docs.map(docSnapshot => 
-                deleteDoc(doc(db, 'stray_reports', docSnapshot.id))
-              );
-              
-              await Promise.all(deletePromises);
-              
-              Alert.alert('Success', `${petName} has been removed from your pets.`);
+              Alert.alert('Success', `${petName} has been archived. You can restore it from the Archived Pets screen.`);
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete pet. Please try again.');
+              Alert.alert('Error', 'Failed to archive pet. Please try again.');
             }
           }
         }
@@ -869,7 +863,7 @@ const MyPetsScreen = ({ navigation }) => {
     // Show confirmation dialog for marking pet as deceased
     Alert.alert(
       'Mark Pet as Deceased',
-      `Are you sure you want to mark "${petName}" as deceased? This will permanently delete the pet record and notify the Agricultural Dashboard administrator.`,
+      `Are you sure you want to mark "${petName}" as deceased? This will archive the pet and notify the Agricultural Dashboard administrator.`,
       [
         {
           text: 'Cancel',
@@ -891,13 +885,13 @@ const MyPetsScreen = ({ navigation }) => {
                 return;
               }
               
-              // Create admin notification BEFORE deleting the pet
+              // Create admin notification BEFORE archiving the pet
               console.log('🔔 Creating admin notification for deceased pet');
               
               const notificationData = {
                 type: 'pet_deceased',
                 title: 'Pet Marked as Deceased',
-                message: `Pet "${pet.petName || 'Unknown Pet'}" (${pet.petType || 'Unknown Type'}) has been marked as deceased by ${pet.ownerFullName || 'Unknown Owner'}. The pet record has been removed from the system.`,
+                message: `Pet "${pet.petName || 'Unknown Pet'}" (${pet.petType || 'Unknown Type'}) has been marked as deceased by ${pet.ownerFullName || 'Unknown Owner'}. The pet record has been archived.`,
                 petId: petId,
                 petName: pet.petName,
                 ownerName: pet.ownerFullName,
@@ -921,13 +915,17 @@ const MyPetsScreen = ({ navigation }) => {
                 });
               }
               
-              // Delete the pet from the database
-              await deleteDoc(doc(db, 'pets', petId));
-              console.log('✅ Pet deleted successfully');
+              // Archive the pet instead of deleting it
+              await updateDoc(doc(db, 'pets', petId), {
+                archived: true,
+                archivedAt: serverTimestamp(),
+                status: 'deceased'
+              });
+              console.log('✅ Pet archived successfully');
               
               Alert.alert(
                 'Pet Marked as Deceased', 
-                `${petName} has been marked as deceased and removed from your pets. The Agricultural Dashboard has been notified.`
+                `${petName} has been marked as deceased and archived. You can view it in the Archived Pets screen. The Agricultural Dashboard has been notified.`
               );
             } catch (error) {
               console.error('❌ Error marking pet as deceased:', error);
@@ -1086,7 +1084,13 @@ Thank you for helping reunite pets with their families! ❤️`;
       alignItems: 'center',
       gap: 16,
     },
-    helpButton: {
+    archiveButtonHeader: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    padding: SPACING.sm,
+    marginRight: SPACING.xs,
+  },
+  helpButton: {
       backgroundColor: 'rgba(255, 255, 255, 0.2)',
       borderRadius: 12,
       padding: SPACING.sm,
@@ -1391,7 +1395,8 @@ Thank you for helping reunite pets with their families! ❤️`;
       alignItems: 'center',
       marginHorizontal: SPACING.lg,
       minWidth: 320,
-      maxWidth: 350,
+      maxWidth: 400,
+      width: '90%',
     },
     modalTitle: {
       fontSize: FONTS.sizes.large,
@@ -1416,19 +1421,20 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     modalButtons: {
       flexDirection: 'row',
-      gap: SPACING.lg,
-      justifyContent: 'center',
+      gap: SPACING.md,
+      justifyContent: 'space-between',
       width: '100%',
+      alignItems: 'center',
     },
     modalButton: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: SPACING.lg,
+      paddingHorizontal: SPACING.sm,
       paddingVertical: SPACING.md,
       borderRadius: RADIUS.medium,
-      minWidth: 120,
+      minWidth: 0,
       ...SHADOWS.light,
     },
     downloadButton: {
@@ -2713,6 +2719,12 @@ Thank you for helping reunite pets with their families! ❤️`;
             </Text>
             </View>
             <TouchableOpacity 
+              style={styles.archiveButtonHeader}
+              onPress={() => navigation.navigate('ArchivedPets')}
+            >
+              <MaterialIcons name="archive" size={20} color={COLORS.white} />
+            </TouchableOpacity>
+            <TouchableOpacity 
               style={styles.helpButton}
               onPress={() => setShowUserManual(true)}
             >
@@ -2756,7 +2768,7 @@ Thank you for helping reunite pets with their families! ❤️`;
                     pet={pet}
                     onUpdateStatus={handleUpdatePetStatus}
                     onEditPet={handleEditPet}
-                    onDeletePet={handleDeletePet}
+                    onArchivePet={handleArchivePet}
                     onReportLost={(pet) => {setSelectedPetForReport(pet); setShowReportLostModal(true);}}
                     onMarkFound={(pet) => handleMarkFound(pet)}
                     onShowQR={(pet) => setSelectedPetQR(pet)}
@@ -2806,22 +2818,26 @@ Thank you for helping reunite pets with their families! ❤️`;
               <TouchableOpacity
                 style={[styles.modalButton, styles.downloadButton]}
                 onPress={() => handleDownloadQR(selectedPetQR)}
+                activeOpacity={0.8}
               >
-                <MaterialIcons name="download" size={20} color={COLORS.white} />
-                <Text 
-                  style={[styles.modalButtonText, { marginLeft: SPACING.sm }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit={true}
-                  minimumFontScale={0.8}
-                >
+                <MaterialIcons name="download" size={18} color="#FFFFFF" />
+                <Text style={[styles.modalButtonText, { marginLeft: 4 }]}>
                   Download
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.closeButton]}
+                style={[
+                  styles.modalButton, 
+                  styles.closeButton,
+                  { backgroundColor: '#EF4444' }
+                ]}
                 onPress={() => setSelectedPetQR(null)}
+                activeOpacity={0.8}
               >
-                <Text style={styles.modalButtonText}>Close</Text>
+                <MaterialIcons name="close" size={18} color="#FFFFFF" />
+                <Text style={[styles.modalButtonText, { marginLeft: 4, color: '#FFFFFF' }]}>
+                  Close
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

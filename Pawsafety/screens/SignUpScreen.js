@@ -35,6 +35,8 @@ const SignUpScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -84,6 +86,11 @@ const SignUpScreen = ({ navigation }) => {
       return;
     }
 
+    if (!acceptedTerms) {
+      Alert.alert('Terms Required', 'Please accept the Terms and Conditions to continue');
+      return;
+    }
+
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -127,6 +134,7 @@ const SignUpScreen = ({ navigation }) => {
     setEmailVerificationSent(false);
     setResendCooldown(0);
     setCanResend(true);
+    setAcceptedTerms(false);
     // Navigate to login
     navigation.navigate('Login');
   };
@@ -354,10 +362,38 @@ const SignUpScreen = ({ navigation }) => {
               </View>
             </View>
 
+            <View style={styleSheet.termsContainer}>
+              <TouchableOpacity
+                style={styleSheet.checkboxContainer}
+                onPress={() => setAcceptedTerms(!acceptedTerms)}
+                activeOpacity={0.7}
+              >
+                <View style={[styleSheet.checkbox, acceptedTerms && styleSheet.checkboxChecked]}>
+                  {acceptedTerms && (
+                    <MaterialIcons name="check" size={18} color={COLORS.white} />
+                  )}
+                </View>
+                <View style={styleSheet.termsTextContainer}>
+                  <Text style={styleSheet.termsText}>
+                    I agree to the{' '}
+                    <Text 
+                      style={styleSheet.termsLink}
+                      onPress={() => setTermsModalVisible(true)}
+                    >
+                      Terms and Conditions
+                    </Text>
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
-              style={[styleSheet.signUpButton, loading && styleSheet.signUpButtonDisabled]}
+              style={[
+                styleSheet.signUpButton, 
+                (loading || !acceptedTerms) && styleSheet.signUpButtonDisabled
+              ]}
               onPress={handleSignUp}
-              disabled={loading}
+              disabled={loading || !acceptedTerms}
               activeOpacity={0.8}
             >
               <Text 
@@ -379,6 +415,104 @@ const SignUpScreen = ({ navigation }) => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Terms and Conditions Modal */}
+      <Modal
+        visible={termsModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setTermsModalVisible(false)}
+      >
+        <View style={styleSheet.modalOverlay}>
+          <View style={styleSheet.termsModalContent}>
+            <View style={styleSheet.termsModalHeader}>
+              <Text style={styleSheet.termsModalTitle}>Terms and Conditions</Text>
+              <TouchableOpacity
+                onPress={() => setTermsModalVisible(false)}
+                style={styleSheet.closeButton}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styleSheet.termsModalBody} showsVerticalScrollIndicator={true}>
+              <Text style={styleSheet.termsSectionTitle}>1. Acceptance of Terms</Text>
+              <Text style={styleSheet.termsContent}>
+                By accessing and using PawSafety, you accept and agree to be bound by the terms and provision of this agreement.
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>2. Use License</Text>
+              <Text style={styleSheet.termsContent}>
+                Permission is granted to temporarily use PawSafety for personal, non-commercial purposes only. This is the grant of a license, not a transfer of title, and under this license you may not:
+                {'\n\n'}• Modify or copy the materials
+                {'\n'}• Use the materials for any commercial purpose
+                {'\n'}• Attempt to decompile or reverse engineer any software contained in PawSafety
+                {'\n'}• Remove any copyright or other proprietary notations from the materials
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>3. User Accounts</Text>
+              <Text style={styleSheet.termsContent}>
+                You are responsible for maintaining the confidentiality of your account credentials. You agree to:
+                {'\n\n'}• Provide accurate and complete information when creating an account
+                {'\n'}• Keep your password secure and confidential
+                {'\n'}• Notify us immediately of any unauthorized use of your account
+                {'\n'}• Be responsible for all activities that occur under your account
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>4. Pet Reports and Information</Text>
+              <Text style={styleSheet.termsContent}>
+                When submitting reports about pets or stray animals:
+                {'\n\n'}• You must provide accurate and truthful information
+                {'\n'}• You are responsible for the content you submit
+                {'\n'}• False or misleading information may result in account suspension
+                {'\n'}• You grant PawSafety the right to use your submitted content for the app's purposes
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>5. Privacy</Text>
+              <Text style={styleSheet.termsContent}>
+                Your privacy is important to us. Please review our Privacy Policy, which also governs your use of the service, to understand our practices regarding the collection and use of your personal information.
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>6. Prohibited Uses</Text>
+              <Text style={styleSheet.termsContent}>
+                You may not use PawSafety:
+                {'\n\n'}• In any way that violates any applicable law or regulation
+                {'\n'}• To transmit any malicious code or viruses
+                {'\n'}• To impersonate or attempt to impersonate others
+                {'\n'}• To engage in any harmful, threatening, or abusive behavior
+                {'\n'}• To spam or harass other users
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>7. Limitation of Liability</Text>
+              <Text style={styleSheet.termsContent}>
+                PawSafety and its developers shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use or inability to use the service.
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>8. Modifications</Text>
+              <Text style={styleSheet.termsContent}>
+                PawSafety reserves the right to modify or replace these Terms at any time. If a revision is material, we will provide notice prior to any new terms taking effect.
+              </Text>
+
+              <Text style={styleSheet.termsSectionTitle}>9. Contact Information</Text>
+              <Text style={styleSheet.termsContent}>
+                If you have any questions about these Terms, please contact us through the app's support features.
+              </Text>
+
+              <Text style={styleSheet.termsLastUpdated}>
+                Last updated: {new Date().toLocaleDateString()}
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={styleSheet.termsAcceptButton}
+              onPress={() => {
+                setAcceptedTerms(true);
+                setTermsModalVisible(false);
+              }}
+            >
+              <Text style={styleSheet.termsAcceptButtonText}>Accept Terms</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Success Modal */}
       <Modal
@@ -735,6 +869,115 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS) => StyleSheet.create({
     height: '100%',
     minWidth: 35,
     maxWidth: 40,
+  },
+  termsContainer: {
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: SPACING.xs,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: COLORS.mediumBlue,
+    backgroundColor: COLORS.inputBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.darkPurple,
+    borderColor: COLORS.darkPurple,
+  },
+  termsTextContainer: {
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  termsText: {
+    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
+    fontFamily: FONTS.family,
+    color: COLORS.text,
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: COLORS.darkPurple,
+    fontWeight: FONTS.weights.bold,
+    textDecorationLine: 'underline',
+  },
+  termsModalContent: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: RADIUS.xlarge,
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: hp(80),
+    ...SHADOWS.heavy,
+  },
+  termsModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.mediumBlue,
+  },
+  termsModalTitle: {
+    fontSize: FONTS.sizes.xlarge,
+    fontFamily: FONTS.family,
+    fontWeight: FONTS.weights.bold,
+    color: COLORS.darkPurple,
+    flex: 1,
+  },
+  closeButton: {
+    padding: SPACING.xs,
+    marginLeft: SPACING.md,
+  },
+  termsModalBody: {
+    padding: SPACING.lg,
+    maxHeight: hp(60),
+  },
+  termsSectionTitle: {
+    fontSize: FONTS.sizes.medium,
+    fontFamily: FONTS.family,
+    fontWeight: FONTS.weights.bold,
+    color: COLORS.darkPurple,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  termsContent: {
+    fontSize: FONTS.sizes.small,
+    fontFamily: FONTS.family,
+    color: COLORS.text,
+    lineHeight: 20,
+    marginBottom: SPACING.md,
+  },
+  termsLastUpdated: {
+    fontSize: FONTS.sizes.xsmall,
+    fontFamily: FONTS.family,
+    color: COLORS.secondaryText,
+    fontStyle: 'italic',
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
+  },
+  termsAcceptButton: {
+    backgroundColor: COLORS.darkPurple,
+    borderRadius: RADIUS.medium,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    margin: SPACING.lg,
+    alignItems: 'center',
+  },
+  termsAcceptButtonText: {
+    color: COLORS.white,
+    fontSize: FONTS.sizes.medium,
+    fontFamily: FONTS.family,
+    fontWeight: FONTS.weights.bold,
   },
 });
 

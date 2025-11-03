@@ -18,6 +18,7 @@ import StrayReportScreen from '../screens/StrayReportScreen';
 import MyReportsScreen from '../screens/MyReportsScreen';
 import EditReportScreen from '../screens/EditReportScreen';
 import MyPetsScreen from '../screens/MyPetsScreen';
+import ArchivedPetsScreen from '../screens/ArchivedPetsScreen';
 import SettingsScreen from '../screens/tabs/SettingsScreen';
 import PetCareGuideScreen from '../screens/PetCareGuideScreen';
 
@@ -56,6 +57,10 @@ const MainStackNavigator = () => {
       <MainStack.Screen 
         name="MyPets" 
         component={MyPetsScreen}
+      />
+      <MainStack.Screen 
+        name="ArchivedPets" 
+        component={ArchivedPetsScreen}
       />
       <MainStack.Screen 
         name="Settings" 
