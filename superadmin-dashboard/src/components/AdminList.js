@@ -98,42 +98,42 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete, onRestore, isArch
             </div>
 
             {!isArchiveView && (
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-                <button
-                  onClick={() => onEdit(admin)}
-                  className="flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
-                >
-                  <Edit className="h-3 w-3 mr-1" />
-                  Edit
-                </button>
-                <button
-                  onClick={() => onToggleStatus(admin.id, admin.status)}
-                  className={`flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                    admin.status === 'active'
-                      ? 'text-red-600 bg-red-50 hover:bg-red-100'
-                      : 'text-green-600 bg-green-50 hover:bg-green-100'
-                  }`}
-                >
-                  {admin.status === 'active' ? (
-                    <>
-                      <UserX className="h-3 w-3 mr-1" />
-                      Deactivate
-                    </>
-                  ) : (
-                    <>
-                      <UserCheck className="h-3 w-3 mr-1" />
-                      Activate
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => onDelete(admin)}
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => onEdit(admin)}
+                className="flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+              >
+                <Edit className="h-3 w-3 mr-1" />
+                Edit
+              </button>
+              <button
+                onClick={() => onToggleStatus(admin.id, admin.status)}
+                className={`flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                  admin.status === 'active'
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                    : 'text-green-600 bg-green-50 hover:bg-green-100'
+                }`}
+              >
+                {admin.status === 'active' ? (
+                  <>
+                    <UserX className="h-3 w-3 mr-1" />
+                    Deactivate
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="h-3 w-3 mr-1" />
+                    Activate
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => onDelete(admin)}
                   className="flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-md transition-colors"
-                >
+              >
                   <Archive className="h-3 w-3 mr-1" />
                   Archive
-                </button>
-              </div>
+              </button>
+            </div>
             )}
             {isArchiveView && (
               <div className="pt-2 border-t border-gray-100">
@@ -225,45 +225,45 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete, onRestore, isArch
                 </td>
                 <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   {!isArchiveView ? (
-                    <div className="flex justify-end space-x-2 lg:space-x-3">
-                      <button
-                        onClick={() => onEdit(admin)}
-                        className="text-indigo-600 hover:text-indigo-900 flex items-center"
+                  <div className="flex justify-end space-x-2 lg:space-x-3">
+                    <button
+                      onClick={() => onEdit(admin)}
+                      className="text-indigo-600 hover:text-indigo-900 flex items-center"
                         title="Edit admin"
-                      >
-                        <Edit className="h-4 w-4 lg:mr-1" />
-                        <span className="hidden lg:inline">Edit</span>
-                      </button>
-                      <button
-                        onClick={() => onToggleStatus(admin.id, admin.status)}
-                        className={`flex items-center ${
-                          admin.status === 'active'
-                            ? 'text-red-600 hover:text-red-900'
-                            : 'text-green-600 hover:text-green-900'
-                        }`}
-                        title={`${admin.status === 'active' ? 'Deactivate' : 'Activate'} this admin account`}
-                      >
-                        {admin.status === 'active' ? (
-                          <>
-                            <UserX className="h-4 w-4 lg:mr-1" />
-                            <span className="hidden lg:inline">Deactivate</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck className="h-4 w-4 lg:mr-1" />
-                            <span className="hidden lg:inline">Activate</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => onDelete(admin)}
+                    >
+                      <Edit className="h-4 w-4 lg:mr-1" />
+                      <span className="hidden lg:inline">Edit</span>
+                    </button>
+                    <button
+                      onClick={() => onToggleStatus(admin.id, admin.status)}
+                      className={`flex items-center ${
+                        admin.status === 'active'
+                          ? 'text-red-600 hover:text-red-900'
+                          : 'text-green-600 hover:text-green-900'
+                      }`}
+                      title={`${admin.status === 'active' ? 'Deactivate' : 'Activate'} this admin account`}
+                    >
+                      {admin.status === 'active' ? (
+                        <>
+                          <UserX className="h-4 w-4 lg:mr-1" />
+                          <span className="hidden lg:inline">Deactivate</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="h-4 w-4 lg:mr-1" />
+                          <span className="hidden lg:inline">Activate</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => onDelete(admin)}
                         className="text-orange-600 hover:text-orange-900 flex items-center"
                         title="Archive admin"
-                      >
+                    >
                         <Archive className="h-4 w-4 lg:mr-1" />
                         <span className="hidden lg:inline">Archive</span>
-                      </button>
-                    </div>
+                    </button>
+                  </div>
                   ) : (
                     <div className="flex justify-end">
                       {onRestore ? (

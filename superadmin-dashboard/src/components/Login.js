@@ -21,6 +21,13 @@ const Login = () => {
       return;
     }
 
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error('Invalid email format. Please enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -29,7 +36,43 @@ const Login = () => {
       // Navigation will be handled by AuthContext based on role
     } catch (error) {
       console.error('Login error:', error);
-      toast.error(error.message || 'Login failed');
+      
+      // Handle Firebase authentication errors with specific messages
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email format. Please enter a valid email address.';
+            break;
+          case 'auth/user-not-found':
+            errorMessage = 'No account found with this email address.';
+            break;
+          case 'auth/wrong-password':
+            errorMessage = 'Incorrect password. Please try again.';
+            break;
+          case 'auth/invalid-credential':
+            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+            break;
+          case 'auth/invalid-login-credentials':
+            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Too many failed login attempts. Please try again later.';
+            break;
+          case 'auth/user-disabled':
+            errorMessage = 'This account has been disabled. Please contact the administrator.';
+            break;
+          default:
+            // Use the error message if available, otherwise use default
+            errorMessage = error.message || errorMessage;
+        }
+      } else if (error.message) {
+        // Handle custom errors from AuthContext
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

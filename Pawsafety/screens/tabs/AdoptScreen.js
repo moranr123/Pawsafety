@@ -1195,11 +1195,11 @@ const AdoptScreen = () => {
                   </View>
                 )}
                 
-                <View style={[styles.petDetailItem, styles.petDetailItemLast]}>
-                  <View style={styles.petDetailIcon}>
+                  <View style={[styles.petDetailItem, styles.petDetailItemLast]}>
+                    <View style={styles.petDetailIcon}>
                     <MaterialIcons name="schedule" size={20} color="#8B5CF6" />
-                  </View>
-                  <View style={styles.petDetailContent}>
+                    </View>
+                    <View style={styles.petDetailContent}>
                     <Text style={styles.petDetailLabel}>Days Sheltered</Text>
                     <Text style={styles.petDetailValue}>
                       {selectedPet?.daysAtImpound && 
@@ -1212,8 +1212,8 @@ const AdoptScreen = () => {
                         'Not specified'
                       )}
                     </Text>
+                    </View>
                   </View>
-                </View>
               </View>
 
 

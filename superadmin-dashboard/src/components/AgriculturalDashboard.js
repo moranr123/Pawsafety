@@ -550,7 +550,7 @@ const getOwnerProfileImage = (pet) => {
   };
 
   const handleRejectPetRegistration = async (petId) => {
-    const petDoc = pets.find(pet => pet.id === petId);
+      const petDoc = pets.find(pet => pet.id === petId);
     const petName = petDoc?.petName || 'Unnamed Pet';
     const ownerName = petDoc?.ownerFullName || 'Unknown Owner';
     
@@ -1652,15 +1652,15 @@ const getOwnerProfileImage = (pet) => {
              <div className="mb-6 space-y-4">
                {/* Search Bar */}
                <div className="flex flex-col sm:flex-row gap-4">
-                 <div className="flex-1">
-                   <input
-                     type="text"
-                     placeholder="Search by pet name, owner, or breed..."
-                     value={searchTerm}
-                     onChange={(e) => setSearchTerm(e.target.value)}
-                     className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                   />
-                 </div>
+               <div className="flex-1">
+                 <input
+                   type="text"
+                   placeholder="Search by pet name, owner, or breed..."
+                   value={searchTerm}
+                   onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                 />
+               </div>
                  <button
                    onClick={() => {
                      setSearchTerm('');
@@ -1680,15 +1680,15 @@ const getOwnerProfileImage = (pet) => {
                  {/* Type Filter */}
                  <div>
                    <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-                   <select
-                     value={filterType}
-                     onChange={(e) => setFilterType(e.target.value)}
+                 <select
+                   value={filterType}
+                   onChange={(e) => setFilterType(e.target.value)}
                      className="w-full px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                   >
-                     <option value="all">All Types</option>
-                     <option value="dog">Dogs</option>
-                     <option value="cat">Cats</option>
-                   </select>
+                 >
+                  <option value="all">All Types</option>
+                  <option value="dog">Dogs</option>
+                  <option value="cat">Cats</option>
+                 </select>
                  </div>
 
                  {/* Gender Filter */}
@@ -1727,15 +1727,15 @@ const getOwnerProfileImage = (pet) => {
                      value={filterDate}
                      onChange={(e) => setFilterDate(e.target.value)}
                      className="w-full px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                   >
+                 >
                      <option value="all">All Time</option>
                      <option value="today">Today</option>
                      <option value="week">This Week</option>
                      <option value="month">This Month</option>
                    </select>
                  </div>
-               </div>
-             </div>
+              </div>
+            </div>
              
             {/* Mobile Card View */}
             <div className="block md:hidden space-y-3">

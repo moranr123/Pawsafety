@@ -3352,7 +3352,7 @@ const ImpoundDashboard = () => {
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 <form onSubmit={handleSaveEditAdoptable} className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="max-w-md">
                     <label className={labelBase}>Pet Name</label>
                     <input className={inputBase} value={editAdoptForm.petName} onChange={(e) => setEditAdoptForm((p) => ({ ...p, petName: e.target.value }))} required />
@@ -3416,7 +3416,7 @@ const ImpoundDashboard = () => {
                         </svg>
                       </div>
                     </div>
-                  </div>
+                </div>
                   <div className="max-w-md relative">
                     <label className={labelBase}>Gender</label>
                     <div className="relative">
@@ -3458,7 +3458,7 @@ const ImpoundDashboard = () => {
                       min="0"
                     />
                     <p className="mt-1 text-xs text-gray-500">Enter the number of days the stray has been at the impound</p>
-                  </div>
+                </div>
                   <div className="max-w-md md:col-span-2">
                     <label className={labelBase}>Description</label>
                     <textarea className={inputBase} rows={3} value={editAdoptForm.description} onChange={(e) => setEditAdoptForm((p) => ({ ...p, description: e.target.value }))} />
@@ -3557,13 +3557,13 @@ const ImpoundDashboard = () => {
                   <div className="flex items-center space-x-2 md:col-span-2 max-w-md">
                     <input id="editReadyForAdoption" type="checkbox" checked={!!editAdoptForm.readyForAdoption} onChange={(e) => setEditAdoptForm((p) => ({ ...p, readyForAdoption: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
                     <label htmlFor="editReadyForAdoption" className="text-base text-gray-800">Ready for Adoption</label>
-                    </div>
                   </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={() => setShowEditAdoptableModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200">Cancel</button>
-                    <button type="submit" disabled={savingAdoptable} className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{savingAdoptable ? 'Saving...' : 'Save Changes'}</button>
-                  </div>
-                </form>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setShowEditAdoptableModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200">Cancel</button>
+                  <button type="submit" disabled={savingAdoptable} className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{savingAdoptable ? 'Saving...' : 'Save Changes'}</button>
+                </div>
+              </form>
               </div>
             </div>
           </div>

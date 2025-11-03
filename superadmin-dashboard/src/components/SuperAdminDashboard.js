@@ -30,7 +30,9 @@ import {
   Clock,
   Search,
   Filter,
-  FileText
+  FileText,
+  Archive,
+  ArrowLeft
 } from 'lucide-react';
 import AdminList from './AdminList';
 import CreateAdminModal from './CreateAdminModal';
@@ -57,6 +59,8 @@ const SuperAdminDashboard = () => {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [historyFilter, setHistoryFilter] = useState('all');
+  const [archivedAdmins, setArchivedAdmins] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(true);
 
   // Helper function to log admin activities
   const logActivity = async (adminId, adminName, adminEmail, action, actionType, details = '') => {
@@ -76,16 +80,42 @@ const SuperAdminDashboard = () => {
   };
 
   useEffect(() => {
-    // Listen for real-time updates on admin users
-    const q = query(collection(db, 'users'), where('role', 'in', ['agricultural_admin', 'impound_admin']));
+    // Listen for real-time updates on admin users (excluding archived)
+    const q = query(
+      collection(db, 'users'), 
+      where('role', 'in', ['agricultural_admin', 'impound_admin'])
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const adminList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const adminList = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(admin => !admin.archived); // Filter out archived admins
       setAdmins(adminList);
       setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch archived admins
+  useEffect(() => {
+    const q = query(
+      collection(db, 'users'), 
+      where('role', 'in', ['agricultural_admin', 'impound_admin'])
+    );
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const archivedList = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(admin => admin.archived === true); // Only archived admins
+      setArchivedAdmins(archivedList);
+      setArchivedLoading(false);
     });
 
     return () => unsubscribe();
@@ -289,31 +319,59 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleDeleteAdmin = async (admin) => {
-    const confirmed = window.confirm(`Delete admin ${admin.email}? This action cannot be undone.`);
+  const handleArchiveAdmin = async (admin) => {
+    const confirmed = window.confirm(`Archive admin ${admin.email}? The admin will be moved to archived admins and can be restored later.`);
     if (!confirmed) return;
     try {
-      const functions = getFunctions(undefined, 'us-central1');
-      const deleteAdminUser = httpsCallable(functions, 'deleteAdminUser');
-      await deleteAdminUser({ uid: admin.id });
-      toast.success('Admin deleted successfully');
+      const adminRef = doc(db, 'users', admin.id);
       
-      // Log admin deletion activity
+      await updateDoc(adminRef, {
+        archived: true,
+        archivedAt: serverTimestamp()
+      });
+      
+      toast.success('Admin archived successfully');
+      
+      // Log admin archiving activity
       await logActivity(
         currentUser.uid,
         currentUser.displayName || currentUser.email,
         currentUser.email,
-        'Deleted admin account',
-        'delete',
-        `Deleted admin account for ${admin.name} (${admin.email})`
+        'Archived admin account',
+        'status_change',
+        `Archived admin account for ${admin.name} (${admin.email})`
       );
     } catch (error) {
-      console.error('Error deleting admin:', error);
-      let msg = 'Failed to delete admin';
-      if (error?.code === 'functions/failed-precondition') msg = 'You cannot delete your own account';
-      else if (error?.code === 'functions/permission-denied') msg = 'Not allowed to delete this account';
-      else if (typeof error?.message === 'string') msg = error.message;
-      toast.error(msg);
+      console.error('Error archiving admin:', error);
+      toast.error(error.message || 'Failed to archive admin');
+    }
+  };
+
+  const handleRestoreAdmin = async (admin) => {
+    const confirmed = window.confirm(`Restore admin ${admin.email}? The admin will be moved back to active admins.`);
+    if (!confirmed) return;
+    try {
+      const adminRef = doc(db, 'users', admin.id);
+      
+      await updateDoc(adminRef, {
+        archived: false,
+        archivedAt: null
+      });
+      
+      toast.success('Admin restored successfully');
+      
+      // Log admin restore activity
+      await logActivity(
+        currentUser.uid,
+        currentUser.displayName || currentUser.email,
+        currentUser.email,
+        'Restored admin account',
+        'status_change',
+        `Restored admin account for ${admin.name} (${admin.email})`
+      );
+    } catch (error) {
+      console.error('Error restoring admin:', error);
+      toast.error(error.message || 'Failed to restore admin');
     }
   };
 
@@ -504,20 +562,20 @@ const SuperAdminDashboard = () => {
                 <Activity className="h-5 w-5 mr-3" />
                 Admin Activities
               </button>
-              <button
-                onClick={() => {
-                  setActiveTab('history');
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-all ${
-                  activeTab === 'history'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                }`}
-              >
-                <FileText className="h-5 w-5 mr-3" />
-                History Log
-              </button>
+            <button
+              onClick={() => {
+                setActiveTab('history');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-all ${
+                activeTab === 'history'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              <FileText className="h-5 w-5 mr-3" />
+              History Log
+            </button>
             </nav>
           </div>
         </>
@@ -701,13 +759,27 @@ const SuperAdminDashboard = () => {
                    <h2 className="text-base sm:text-lg font-medium text-gray-900">
                      Admin Management
                    </h2>
-                    <button
-                      onClick={() => setShowCreateModal(true)}
-                      className="flex items-center px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-md text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 w-full sm:w-auto justify-center"
-                    >
-                     <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                     Create Admin
-                   </button>
+                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+                     <button
+                       onClick={() => setActiveTab('archived')}
+                       className="flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
+                     >
+                       <Archive className="h-4 w-4 mr-2" />
+                       View Archive
+                       {archivedAdmins.length > 0 && (
+                         <span className="ml-2 bg-white text-orange-600 text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center font-semibold">
+                           {archivedAdmins.length > 99 ? '99+' : archivedAdmins.length}
+                         </span>
+                       )}
+                     </button>
+                     <button
+                       onClick={() => setShowCreateModal(true)}
+                       className="flex items-center justify-center px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-md text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300"
+                     >
+                       <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                       Create Admin
+                     </button>
+                   </div>
                  </div>
 
                  <div className="overflow-x-auto -mx-3 sm:mx-0">
@@ -716,7 +788,7 @@ const SuperAdminDashboard = () => {
                      admins={admins}
                      onToggleStatus={handleToggleStatus}
                      onEdit={handleOpenEditPassword}
-                     onDelete={handleDeleteAdmin}
+                     onDelete={handleArchiveAdmin}
                    />
                    </div>
                  </div>
@@ -937,6 +1009,63 @@ const SuperAdminDashboard = () => {
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Archived Admins Tab */}
+          {activeTab === 'archived' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Header */}
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setActiveTab('dashboard')}
+                      className="flex items-center justify-center p-2 text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-all duration-300 hover:shadow-md"
+                      title="Go back to Dashboard"
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </button>
+                    <div className="flex items-center">
+                      <Archive className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-600 mr-2 sm:mr-3" />
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Archived Admins</h2>
+                        <p className="text-xs sm:text-sm text-gray-600">View and restore archived admin accounts</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="bg-white/50 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium text-indigo-700">
+                      {(archivedAdmins || []).length} archived
+                    </div>
+                  </div>
+                </div>
+
+                {/* Archived Admins List */}
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  {archivedLoading ? (
+                    <div className="p-6 sm:p-8 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                      <p className="mt-2 text-sm sm:text-base text-gray-600">Loading archived admins...</p>
+                    </div>
+                  ) : archivedAdmins.length === 0 ? (
+                    <div className="p-6 sm:p-8 text-center">
+                      <Archive className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm sm:text-base text-gray-500">No archived admins</p>
+                      <p className="text-xs sm:text-sm text-gray-400">Archived admins will appear here</p>
+                    </div>
+                  ) : (
+                    <AdminList
+                      admins={archivedAdmins}
+                      onToggleStatus={handleToggleStatus}
+                      onEdit={handleOpenEditPassword}
+                      onDelete={handleArchiveAdmin}
+                      onRestore={handleRestoreAdmin}
+                      isArchiveView={true}
+                    />
                   )}
                 </div>
               </div>
