@@ -434,6 +434,8 @@ const ImpoundDashboard = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
   const [adoptedPets, setAdoptedPets] = useState([]);
+  const [selectedYearAdopted, setSelectedYearAdopted] = useState(new Date().getFullYear());
+  const [selectedYearStray, setSelectedYearStray] = useState(new Date().getFullYear());
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [adoptionExpanded, setAdoptionExpanded] = useState(true);
   const [imageLoadingStates, setImageLoadingStates] = useState({});
@@ -518,13 +520,12 @@ const ImpoundDashboard = () => {
   };
 
   // Generate chart data for adopted pets
-  const generateAdoptedPetsChartData = (adoptedPets) => {
-    const now = new Date();
+  const generateAdoptedPetsChartData = (adoptedPets, year = new Date().getFullYear()) => {
     const months = [];
     
-    // Generate last 6 months
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    // Generate all 12 months for the selected year
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(year, i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
       // Count adopted pets in this month
@@ -545,13 +546,12 @@ const ImpoundDashboard = () => {
   };
 
   // Generate chart data for stray reports
-  const generateStrayReportsChartData = (strayReports) => {
-    const now = new Date();
+  const generateStrayReportsChartData = (strayReports, year = new Date().getFullYear()) => {
     const months = [];
     
-    // Generate last 6 months
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    // Generate all 12 months for the selected year
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(year, i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
       // Count stray reports in this month
@@ -593,11 +593,14 @@ const ImpoundDashboard = () => {
 
   // Generate SVG path for chart line based on real data
   const generateChartPath = (chartData, maxValue = 10) => {
-    if (!chartData || chartData.length === 0) return "M 20,180 L 20,180";
+    if (!chartData || chartData.length === 0) return "M 50,250 L 50,250";
+    
+    const totalWidth = 950; // Leave 50px margin on each side
+    const spacing = totalWidth / Math.max(chartData.length - 1, 1);
     
     const points = chartData.map((data, index) => {
-      const x = 20 + (index * 80);
-      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+      const x = 50 + (index * spacing);
+      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
       return `${x},${y}`;
     });
     
@@ -610,18 +613,21 @@ const ImpoundDashboard = () => {
 
   // Generate SVG path for chart area fill
   const generateChartAreaPath = (chartData, maxValue = 10) => {
-    if (!chartData || chartData.length === 0) return "M 20,180 L 20,180 L 20,180 Z";
+    if (!chartData || chartData.length === 0) return "M 50,250 L 50,250 L 50,250 Z";
+    
+    const totalWidth = 950; // Leave 50px margin on each side
+    const spacing = totalWidth / Math.max(chartData.length - 1, 1);
     
     const points = chartData.map((data, index) => {
-      const x = 20 + (index * 80);
-      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+      const x = 50 + (index * spacing);
+      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
       return `${x},${y}`;
     });
     
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
     
-    return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},180 L 20,180 Z`;
+    return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},250 L 50,250 Z`;
   };
 
   // Debug useEffect for notification modal state
@@ -635,21 +641,21 @@ const ImpoundDashboard = () => {
     if (adoptablePets && strayReports) {
       setIsDataLoading(true);
       const adoptedPets = adoptablePets.filter(pet => pet.adoptedAt);
-      setChartData(generateAdoptedPetsChartData(adoptedPets));
-      setStrayChartData(generateStrayReportsChartData(strayReports));
+      setChartData(generateAdoptedPetsChartData(adoptedPets, selectedYearAdopted));
+      setStrayChartData(generateStrayReportsChartData(strayReports, selectedYearStray));
       setLastDataUpdate(new Date());
       setIsDataLoading(false);
     }
-  }, [adoptablePets, strayReports]);
+  }, [adoptablePets, strayReports, selectedYearAdopted, selectedYearStray]);
 
   // Real-time chart data updates for better performance
   useEffect(() => {
     if (adoptedPets && strayReports) {
-      setChartData(generateAdoptedPetsChartData(adoptedPets));
-      setStrayChartData(generateStrayReportsChartData(strayReports));
+      setChartData(generateAdoptedPetsChartData(adoptedPets, selectedYearAdopted));
+      setStrayChartData(generateStrayReportsChartData(strayReports, selectedYearStray));
       setLastDataUpdate(new Date());
     }
-  }, [adoptedPets, strayReports]);
+  }, [adoptedPets, strayReports, selectedYearAdopted, selectedYearStray]);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedIncidentForDecline, setSelectedIncidentForDecline] = useState(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -3015,19 +3021,32 @@ const ImpoundDashboard = () => {
 
 
             {/* Analytics Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6">
               {/* Adopted Pets Line Chart */}
               <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 rounded-xl shadow-lg p-6 border border-emerald-200">
-                <h3 className="text-lg font-medium text-white mb-4 flex items-center">
-                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                  </div>
-                  Adopted Pets Trend
-                </h3>
-                <div className="h-64">
-                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-white flex items-center">
+                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </div>
+                    Adopted Pets Trend
+                  </h3>
+                  <select
+                    value={selectedYearAdopted}
+                    onChange={(e) => setSelectedYearAdopted(parseInt(e.target.value))}
+                    className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 hover:bg-white/30 transition-colors"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                      <option key={year} value={year} className="bg-slate-700 text-white">
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="h-96">
+                  <svg width="100%" height="100%" viewBox="0 0 1000 280" className="overflow-visible">
                     {/* Grid lines */}
                     <defs>
                       <pattern id="adoptedGrid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -3060,14 +3079,16 @@ const ImpoundDashboard = () => {
                     {/* Data points */}
                     {chartData.map((data, index) => {
                       const maxValue = Math.max(...chartData.map(d => d.count), 1);
-                      const x = 20 + (index * 80);
-                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+                      const totalWidth = 950;
+                      const spacing = totalWidth / Math.max(chartData.length - 1, 1);
+                      const x = 50 + (index * spacing);
+                      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
                       return (
                         <circle 
                           key={index}
                           cx={x} 
                           cy={y} 
-                          r="6" 
+                          r="8" 
                           fill="#ffffff" 
                           stroke="#10b981" 
                           strokeWidth="3" 
@@ -3077,24 +3098,37 @@ const ImpoundDashboard = () => {
                     })}
                     
                     {/* Labels */}
-                    {chartData.map((data, index) => (
-                      <text 
-                        key={index}
-                        x={20 + (index * 80)} 
-                        y="195" 
-                        textAnchor="middle" 
-                        className="text-xs fill-white"
-                      >
-                        {data.month}
-                      </text>
-                    ))}
+                    {chartData.map((data, index) => {
+                      const totalWidth = 950;
+                      const spacing = totalWidth / Math.max(chartData.length - 1, 1);
+                      const x = 50 + (index * spacing);
+                      return (
+                        <text 
+                          key={index}
+                          x={x}
+                          y="265" 
+                          textAnchor="middle" 
+                          className="text-xs fill-white"
+                        >
+                          {data.month}
+                        </text>
+                      );
+                    })}
                     
                     {/* Y-axis labels */}
-                    <text x="10" y="185" textAnchor="end" className="text-xs fill-white">0</text>
-                    <text x="10" y="145" textAnchor="end" className="text-xs fill-white">20</text>
-                    <text x="10" y="105" textAnchor="end" className="text-xs fill-white">40</text>
-                    <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
-                    <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
+                    {(() => {
+                      const maxValue = Math.max(...chartData.map(d => d.count), 1);
+                      const roundedMax = Math.ceil(maxValue / 4) * 4; // Round up to next multiple of 4
+                      const step = roundedMax / 4;
+                      const labels = [0, step, step * 2, step * 3, roundedMax];
+                      const yPositions = [255, 205, 155, 105, 55];
+                      
+                      return labels.map((label, idx) => (
+                        <text key={idx} x="40" y={yPositions[idx]} textAnchor="end" className="text-xs fill-white">
+                          {Math.round(label)}
+                        </text>
+                      ));
+                    })()}
                   </svg>
                   </div>
                 <div className="mt-4 flex justify-between text-sm text-white">
@@ -3110,16 +3144,29 @@ const ImpoundDashboard = () => {
 
               {/* Stray Reports Line Chart */}
               <div className="bg-gradient-to-br from-orange-600 via-red-600 to-pink-600 rounded-xl shadow-lg p-6 border border-orange-200">
-                <h3 className="text-lg font-medium text-white mb-4 flex items-center">
-                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-white flex items-center">
+                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    Stray Reports Trend
+                  </h3>
+                  <select
+                    value={selectedYearStray}
+                    onChange={(e) => setSelectedYearStray(parseInt(e.target.value))}
+                    className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 hover:bg-white/30 transition-colors"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                      <option key={year} value={year} className="bg-slate-700 text-white">
+                        {year}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                  Stray Reports Trend
-                </h3>
-                <div className="h-64">
-                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                <div className="h-96">
+                  <svg width="100%" height="100%" viewBox="0 0 1000 280" className="overflow-visible">
                     {/* Grid lines */}
                     <defs>
                       <pattern id="strayGrid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -3152,14 +3199,16 @@ const ImpoundDashboard = () => {
                     {/* Data points */}
                     {strayChartData.map((data, index) => {
                       const maxValue = Math.max(...strayChartData.map(d => d.count), 1);
-                      const x = 20 + (index * 80);
-                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+                      const totalWidth = 950;
+                      const spacing = totalWidth / Math.max(strayChartData.length - 1, 1);
+                      const x = 50 + (index * spacing);
+                      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
                       return (
                         <circle 
                           key={index}
                           cx={x} 
                           cy={y} 
-                          r="6" 
+                          r="8" 
                           fill="#ffffff" 
                           stroke="#f97316" 
                           strokeWidth="3" 
@@ -3169,24 +3218,37 @@ const ImpoundDashboard = () => {
                     })}
                     
                     {/* Labels */}
-                    {strayChartData.map((data, index) => (
-                      <text 
-                        key={index}
-                        x={20 + (index * 80)} 
-                        y="195" 
-                        textAnchor="middle" 
-                        className="text-xs fill-white"
-                      >
-                        {data.month}
-                      </text>
-                    ))}
+                    {strayChartData.map((data, index) => {
+                      const totalWidth = 950;
+                      const spacing = totalWidth / Math.max(strayChartData.length - 1, 1);
+                      const x = 50 + (index * spacing);
+                      return (
+                        <text 
+                          key={index}
+                          x={x}
+                          y="265" 
+                          textAnchor="middle" 
+                          className="text-xs fill-white"
+                        >
+                          {data.month}
+                        </text>
+                      );
+                    })}
                     
                     {/* Y-axis labels */}
-                    <text x="10" y="185" textAnchor="end" className="text-xs fill-white">0</text>
-                    <text x="10" y="145" textAnchor="end" className="text-xs fill-white">20</text>
-                    <text x="10" y="105" textAnchor="end" className="text-xs fill-white">40</text>
-                    <text x="10" y="65" textAnchor="end" className="text-xs fill-white">60</text>
-                    <text x="10" y="25" textAnchor="end" className="text-xs fill-white">80</text>
+                    {(() => {
+                      const maxValue = Math.max(...strayChartData.map(d => d.count), 1);
+                      const roundedMax = Math.ceil(maxValue / 4) * 4; // Round up to next multiple of 4
+                      const step = roundedMax / 4;
+                      const labels = [0, step, step * 2, step * 3, roundedMax];
+                      const yPositions = [255, 205, 155, 105, 55];
+                      
+                      return labels.map((label, idx) => (
+                        <text key={idx} x="40" y={yPositions[idx]} textAnchor="end" className="text-xs fill-white">
+                          {Math.round(label)}
+                        </text>
+                      ));
+                    })()}
                   </svg>
               </div>
                 <div className="mt-4 flex justify-between text-sm text-white">

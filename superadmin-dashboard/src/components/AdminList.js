@@ -1,7 +1,7 @@
 import React from 'react';
-import { Edit, UserCheck, UserX, Trash2 } from 'lucide-react';
+import { Edit, UserCheck, UserX, Archive, ArchiveRestore } from 'lucide-react';
 
-const AdminList = ({ admins, onToggleStatus, onEdit, onDelete }) => {
+const AdminList = ({ admins, onToggleStatus, onEdit, onDelete, onRestore, isArchiveView = false }) => {
   const getRoleDisplay = (role) => {
     switch (role) {
       case 'agricultural_admin':
@@ -97,42 +97,61 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete }) => {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-              <button
-                onClick={() => onEdit(admin)}
-                className="flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
-              >
-                <Edit className="h-3 w-3 mr-1" />
-                Edit
-              </button>
-              <button
-                onClick={() => onToggleStatus(admin.id, admin.status)}
-                className={`flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                  admin.status === 'active'
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
-                    : 'text-green-600 bg-green-50 hover:bg-green-100'
-                }`}
-              >
-                {admin.status === 'active' ? (
-                  <>
-                    <UserX className="h-3 w-3 mr-1" />
-                    Deactivate
-                  </>
+            {!isArchiveView && (
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => onEdit(admin)}
+                  className="flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                >
+                  <Edit className="h-3 w-3 mr-1" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => onToggleStatus(admin.id, admin.status)}
+                  className={`flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                    admin.status === 'active'
+                      ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                      : 'text-green-600 bg-green-50 hover:bg-green-100'
+                  }`}
+                >
+                  {admin.status === 'active' ? (
+                    <>
+                      <UserX className="h-3 w-3 mr-1" />
+                      Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="h-3 w-3 mr-1" />
+                      Activate
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => onDelete(admin)}
+                  className="flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-md transition-colors"
+                >
+                  <Archive className="h-3 w-3 mr-1" />
+                  Archive
+                </button>
+              </div>
+            )}
+            {isArchiveView && (
+              <div className="pt-2 border-t border-gray-100">
+                {onRestore ? (
+                  <button
+                    onClick={() => onRestore(admin)}
+                    className="w-full flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                  >
+                    <ArchiveRestore className="h-3 w-3 mr-1" />
+                    Restore
+                  </button>
                 ) : (
-                  <>
-                    <UserCheck className="h-3 w-3 mr-1" />
-                    Activate
-                  </>
+                  <div className="text-xs text-gray-500 italic">
+                    Archived
+                  </div>
                 )}
-              </button>
-              <button
-                onClick={() => onDelete(admin)}
-                className="flex-1 min-w-[80px] flex items-center justify-center px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-              >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Delete
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -205,44 +224,64 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete }) => {
                   </div>
                 </td>
                 <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex justify-end space-x-2 lg:space-x-3">
-                    <button
-                      onClick={() => onEdit(admin)}
-                      className="text-indigo-600 hover:text-indigo-900 flex items-center"
-                    >
-                      <Edit className="h-4 w-4 lg:mr-1" />
-                      <span className="hidden lg:inline">Edit</span>
-                    </button>
-                    <button
-                      onClick={() => onToggleStatus(admin.id, admin.status)}
-                      className={`flex items-center ${
-                        admin.status === 'active'
-                          ? 'text-red-600 hover:text-red-900'
-                          : 'text-green-600 hover:text-green-900'
-                      }`}
-                      title={`${admin.status === 'active' ? 'Deactivate' : 'Activate'} this admin account`}
-                    >
-                      {admin.status === 'active' ? (
-                        <>
-                          <UserX className="h-4 w-4 lg:mr-1" />
-                          <span className="hidden lg:inline">Deactivate</span>
-                        </>
+                  {!isArchiveView ? (
+                    <div className="flex justify-end space-x-2 lg:space-x-3">
+                      <button
+                        onClick={() => onEdit(admin)}
+                        className="text-indigo-600 hover:text-indigo-900 flex items-center"
+                        title="Edit admin"
+                      >
+                        <Edit className="h-4 w-4 lg:mr-1" />
+                        <span className="hidden lg:inline">Edit</span>
+                      </button>
+                      <button
+                        onClick={() => onToggleStatus(admin.id, admin.status)}
+                        className={`flex items-center ${
+                          admin.status === 'active'
+                            ? 'text-red-600 hover:text-red-900'
+                            : 'text-green-600 hover:text-green-900'
+                        }`}
+                        title={`${admin.status === 'active' ? 'Deactivate' : 'Activate'} this admin account`}
+                      >
+                        {admin.status === 'active' ? (
+                          <>
+                            <UserX className="h-4 w-4 lg:mr-1" />
+                            <span className="hidden lg:inline">Deactivate</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="h-4 w-4 lg:mr-1" />
+                            <span className="hidden lg:inline">Activate</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => onDelete(admin)}
+                        className="text-orange-600 hover:text-orange-900 flex items-center"
+                        title="Archive admin"
+                      >
+                        <Archive className="h-4 w-4 lg:mr-1" />
+                        <span className="hidden lg:inline">Archive</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end">
+                      {onRestore ? (
+                        <button
+                          onClick={() => onRestore(admin)}
+                          className="text-green-600 hover:text-green-900 flex items-center"
+                          title="Restore admin"
+                        >
+                          <ArchiveRestore className="h-4 w-4 lg:mr-1" />
+                          <span className="hidden lg:inline">Restore</span>
+                        </button>
                       ) : (
-                        <>
-                          <UserCheck className="h-4 w-4 lg:mr-1" />
-                          <span className="hidden lg:inline">Activate</span>
-                        </>
+                        <div className="text-gray-500 italic text-xs">
+                          Archived
+                        </div>
                       )}
-                    </button>
-                    <button
-                      onClick={() => onDelete(admin)}
-                      className="text-red-600 hover:text-red-900 flex items-center"
-                      title="Delete admin"
-                    >
-                      <Trash2 className="h-4 w-4 lg:mr-1" />
-                      <span className="hidden lg:inline">Delete</span>
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

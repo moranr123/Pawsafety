@@ -36,7 +36,9 @@ import {
   Bell,
   Shield,
   ShieldCheck,
-  ShieldOff
+  ShieldOff,
+  Archive,
+  ArrowLeft
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 
@@ -76,12 +78,16 @@ const AgriculturalDashboard = () => {
   const [users, setUsers] = useState([]);
   const [registeredPets, setRegisteredPets] = useState([]);
   const [pendingPets, setPendingPets] = useState([]);
+  const [archivedPets, setArchivedPets] = useState([]);
   const [deactivatedUsers, setDeactivatedUsers] = useState([]);
   const [selectedPet, setSelectedPet] = useState(null);
   const [showPetModal, setShowPetModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [filterGender, setFilterGender] = useState('all');
+  const [filterBreed, setFilterBreed] = useState('all');
+  const [filterDate, setFilterDate] = useState('all');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -269,12 +275,45 @@ const AgriculturalDashboard = () => {
         }
       });
       
-      // Filter registered vs pending pets (exclude rejected ones)
-      const registered = allPets.filter(pet => pet.registrationStatus === 'registered');
-      const pending = allPets.filter(pet => pet.registrationStatus === 'pending' || (!pet.registrationStatus && pet.petName && pet.ownerFullName));
+      // Filter registered vs pending pets (exclude archived/rejected ones)
+      const registered = allPets
+        .filter(pet => pet.registrationStatus === 'registered' && !pet.archived)
+        .sort((a, b) => {
+          // Sort by registeredAt timestamp (most recently registered first)
+          // Fall back to createdAt if registeredAt doesn't exist
+          const dateA = a.registeredAt?.toDate 
+            ? a.registeredAt.toDate() 
+            : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0));
+          const dateB = b.registeredAt?.toDate 
+            ? b.registeredAt.toDate() 
+            : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0));
+          
+          // Descending order (newest first)
+          return dateB.getTime() - dateA.getTime();
+        });
+      const pending = allPets.filter(pet => 
+        (pet.registrationStatus === 'pending' || (!pet.registrationStatus && pet.petName && pet.ownerFullName)) &&
+        !pet.archived
+      );
+      
+      // Filter archived/rejected pets
+      const archived = allPets
+        .filter(pet => pet.archived === true || pet.registrationStatus === 'rejected')
+        .sort((a, b) => {
+          // Sort by rejectedAt or archivedAt timestamp (most recent first)
+          const dateA = a.rejectedAt?.toDate 
+            ? a.rejectedAt.toDate() 
+            : (a.archivedAt?.toDate ? a.archivedAt.toDate() : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0)));
+          const dateB = b.rejectedAt?.toDate 
+            ? b.rejectedAt.toDate() 
+            : (b.archivedAt?.toDate ? b.archivedAt.toDate() : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0)));
+          
+          return dateB.getTime() - dateA.getTime();
+        });
       
       setRegisteredPets(registered);
       setPendingPets(pending);
+      setArchivedPets(archived);
       
       // Generate chart data
       setChartData(generateChartData(allPets));
@@ -494,10 +533,28 @@ const getOwnerProfileImage = (pet) => {
   };
 
   const handleRejectPetRegistration = async (petId) => {
+    const petDoc = pets.find(pet => pet.id === petId);
+    const petName = petDoc?.petName || 'Unnamed Pet';
+    const ownerName = petDoc?.ownerFullName || 'Unknown Owner';
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to reject this pet registration?\n\n` +
+      `Pet: ${petName}\n` +
+      `Owner: ${ownerName}\n\n` +
+      `This will:\n` +
+      `• Archive the pet registration\n` +
+      `• Send a rejection notification to the pet owner\n` +
+      `• Move the pet to the Archive page\n\n` +
+      `Click OK to reject or Cancel to abort.`
+    );
+    
+    if (!confirmed) {
+      return; // User cancelled the action
+    }
+    
     try {
-      const petDoc = pets.find(pet => pet.id === petId);
-      
-      // Create notification for pet owner before deleting
+      // Create notification for pet owner before archiving
       if (petDoc && petDoc.userId) {
         await addDoc(collection(db, 'notifications'), {
           userId: petDoc.userId,
@@ -511,10 +568,16 @@ const getOwnerProfileImage = (pet) => {
         });
       }
 
-      // Delete the pet instead of just marking as rejected
-      await deleteDoc(doc(db, 'pets', petId));
+      // Archive the pet instead of deleting
+      const petRef = doc(db, 'pets', petId);
+      await updateDoc(petRef, {
+        archived: true,
+        registrationStatus: 'rejected',
+        rejectedAt: serverTimestamp(),
+        rejectedBy: currentUser?.email || 'agricultural_admin'
+      });
       
-      toast.success('Pet registration rejected and removed');
+      toast.success('Pet registration rejected and archived');
     } catch (error) {
       console.error('Error rejecting registration:', error);
       toast.error('Failed to reject registration');
@@ -553,7 +616,57 @@ const getOwnerProfileImage = (pet) => {
     });
   };
 
-  const getFilteredRegisteredPets = () => getFilteredPets(registeredPets);
+  // Get unique breeds from registered pets
+  const getUniqueBreeds = () => {
+    const breeds = registeredPets
+      .map(pet => pet.breed)
+      .filter(breed => breed && breed.trim() !== '')
+      .filter((breed, index, self) => self.indexOf(breed) === index)
+      .sort();
+    return breeds;
+  };
+
+  // Filter registered pets with additional filters
+  const getFilteredRegisteredPets = () => {
+    return registeredPets.filter(pet => {
+      const matchesSearch = !searchTerm || 
+        pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesType = filterType === 'all' || pet.petType === filterType;
+      
+      const matchesGender = filterGender === 'all' || pet.petGender === filterGender;
+      
+      const matchesBreed = filterBreed === 'all' || pet.breed === filterBreed;
+      
+      const matchesDate = (() => {
+        if (filterDate === 'all') return true;
+        
+        const petDate = pet.registeredAt?.toDate 
+          ? pet.registeredAt.toDate() 
+          : (pet.createdAt?.toDate ? pet.createdAt.toDate() : new Date(pet.createdAt || 0));
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        
+        switch (filterDate) {
+          case 'today':
+            return petDate >= today;
+          case 'week':
+            return petDate >= weekAgo;
+          case 'month':
+            return petDate >= monthAgo;
+          default:
+            return true;
+        }
+      })();
+      
+      return matchesSearch && matchesType && matchesGender && matchesBreed && matchesDate;
+    });
+  };
+  
   const getFilteredPendingPets = () => getFilteredPets(pendingPets);
 
   const markNotificationAsRead = async (notificationId) => {
@@ -911,6 +1024,7 @@ const getOwnerProfileImage = (pet) => {
                   User Management
                 </div>
               </button>
+              
             </nav>
           </div>
         </>
@@ -1326,7 +1440,21 @@ const getOwnerProfileImage = (pet) => {
 
                  {!isLoading && activeTab === 'pending' && (
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Pet Registration Requests</h2>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
+              <h2 className="text-base sm:text-lg font-medium text-gray-900">Pet Registration Requests</h2>
+              <button
+                onClick={() => setActiveTab('archive')}
+                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                View Archive
+                {archivedPets.length > 0 && (
+                  <span className="ml-2 bg-white text-orange-600 text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center font-semibold">
+                    {archivedPets.length > 99 ? '99+' : archivedPets.length}
+                  </span>
+                )}
+              </button>
+            </div>
              
              {/* Search and Filter Controls */}
              <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -1476,37 +1604,93 @@ const getOwnerProfileImage = (pet) => {
             <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Registered Pets Management</h2>
              
              {/* Search and Filter Controls */}
-             <div className="mb-6 flex flex-col sm:flex-row gap-4">
-               <div className="flex-1">
-                 <input
-                   type="text"
-                   placeholder="Search by pet name, owner, or breed..."
-                   value={searchTerm}
-                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                 />
-               </div>
-               <div className="flex gap-2">
-                 <select
-                   value={filterType}
-                   onChange={(e) => setFilterType(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                 >
-                  <option value="all">All Types</option>
-                  <option value="dog">Dogs</option>
-                  <option value="cat">Cats</option>
-                 </select>
+             <div className="mb-6 space-y-4">
+               {/* Search Bar */}
+               <div className="flex flex-col sm:flex-row gap-4">
+                 <div className="flex-1">
+                   <input
+                     type="text"
+                     placeholder="Search by pet name, owner, or breed..."
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                     className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   />
+                 </div>
                  <button
                    onClick={() => {
                      setSearchTerm('');
                      setFilterType('all');
+                     setFilterGender('all');
+                     setFilterBreed('all');
+                     setFilterDate('all');
                    }}
-                  className="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-all duration-300"
+                   className="px-4 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-all duration-300 whitespace-nowrap"
                  >
-                   Clear
-                </button>
-              </div>
-            </div>
+                   Clear All
+                 </button>
+               </div>
+
+               {/* Filter Buttons Row */}
+               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                 {/* Type Filter */}
+                 <div>
+                   <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                   <select
+                     value={filterType}
+                     onChange={(e) => setFilterType(e.target.value)}
+                     className="w-full px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   >
+                     <option value="all">All Types</option>
+                     <option value="dog">Dogs</option>
+                     <option value="cat">Cats</option>
+                   </select>
+                 </div>
+
+                 {/* Gender Filter */}
+                 <div>
+                   <label className="block text-xs font-medium text-gray-700 mb-1">Gender</label>
+                   <select
+                     value={filterGender}
+                     onChange={(e) => setFilterGender(e.target.value)}
+                     className="w-full px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   >
+                     <option value="all">All Genders</option>
+                     <option value="male">♂ Male</option>
+                     <option value="female">♀ Female</option>
+                   </select>
+                 </div>
+
+                 {/* Breed Filter */}
+                 <div>
+                   <label className="block text-xs font-medium text-gray-700 mb-1">Breed</label>
+                   <select
+                     value={filterBreed}
+                     onChange={(e) => setFilterBreed(e.target.value)}
+                     className="w-full px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   >
+                     <option value="all">All Breeds</option>
+                     {getUniqueBreeds().map(breed => (
+                       <option key={breed} value={breed}>{breed}</option>
+                     ))}
+                   </select>
+                 </div>
+
+                 {/* Date Filter */}
+                 <div>
+                   <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+                   <select
+                     value={filterDate}
+                     onChange={(e) => setFilterDate(e.target.value)}
+                     className="w-full px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   >
+                     <option value="all">All Time</option>
+                     <option value="today">Today</option>
+                     <option value="week">This Week</option>
+                     <option value="month">This Month</option>
+                   </select>
+                 </div>
+               </div>
+             </div>
              
             {/* Mobile Card View */}
             <div className="block md:hidden space-y-3">
@@ -1569,7 +1753,9 @@ const getOwnerProfileImage = (pet) => {
               ))}
               {getFilteredRegisteredPets().length === 0 && (
                 <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
-                  {searchTerm || filterType !== 'all' ? 'No pets match your search criteria' : 'No registered pets yet'}
+                  {searchTerm || filterType !== 'all' || filterGender !== 'all' || filterBreed !== 'all' || filterDate !== 'all' 
+                    ? 'No pets match your filter criteria' 
+                    : 'No registered pets yet'}
                 </div>
               )}
             </div>
@@ -1638,7 +1824,9 @@ const getOwnerProfileImage = (pet) => {
                   ))}
                                      {getFilteredRegisteredPets().length === 0 && (
                     <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-600">
-                       {searchTerm || filterType !== 'all' ? 'No pets match your search criteria' : 'No registered pets yet'}
+                       {searchTerm || filterType !== 'all' || filterGender !== 'all' || filterBreed !== 'all' || filterDate !== 'all' 
+                         ? 'No pets match your filter criteria' 
+                         : 'No registered pets yet'}
                      </td></tr>
                    )}
                 </tbody>
@@ -1945,6 +2133,187 @@ const getOwnerProfileImage = (pet) => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Archive Tab - Archived Pet Registrations */}
+        {!isLoading && activeTab === 'archive' && (
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className="flex items-center justify-center p-2 text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-all duration-300 hover:shadow-md"
+                  title="Go back to Pet Registration"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <div>
+                  <h2 className="text-base sm:text-lg font-medium text-gray-900">Archived Pet Registrations</h2>
+                  <p className="text-xs sm:text-sm text-gray-600">View archived pet registration requests</p>
+                </div>
+              </div>
+              <div className="text-xs sm:text-sm text-gray-900 font-medium">
+                {archivedPets.length} archived
+              </div>
+            </div>
+
+            {/* Search Controls */}
+            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  placeholder="Search by pet name, owner, or breed..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <button
+                onClick={() => setSearchTerm('')}
+                className="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-all duration-300 whitespace-nowrap"
+              >
+                Clear
+              </button>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {archivedPets.filter(pet => {
+                const matchesSearch = !searchTerm || 
+                  pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesSearch;
+              }).map((pet) => (
+                <div key={pet.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {pet.petName || 'Unnamed Pet'}
+                      </h3>
+                      <p className="text-xs text-gray-600 truncate mt-0.5">{pet.ownerFullName || 'Unknown Owner'}</p>
+                    </div>
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 whitespace-nowrap">
+                      <Archive className="h-3 w-3 mr-1" />
+                      Archived
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Type/Breed:</span>
+                      <span className="text-gray-900 text-right">{pet.petType} - {pet.breed}</span>
+                    </div>
+                    {pet.rejectedAt && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500 font-medium">Archived:</span>
+                        <span className="text-gray-900">
+                          {pet.rejectedAt?.toDate ? pet.rejectedAt.toDate().toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => handleViewPet(pet)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {archivedPets.filter(pet => {
+                const matchesSearch = !searchTerm || 
+                  pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesSearch;
+              }).length === 0 && (
+                <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
+                  {searchTerm ? 'No archived pets match your search criteria' : 'No archived pet registrations yet'}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type/Breed</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archived Date</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {archivedPets.filter(pet => {
+                    const matchesSearch = !searchTerm || 
+                      pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                    return matchesSearch;
+                  }).map((pet) => (
+                    <tr key={pet.id} className="hover:bg-gray-50 transition-all duration-300">
+                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{pet.petName || 'Unnamed Pet'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">{pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1) || 'Unknown'}</span>
+                          <span className="text-xs text-gray-500">{pet.breed || 'Unknown breed'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          pet.petGender === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                        }`}>
+                          {pet.petGender === 'male' ? '♂ Male' : '♀ Female'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        {pet.rejectedAt?.toDate ? pet.rejectedAt.toDate().toLocaleDateString() : 
+                         pet.archivedAt?.toDate ? pet.archivedAt.toDate().toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          <Archive className="h-3 w-3 mr-1" />
+                          Archived
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm">
+                        <div className="inline-flex gap-2">
+                          <button 
+                            onClick={() => handleViewPet(pet)}
+                            className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
+                          >
+                            View
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {archivedPets.filter(pet => {
+                    const matchesSearch = !searchTerm || 
+                      pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                    return matchesSearch;
+                  }).length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-600">
+                        {searchTerm ? 'No archived pets match your search criteria' : 'No archived pet registrations yet'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </main>
