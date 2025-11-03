@@ -79,6 +79,7 @@ const AgriculturalDashboard = () => {
   const [registeredPets, setRegisteredPets] = useState([]);
   const [pendingPets, setPendingPets] = useState([]);
   const [archivedPets, setArchivedPets] = useState([]);
+  const [archivedRegisteredPets, setArchivedRegisteredPets] = useState([]);
   const [deactivatedUsers, setDeactivatedUsers] = useState([]);
   const [selectedPet, setSelectedPet] = useState(null);
   const [showPetModal, setShowPetModal] = useState(false);
@@ -296,9 +297,9 @@ const AgriculturalDashboard = () => {
         !pet.archived
       );
       
-      // Filter archived/rejected pets
+      // Filter archived/rejected pets (rejected registrations)
       const archived = allPets
-        .filter(pet => pet.archived === true || pet.registrationStatus === 'rejected')
+        .filter(pet => (pet.archived === true && pet.registrationStatus === 'rejected') || pet.registrationStatus === 'rejected')
         .sort((a, b) => {
           // Sort by rejectedAt or archivedAt timestamp (most recent first)
           const dateA = a.rejectedAt?.toDate 
@@ -310,10 +311,26 @@ const AgriculturalDashboard = () => {
           
           return dateB.getTime() - dateA.getTime();
         });
+
+      // Filter archived registered pets (from pet management)
+      const archivedRegistered = allPets
+        .filter(pet => pet.registrationStatus === 'registered' && pet.archived === true)
+        .sort((a, b) => {
+          // Sort by archivedAt timestamp (most recent first)
+          const dateA = a.archivedAt?.toDate 
+            ? a.archivedAt.toDate() 
+            : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0));
+          const dateB = b.archivedAt?.toDate 
+            ? b.archivedAt.toDate() 
+            : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0));
+          
+          return dateB.getTime() - dateA.getTime();
+        });
       
       setRegisteredPets(registered);
       setPendingPets(pending);
       setArchivedPets(archived);
+      setArchivedRegisteredPets(archivedRegistered);
       
       // Generate chart data
       setChartData(generateChartData(allPets));
@@ -584,16 +601,30 @@ const getOwnerProfileImage = (pet) => {
     }
   };
 
-  const handleDeletePet = async (petId, petName) => {
-    const confirmed = window.confirm(`Are you sure you want to delete ${petName}? This action cannot be undone.`);
+  const handleArchivePet = async (petId, petName) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to archive ${petName}?\n\n` +
+      `This will:\n` +
+      `• Move the pet to the Archive page\n` +
+      `• Remove it from the active pet management list\n` +
+      `• Preserve all pet data\n\n` +
+      `Click OK to archive or Cancel to abort.`
+    );
+    
     if (!confirmed) return;
 
     try {
-      await deleteDoc(doc(db, 'pets', petId));
-      toast.success(`${petName} has been deleted successfully`);
+      const petRef = doc(db, 'pets', petId);
+      await updateDoc(petRef, {
+        archived: true,
+        archivedAt: serverTimestamp(),
+        archivedBy: currentUser?.email || 'agricultural_admin'
+      });
+      
+      toast.success(`${petName} has been archived successfully`);
     } catch (error) {
-      console.error('Error deleting pet:', error);
-      toast.error('Failed to delete pet');
+      console.error('Error archiving pet:', error);
+      toast.error('Failed to archive pet');
     }
   };
 
@@ -1601,7 +1632,21 @@ const getOwnerProfileImage = (pet) => {
 
                  {!isLoading && activeTab === 'registered' && (
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Registered Pets Management</h2>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
+              <h2 className="text-base sm:text-lg font-medium text-gray-900">Registered Pets Management</h2>
+              <button
+                onClick={() => setActiveTab('archived-registered')}
+                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                View Archive
+                {archivedRegisteredPets.length > 0 && (
+                  <span className="ml-2 bg-white text-orange-600 text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center font-semibold">
+                    {archivedRegisteredPets.length > 99 ? '99+' : archivedRegisteredPets.length}
+                  </span>
+                )}
+              </button>
+            </div>
              
              {/* Search and Filter Controls */}
              <div className="mb-6 space-y-4">
@@ -1743,10 +1788,11 @@ const getOwnerProfileImage = (pet) => {
                       View
                     </button>
                     <button
-                      onClick={() => handleDeletePet(pet.id, pet.petName)}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                      onClick={() => handleArchivePet(pet.id, pet.petName)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-md transition-colors"
                     >
-                      Delete
+                      <Archive className="h-3 w-3 mr-1" />
+                      Archive
                     </button>
                   </div>
                 </div>
@@ -1813,10 +1859,11 @@ const getOwnerProfileImage = (pet) => {
                             View
                           </button>
                           <button 
-                            onClick={() => handleDeletePet(pet.id, pet.petName)}
-                           className="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 transition-all duration-300"
+                            onClick={() => handleArchivePet(pet.id, pet.petName)}
+                           className="px-2 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 transition-all duration-300 flex items-center"
                           >
-                            Delete
+                            <Archive className="h-3 w-3 mr-1" />
+                            Archive
                           </button>
                         </div>
                       </td>
@@ -2133,6 +2180,188 @@ const getOwnerProfileImage = (pet) => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Archived Registered Pets Tab - Pet Management Archive */}
+        {!isLoading && activeTab === 'archived-registered' && (
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveTab('registered')}
+                  className="flex items-center justify-center p-2 text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-all duration-300 hover:shadow-md"
+                  title="Go back to Pet Management"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <div>
+                  <h2 className="text-base sm:text-lg font-medium text-gray-900">Archived Registered Pets</h2>
+                  <p className="text-xs sm:text-sm text-gray-600">View archived registered pets from pet management</p>
+                </div>
+              </div>
+              <div className="text-xs sm:text-sm text-gray-900 font-medium">
+                {archivedRegisteredPets.length} archived
+              </div>
+            </div>
+
+            {/* Search Controls */}
+            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  placeholder="Search by pet name, owner, or breed..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <button
+                onClick={() => setSearchTerm('')}
+                className="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-all duration-300 whitespace-nowrap"
+              >
+                Clear
+              </button>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-3">
+              {archivedRegisteredPets.filter(pet => {
+                const matchesSearch = !searchTerm || 
+                  pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesSearch;
+              }).map((pet) => (
+                <div key={pet.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {pet.petName || 'Unnamed Pet'}
+                      </h3>
+                      <p className="text-xs text-gray-600 truncate mt-0.5">{pet.ownerFullName || 'Unknown Owner'}</p>
+                    </div>
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 whitespace-nowrap">
+                      <Archive className="h-3 w-3 mr-1" />
+                      Archived
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Type/Breed:</span>
+                      <span className="text-gray-900 text-right">{pet.petType} - {pet.breed}</span>
+                    </div>
+                    {pet.archivedAt && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500 font-medium">Archived:</span>
+                        <span className="text-gray-900">
+                          {pet.archivedAt?.toDate ? pet.archivedAt.toDate().toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => handleViewPet(pet)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {archivedRegisteredPets.filter(pet => {
+                const matchesSearch = !searchTerm || 
+                  pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesSearch;
+              }).length === 0 && (
+                <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
+                  {searchTerm ? 'No archived pets match your search criteria' : 'No archived registered pets yet'}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-hidden ring-1 ring-gray-200 ring-opacity-5 rounded-md bg-white">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type/Breed</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archived Date</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {archivedRegisteredPets.filter(pet => {
+                    const matchesSearch = !searchTerm || 
+                      pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                    return matchesSearch;
+                  }).map((pet) => (
+                    <tr key={pet.id} className="hover:bg-gray-50 transition-all duration-300">
+                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{pet.petName || 'Unnamed Pet'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">{pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1) || 'Unknown'}</span>
+                          <span className="text-xs text-gray-500">{pet.breed || 'Unknown breed'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          pet.petGender === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                        }`}>
+                          {pet.petGender === 'male' ? '♂ Male' : '♀ Female'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">{pet.contactNumber || 'No contact'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        {pet.archivedAt?.toDate ? pet.archivedAt.toDate().toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                          <Archive className="h-3 w-3 mr-1" />
+                          Archived
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm">
+                        <div className="inline-flex gap-2">
+                          <button 
+                            onClick={() => handleViewPet(pet)}
+                            className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
+                          >
+                            View
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {archivedRegisteredPets.filter(pet => {
+                    const matchesSearch = !searchTerm || 
+                      pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      pet.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+                    return matchesSearch;
+                  }).length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-600">
+                        {searchTerm ? 'No archived pets match your search criteria' : 'No archived registered pets yet'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
