@@ -25,7 +25,6 @@ import {
   Users,
   Shield,
   Settings,
-  AlertTriangle,
   Activity,
   Clock,
   Search,
@@ -62,7 +61,6 @@ const SuperAdminDashboard = () => {
   const [archivedAdmins, setArchivedAdmins] = useState([]);
   const [archivedLoading, setArchivedLoading] = useState(true);
 
-  // Helper function to log admin activities
   const logActivity = async (adminId, adminName, adminEmail, action, actionType, details = '') => {
     try {
       await addDoc(collection(db, 'admin_activities'), {
@@ -80,7 +78,6 @@ const SuperAdminDashboard = () => {
   };
 
   useEffect(() => {
-    // Listen for real-time updates on admin users (excluding archived)
     const q = query(
       collection(db, 'users'), 
       where('role', 'in', ['agricultural_admin', 'impound_admin'])
@@ -92,7 +89,7 @@ const SuperAdminDashboard = () => {
           id: doc.id,
           ...doc.data()
         }))
-        .filter(admin => !admin.archived); // Filter out archived admins
+        .filter(admin => !admin.archived);
       setAdmins(adminList);
       setLoading(false);
     });
@@ -100,7 +97,6 @@ const SuperAdminDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch archived admins
   useEffect(() => {
     const q = query(
       collection(db, 'users'), 
@@ -113,7 +109,7 @@ const SuperAdminDashboard = () => {
           id: doc.id,
           ...doc.data()
         }))
-        .filter(admin => admin.archived === true); // Only archived admins
+        .filter(admin => admin.archived === true);
       setArchivedAdmins(archivedList);
       setArchivedLoading(false);
     });
@@ -121,7 +117,6 @@ const SuperAdminDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch admin activities
   useEffect(() => {
     let unsubscribe;
     
@@ -129,7 +124,6 @@ const SuperAdminDashboard = () => {
       try {
         setActivitiesLoading(true);
         
-        // Fetch activities from admin_activities collection (excluding superadmin activities)
         const activitiesQuery = query(
           collection(db, 'admin_activities'),
           orderBy('timestamp', 'desc')
@@ -143,14 +137,11 @@ const SuperAdminDashboard = () => {
               ...doc.data()
             }));
             
-            // Filter to only show agricultural and impound admin login/logout activities
             const filteredActivities = allActivities.filter(activity => {
               const actionType = activity.actionType || '';
               const details = activity.details || '';
               const action = activity.action || '';
               
-              // Only show login and logout activities for agricultural and impound admins
-              // Exclude all SuperAdmin management actions (create, update, delete, status_change)
               return (actionType === 'login' || actionType === 'logout') &&
                      (details.includes('agricultural_admin') || details.includes('impound_admin') || 
                       action.includes('agricultural_admin') || action.includes('impound_admin')) &&
@@ -182,7 +173,6 @@ const SuperAdminDashboard = () => {
     };
   }, []);
 
-  // Fetch history log (SuperAdmin actions)
   useEffect(() => {
     let unsubscribe;
     
@@ -190,7 +180,6 @@ const SuperAdminDashboard = () => {
       try {
         setHistoryLoading(true);
         
-        // Fetch activities from admin_activities collection (only SuperAdmin actions)
         const activitiesQuery = query(
           collection(db, 'admin_activities'),
           orderBy('timestamp', 'desc')
@@ -204,7 +193,6 @@ const SuperAdminDashboard = () => {
               ...doc.data()
             }));
             
-            // Filter to only show SuperAdmin management actions (create, update, delete, status_change)
             const superAdminActions = allActivities.filter(activity => {
               const actionType = activity.actionType || '';
               return ['create', 'update', 'delete', 'status_change'].includes(actionType);
@@ -237,11 +225,9 @@ const SuperAdminDashboard = () => {
 
   const handleCreateAdmin = async (adminData) => {
     try {
-      // Call the Cloud Function in the same region it is deployed (us-central1)
       const functions = getFunctions(undefined, 'us-central1');
       const createAdminUser = httpsCallable(functions, 'createAdminUser');
       
-      // Send only serializable fields that the function expects
       const payload = {
         name: adminData.name,
         email: adminData.email,
@@ -257,7 +243,6 @@ const SuperAdminDashboard = () => {
 
       toast.success('Admin account created successfully!');
       
-      // Log admin creation activity
       await logActivity(
         currentUser.uid,
         currentUser.displayName || currentUser.email,
@@ -270,7 +255,6 @@ const SuperAdminDashboard = () => {
       setShowCreateModal(false);
     } catch (error) {
       console.error('Error creating admin:', error);
-      // Surface clearer Firebase Function errors when available
       let friendlyMessage = 'Failed to create admin account. Please try again.';
       if (error?.code === 'functions/permission-denied') {
         friendlyMessage = 'Only superadmins can create admin users';
@@ -297,7 +281,6 @@ const SuperAdminDashboard = () => {
       await updateAdminPassword({ uid, newPassword });
       toast.success('Password updated successfully');
       
-      // Log password update activity
       await logActivity(
         currentUser.uid,
         currentUser.displayName || currentUser.email,
@@ -332,7 +315,6 @@ const SuperAdminDashboard = () => {
       
       toast.success('Admin archived successfully');
       
-      // Log admin archiving activity
       await logActivity(
         currentUser.uid,
         currentUser.displayName || currentUser.email,
@@ -360,7 +342,6 @@ const SuperAdminDashboard = () => {
       
       toast.success('Admin restored successfully');
       
-      // Log admin restore activity
       await logActivity(
         currentUser.uid,
         currentUser.displayName || currentUser.email,
@@ -384,7 +365,6 @@ const SuperAdminDashboard = () => {
         status: newStatus
       });
 
-      // Log status change activity
       await logActivity(
         currentUser.uid,
         currentUser.displayName || currentUser.email,
@@ -393,8 +373,6 @@ const SuperAdminDashboard = () => {
         'status_change',
         `${newStatus === 'active' ? 'Activated' : 'Deactivated'} admin account for ${adminId}`
       );
-
-      // Alert removed for activation/deactivation
     } catch (error) {
       console.error('Error updating admin status:', error);
       toast.error(error.message || 'Failed to update admin status');
@@ -414,7 +392,6 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  // Filter and search activities (only agricultural and impound admin activities)
   const filteredActivities = (adminActivities || []).filter(activity => {
     if (!activity) return false;
     
@@ -428,7 +405,6 @@ const SuperAdminDashboard = () => {
     return matchesSearch && matchesFilter;
   });
 
-  // Filter and search history log (SuperAdmin actions)
   const filteredHistoryLog = (historyLog || []).filter(activity => {
     if (!activity) return false;
     
@@ -442,7 +418,6 @@ const SuperAdminDashboard = () => {
     return matchesSearch && matchesFilter;
   });
 
-  // Get activity icon based on action type
   const getActivityIcon = (actionType) => {
     switch (actionType) {
       case 'login':
@@ -462,7 +437,6 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  // Format timestamp
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'Unknown time';
     
@@ -489,7 +463,6 @@ const SuperAdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col lg:flex-row">
-      {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-800 to-slate-900 shadow-lg">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center space-x-3">
@@ -525,7 +498,6 @@ const SuperAdminDashboard = () => {
         </div>
       </header>
 
-      {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
         <>
           <div 
@@ -581,7 +553,6 @@ const SuperAdminDashboard = () => {
         </>
       )}
 
-      {/* Desktop Sidebar */}
       <aside
         className={`hidden lg:block fixed inset-y-0 left-0 z-50 transition-all duration-300 ${
           sidebarOpen || sidebarHovered ? 'w-80 translate-x-0' : 'w-16 -translate-x-0'
@@ -590,7 +561,6 @@ const SuperAdminDashboard = () => {
         onMouseLeave={() => setSidebarHovered(false)}
       >
         <div className="h-full bg-gradient-to-b from-slate-800 to-slate-900 border-r border-slate-700 shadow-2xl flex flex-col">
-          {/* Brand / Toggle */}
           <div className="flex items-center justify-between px-4 py-4 border-b border-slate-700">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1">
@@ -613,7 +583,6 @@ const SuperAdminDashboard = () => {
             </div>
           </div>
 
-          {/* Nav */}
           <nav className="p-3 flex-1 space-y-3 overflow-y-auto">
             <button
               onClick={() => setActiveTab('dashboard')}
@@ -650,7 +619,6 @@ const SuperAdminDashboard = () => {
             </button>
           </nav>
 
-          {/* Logout pinned to bottom */}
           <div className="p-3 pt-0 mt-auto">
             {(sidebarOpen || sidebarHovered) ? (
               <button
@@ -673,16 +641,13 @@ const SuperAdminDashboard = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className={`flex-1 py-3 px-3 sm:py-6 sm:px-6 transition-all duration-300 ${
         sidebarOpen || sidebarHovered ? 'lg:ml-80' : 'lg:ml-16'
       } pt-20 lg:pt-12`}>
         <div className="max-w-7xl mx-auto">
           
-          {/* Dashboard Tab */}
           {activeTab === 'dashboard' && (
             <>
-              {/* Stats Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6 lg:mb-8">
                 <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                    <div className="p-4 sm:p-6">
@@ -752,7 +717,6 @@ const SuperAdminDashboard = () => {
                  </div>
                </div>
 
-             {/* Admin Management Section */}
              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200">
                <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
@@ -797,10 +761,8 @@ const SuperAdminDashboard = () => {
             </>
           )}
 
-          {/* Admin Activities Tab */}
           {activeTab === 'activities' && (
             <div className="space-y-4 sm:space-y-6">
-              {/* Header */}
               <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
                   <div className="flex items-center">
@@ -847,7 +809,6 @@ const SuperAdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* Activities List */}
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                   {activitiesLoading ? (
                     <div className="p-6 sm:p-8 text-center">
@@ -905,10 +866,8 @@ const SuperAdminDashboard = () => {
             </div>
           )}
 
-          {/* History Log Tab */}
           {activeTab === 'history' && (
             <div className="space-y-4 sm:space-y-6">
-              {/* Header */}
               <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
                   <div className="flex items-center">
@@ -957,7 +916,6 @@ const SuperAdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* History List */}
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                   {historyLoading ? (
                     <div className="p-6 sm:p-8 text-center">
@@ -1015,10 +973,8 @@ const SuperAdminDashboard = () => {
             </div>
           )}
 
-          {/* Archived Admins Tab */}
           {activeTab === 'archived' && (
             <div className="space-y-4 sm:space-y-6">
-              {/* Header */}
               <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
                   <div className="flex items-center gap-3">
@@ -1044,7 +1000,6 @@ const SuperAdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* Archived Admins List */}
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                   {archivedLoading ? (
                     <div className="p-6 sm:p-8 text-center">
@@ -1074,7 +1029,6 @@ const SuperAdminDashboard = () => {
         </div>
       </main>
 
-      {/* Create Admin Modal */}
       {showCreateModal && (
         <CreateAdminModal
           onClose={() => setShowCreateModal(false)}

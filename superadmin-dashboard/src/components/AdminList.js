@@ -45,15 +45,11 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete, onRestore, isArch
     if (!timestamp) return 'N/A';
     
     let date;
-    // Handle both Firestore timestamp objects and ISO strings
     if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-      // Firestore timestamp object
       date = timestamp.toDate();
     } else if (typeof timestamp === 'string') {
-      // ISO string
       date = new Date(timestamp);
     } else if (timestamp instanceof Date) {
-      // Already a Date object
       date = timestamp;
     } else {
       return 'Invalid Date';
@@ -70,7 +66,6 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete, onRestore, isArch
 
   return (
     <>
-      {/* Mobile Card View */}
       <div className="block md:hidden space-y-3">
         {admins.map((admin) => (
           <div key={admin.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
@@ -156,7 +151,6 @@ const AdminList = ({ admins, onToggleStatus, onEdit, onDelete, onRestore, isArch
         ))}
       </div>
 
-      {/* Desktop Table View */}
       <div className="hidden md:block overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
         <table className="min-w-full divide-y divide-gray-300">
           <thead className="bg-gray-50">

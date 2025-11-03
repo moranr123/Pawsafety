@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { 
   collection,
@@ -17,7 +16,6 @@ import {
   getDocs,
   getDoc
 } from 'firebase/firestore';
-import { getAuth, updateUserProfile } from 'firebase/auth';
 import { db } from '../firebase/config';
 import { 
   LogOut, 
@@ -69,7 +67,6 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
 
 const AgriculturalDashboard = () => {
   const { currentUser, logout } = useAuth();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -101,17 +98,14 @@ const AgriculturalDashboard = () => {
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Generate chart data from real pet registrations
   const generateChartData = (pets) => {
     const now = new Date();
     const months = [];
     
-    // Generate last 6 months
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
-      // Count pets registered in this month
       const monthPets = pets.filter(pet => {
         const petDate = pet.createdAt?.toDate ? pet.createdAt.toDate() : new Date(pet.createdAt);
         return petDate.getMonth() === date.getMonth() && 
@@ -128,11 +122,9 @@ const AgriculturalDashboard = () => {
     return months;
   };
 
-  // Generate recent activity from pets and users
   const generateRecentActivity = (pets, users) => {
     const activities = [];
     
-    // Add recent pet registrations
     pets.slice(0, 5).forEach(pet => {
       activities.push({
         id: `pet-${pet.id}`,
@@ -143,7 +135,6 @@ const AgriculturalDashboard = () => {
       });
     });
     
-    // Add recent user registrations
     users.slice(0, 3).forEach((user, index) => {
       activities.push({
         id: `user-${user.uid || `unknown-${index}`}`,
@@ -154,7 +145,6 @@ const AgriculturalDashboard = () => {
       });
     });
     
-    // Sort by timestamp and take most recent 8
     return activities
       .sort((a, b) => {
         const timeA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
@@ -164,7 +154,6 @@ const AgriculturalDashboard = () => {
       .slice(0, 8);
   };
 
-  // Helpers for dynamic SVG chart generation (match Impound scaling)
   const generateChartPath = (data, maxValue = 10) => {
     if (!data || data.length === 0) return "M 20,180 L 20,180";
     const points = data.map((d, i) => {
@@ -197,13 +186,9 @@ const AgriculturalDashboard = () => {
     const unsubscribePets = onSnapshot(petsQuery, (snapshot) => {
       const allPets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Check for pet changes and create admin notifications
       snapshot.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
           const newPet = { id: change.doc.id, ...change.doc.data() };
-          console.log('🆕 New pet detected:', newPet.petName);
-          
-          // Create admin notification for new pet registration
           try {
             await addDoc(collection(db, 'admin_notifications'), {
               type: 'new_registration',
@@ -216,16 +201,12 @@ const AgriculturalDashboard = () => {
               read: false,
               createdAt: new Date()
             });
-            console.log('✅ Admin notification created for new pet:', newPet.petName);
           } catch (error) {
-            console.error('❌ Error creating admin notification for new pet:', error);
+            console.error('Error creating admin notification for new pet:', error);
           }
         } else if (change.type === 'removed') {
           const deletedPet = { id: change.doc.id, ...change.doc.data() };
-          console.log('🗑️ Pet removed from collection:', deletedPet.petName);
           
-          // Check if this removal was due to marking as deceased by looking for recent deceased notifications
-          // This prevents duplicate notifications when pets are marked as deceased
           const recentDeceasedNotifications = notifications.filter(n => 
             n.type === 'pet_deceased' && 
             n.petId === deletedPet.id &&
@@ -233,12 +214,7 @@ const AgriculturalDashboard = () => {
             (n.createdAt.toDate ? n.createdAt.toDate() : new Date(n.createdAt)) > new Date(Date.now() - 5000) // Within last 5 seconds
           );
           
-          if (recentDeceasedNotifications.length > 0) {
-            console.log('🕊️ Pet marked as deceased, skipping pet_deleted notification:', deletedPet.petName);
-          } else {
-            console.log('🗑️ Pet actually deleted (not deceased):', deletedPet.petName);
-            
-            // Create admin notification for pet deletion
+          if (recentDeceasedNotifications.length === 0) {
             try {
               await addDoc(collection(db, 'admin_notifications'), {
                 type: 'pet_deleted',
@@ -251,9 +227,8 @@ const AgriculturalDashboard = () => {
                 read: false,
                 createdAt: new Date()
               });
-              console.log('✅ Admin notification created for pet deletion:', deletedPet.petName);
             } catch (error) {
-              console.error('❌ Error creating admin notification for pet deletion:', error);
+              console.error('Error creating admin notification for pet deletion:', error);
             }
           }
         }
@@ -261,7 +236,6 @@ const AgriculturalDashboard = () => {
       
       setPets(allPets);
       
-      // Auto-register existing pets that don't have a registration status
       allPets.forEach(async (pet) => {
         if (!pet.registrationStatus && pet.petName && pet.ownerFullName) {
           try {
@@ -276,12 +250,9 @@ const AgriculturalDashboard = () => {
         }
       });
       
-      // Filter registered vs pending pets (exclude archived/rejected ones)
       const registered = allPets
         .filter(pet => pet.registrationStatus === 'registered' && !pet.archived)
         .sort((a, b) => {
-          // Sort by registeredAt timestamp (most recently registered first)
-          // Fall back to createdAt if registeredAt doesn't exist
           const dateA = a.registeredAt?.toDate 
             ? a.registeredAt.toDate() 
             : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0));
@@ -289,7 +260,6 @@ const AgriculturalDashboard = () => {
             ? b.registeredAt.toDate() 
             : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0));
           
-          // Descending order (newest first)
           return dateB.getTime() - dateA.getTime();
         });
       const pending = allPets.filter(pet => 
@@ -297,11 +267,9 @@ const AgriculturalDashboard = () => {
         !pet.archived
       );
       
-      // Filter archived/rejected pets (rejected registrations)
       const archived = allPets
         .filter(pet => (pet.archived === true && pet.registrationStatus === 'rejected') || pet.registrationStatus === 'rejected')
         .sort((a, b) => {
-          // Sort by rejectedAt or archivedAt timestamp (most recent first)
           const dateA = a.rejectedAt?.toDate 
             ? a.rejectedAt.toDate() 
             : (a.archivedAt?.toDate ? a.archivedAt.toDate() : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0)));
@@ -312,11 +280,9 @@ const AgriculturalDashboard = () => {
           return dateB.getTime() - dateA.getTime();
         });
 
-      // Filter archived registered pets (from pet management)
       const archivedRegistered = allPets
         .filter(pet => pet.registrationStatus === 'registered' && pet.archived === true)
         .sort((a, b) => {
-          // Sort by archivedAt timestamp (most recent first)
           const dateA = a.archivedAt?.toDate 
             ? a.archivedAt.toDate() 
             : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0));
@@ -332,16 +298,13 @@ const AgriculturalDashboard = () => {
       setArchivedPets(archived);
       setArchivedRegisteredPets(archivedRegistered);
       
-      // Generate chart data
       setChartData(generateChartData(allPets));
     });
 
-    // Listen to all registered users from users collection
     const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(usersQuery, async (snapshot) => {
       const userMap = new Map();
       
-      // Get all users from users collection
       snapshot.docs.forEach(doc => {
         const userData = doc.data();
         userMap.set(doc.id, {
@@ -383,60 +346,28 @@ const AgriculturalDashboard = () => {
       
       const allUsers = Array.from(userMap.values());
       
-      // Filter out admin and superadmin users - only show regular users
       const regularUsers = allUsers.filter(user => {
         const role = user.role || 'user';
-        return role === 'user' || role === 'regular'; // Only include regular users
+        return role === 'user' || role === 'regular';
       });
       
-      console.log('All registered users:', allUsers.length);
-      console.log('Regular users (filtered):', regularUsers.length);
-      console.log('Filtered out admin users:', allUsers.length - regularUsers.length);
       
       setUsers(regularUsers);
       setDeactivatedUsers(regularUsers.filter(user => user.status === 'deactivated'));
       
-      // Generate recent activity
       setRecentActivity(generateRecentActivity(pets, regularUsers));
       
-      // Set loading to false when data is loaded
       setIsLoading(false);
     });
 
-    // Listen to admin notifications
-    console.log('Setting up admin notifications listener...');
-    console.log('Current user:', currentUser?.email, 'UID:', currentUser?.uid);
-    
     const adminNotificationsQuery = query(collection(db, 'admin_notifications'), orderBy('createdAt', 'desc'));
     const unsubscribeNotifications = onSnapshot(
       adminNotificationsQuery, 
       (snapshot) => {
-        console.log('✅ Admin notifications snapshot received:', snapshot.size, 'documents');
-        
-        // Log doc changes for real-time updates
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            console.log('🆕 New notification added:', { 
-              id: change.doc.id, 
-              type: change.doc.data().type, 
-              title: change.doc.data().title 
-            });
-          }
-        });
-        
         const notificationsList = snapshot.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data() 
         }));
-        
-        // Log all notification types for debugging
-        console.log('📋 All notification types:', notificationsList.map(n => ({ id: n.id, type: n.type, title: n.title })));
-        
-        // Check specifically for pet_deceased notifications
-        const deceasedNotifications = notificationsList.filter(n => n.type === 'pet_deceased');
-        if (deceasedNotifications.length > 0) {
-          console.log('🕊️ Found deceased notifications:', deceasedNotifications);
-        }
         
         // Sort manually by createdAt (newest first)
         notificationsList.sort((a, b) => {
@@ -445,28 +376,16 @@ const AgriculturalDashboard = () => {
           return dateB.getTime() - dateA.getTime();
         });
         
-        console.log('Parsed and sorted notifications:', notificationsList.length, 'total');
         setNotifications(notificationsList);
         
         // Count unread notifications
         const unread = notificationsList.filter(notification => !notification.read).length;
-        console.log('Unread notifications count:', unread);
         setUnreadCount(unread);
-      
-      // Auto-delete test notifications
-      const testNotifications = notificationsList.filter(n => n.type === 'test');
-      if (testNotifications.length > 0) {
-        console.log('Found', testNotifications.length, 'test notifications, deleting...');
-        deleteTestNotifications();
+      },
+      (error) => {
+        console.error('Error listening to admin notifications:', error);
       }
-    },
-    (error) => {
-      console.error('❌ Error listening to admin notifications:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      console.error('Full error:', error);
-    }
-  );
+    );
 
     return () => {
       unsubscribePets();
@@ -766,19 +685,6 @@ const getOwnerProfileImage = (pet) => {
     setShowNotificationModal(true);
   };
 
-  const deleteTestNotifications = async () => {
-    try {
-      const testNotifications = notifications.filter(n => n.type === 'test');
-      const batch = writeBatch(db);
-      testNotifications.forEach(notification => {
-        batch.delete(doc(db, 'admin_notifications', notification.id));
-      });
-      await batch.commit();
-      console.log('Test notifications deleted');
-    } catch (error) {
-      console.error('Error deleting test notifications:', error);
-    }
-  };
 
   // User Management Functions
   const handleActivateUser = async (userId) => {
@@ -899,7 +805,6 @@ const getOwnerProfileImage = (pet) => {
 
 
 
-  // Close notifications dropdown when clicking outside (ignore clicks on details modal)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -2567,14 +2472,6 @@ const getOwnerProfileImage = (pet) => {
                  {(() => {
                    const imageUrl = selectedPet.petImage || selectedPet.imageUrl || selectedPet.image;
                    
-                   console.log('=== Pet Image Debug Info ===');
-                   console.log('Selected Pet Data:', selectedPet);
-                   console.log('Image URL:', imageUrl);
-                   console.log('Pet Image Field:', selectedPet.petImage);
-                   console.log('Image URL Field:', selectedPet.imageUrl);
-                   console.log('Image Field:', selectedPet.image);
-                   console.log('=========================');
-                   
                    // Check if it's a local file path that can't be displayed in web
                    const isLocalFile = imageUrl && (
                      imageUrl.startsWith('file://') || 
@@ -2586,13 +2483,6 @@ const getOwnerProfileImage = (pet) => {
                    const isValidHttpUrl = imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'));
                    const isFirebaseUrl = imageUrl && imageUrl.includes('firebasestorage.googleapis.com');
                    
-                   console.log('Image Analysis:', {
-                     isLocalFile,
-                     isValidHttpUrl,
-                     isFirebaseUrl,
-                     hasImageUrl: !!imageUrl
-                   });
-                   
                    if (isValidHttpUrl || isFirebaseUrl) {
                      return (
                        <div className="relative">
@@ -2601,17 +2491,12 @@ const getOwnerProfileImage = (pet) => {
                            alt={selectedPet.petName || 'Pet Image'}
                            className="w-full h-80 object-cover rounded-lg border"
                            onError={(e) => {
-                             console.error('Image failed to load:', imageUrl);
-                             console.error('Error details:', e);
                              // Hide failed image and show placeholder
                              e.target.style.display = 'none';
                              const placeholder = e.target.nextElementSibling;
                              if (placeholder) {
                                placeholder.style.display = 'flex';
                              }
-                           }}
-                           onLoad={() => {
-                             console.log('✓ Image loaded successfully:', imageUrl);
                            }}
                          />
                          <div className="image-placeholder w-full h-80 bg-gray-100 rounded-lg border items-center justify-center" style={{display: 'none'}}>
@@ -2664,12 +2549,6 @@ const getOwnerProfileImage = (pet) => {
                  {(() => {
                    const bookletUrl = selectedPet.petBooklet || selectedPet.bookletUrl;
                    
-                   console.log('=== Pet Booklet Debug Info ===');
-                   console.log('Booklet URL:', bookletUrl);
-                   console.log('Pet Booklet Field:', selectedPet.petBooklet);
-                   console.log('Booklet URL Field:', selectedPet.bookletUrl);
-                   console.log('============================');
-                   
                    // Check if it's a local file path that can't be displayed in web
                    const isLocalFile = bookletUrl && (
                      bookletUrl.startsWith('file://') || 
@@ -2681,13 +2560,6 @@ const getOwnerProfileImage = (pet) => {
                    const isValidHttpUrl = bookletUrl && (bookletUrl.startsWith('http://') || bookletUrl.startsWith('https://'));
                    const isFirebaseUrl = bookletUrl && bookletUrl.includes('firebasestorage.googleapis.com');
                    
-                   console.log('Booklet Analysis:', {
-                     isLocalFile,
-                     isValidHttpUrl,
-                     isFirebaseUrl,
-                     hasBookletUrl: !!bookletUrl
-                   });
-                   
                    if (isValidHttpUrl || isFirebaseUrl) {
                      return (
                        <div className="relative">
@@ -2696,17 +2568,12 @@ const getOwnerProfileImage = (pet) => {
                            alt="Pet Booklet"
                            className="w-full h-80 object-cover rounded-lg border"
                            onError={(e) => {
-                             console.error('Booklet failed to load:', bookletUrl);
-                             console.error('Error details:', e);
                              // Hide failed image and show placeholder
                              e.target.style.display = 'none';
                              const placeholder = e.target.nextElementSibling;
                              if (placeholder) {
                                placeholder.style.display = 'flex';
                              }
-                           }}
-                           onLoad={() => {
-                             console.log('✓ Booklet loaded successfully:', bookletUrl);
                            }}
                          />
                          <div className="image-placeholder w-full h-80 bg-gray-100 rounded-lg border items-center justify-center" style={{display: 'none'}}>

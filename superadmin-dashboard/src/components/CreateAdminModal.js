@@ -24,7 +24,6 @@ const CreateAdminModal = ({ onClose, onSubmit }) => {
 
   const [errors, setErrors] = useState({});
 
-  // Clear errors when form data changes
   useEffect(() => {
     setErrors({});
   }, [formData]);
@@ -32,14 +31,12 @@ const CreateAdminModal = ({ onClose, onSubmit }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    // Name validation
     if (!formData.name.trim()) {
       newErrors.name = 'Name is required';
     } else if (formData.name.length < 3) {
       newErrors.name = 'Name must be at least 3 characters long';
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
@@ -47,7 +44,6 @@ const CreateAdminModal = ({ onClose, onSubmit }) => {
       newErrors.email = 'Please enter a valid email address';
     }
 
-    // Password validation
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
@@ -58,7 +54,6 @@ const CreateAdminModal = ({ onClose, onSubmit }) => {
       newErrors.password = 'Password must contain at least one letter';
     }
 
-    // Confirm password validation
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
     } else if (formData.password !== formData.confirmPassword) {
@@ -73,7 +68,6 @@ const CreateAdminModal = ({ onClose, onSubmit }) => {
     e.preventDefault();
     
     if (!validateForm()) {
-      // Display first error as a toast
       const firstError = Object.values(errors)[0];
       if (firstError) {
         toast.error(firstError);
@@ -91,7 +85,6 @@ const CreateAdminModal = ({ onClose, onSubmit }) => {
         role: formData.role
       });
       
-      // Reset form
       setFormData({
         name: '',
         email: '',

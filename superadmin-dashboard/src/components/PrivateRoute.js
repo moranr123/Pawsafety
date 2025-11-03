@@ -16,12 +16,10 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
     );
   }
 
-  // Check if user is authenticated
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
 
-  // If specific roles are required, check if user has access
   if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
     return <Navigate to="/unauthorized" replace />;
   }

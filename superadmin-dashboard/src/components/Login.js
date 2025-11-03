@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
 import LogoBlue from '../assets/LogoBlue.png';
@@ -11,7 +10,6 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,7 +19,6 @@ const Login = () => {
       return;
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       toast.error('Invalid email format. Please enter a valid email address.');
@@ -33,11 +30,9 @@ const Login = () => {
     try {
       await login(email, password);
       toast.success('Login successful!');
-      // Navigation will be handled by AuthContext based on role
     } catch (error) {
       console.error('Login error:', error);
       
-      // Handle Firebase authentication errors with specific messages
       let errorMessage = 'Login failed. Please try again.';
       
       if (error.code) {
@@ -64,11 +59,9 @@ const Login = () => {
             errorMessage = 'This account has been disabled. Please contact the administrator.';
             break;
           default:
-            // Use the error message if available, otherwise use default
             errorMessage = error.message || errorMessage;
         }
       } else if (error.message) {
-        // Handle custom errors from AuthContext
         errorMessage = error.message;
       }
       

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 
 const EditPasswordModal = ({ admin, onClose, onSubmit }) => {
   const [password, setPassword] = useState('');
@@ -9,11 +10,11 @@ const EditPasswordModal = ({ admin, onClose, onSubmit }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!password || password.length < 6) {
-      alert('Password must be at least 6 characters long');
+      toast.error('Password must be at least 6 characters long');
       return;
     }
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
     setLoading(true);

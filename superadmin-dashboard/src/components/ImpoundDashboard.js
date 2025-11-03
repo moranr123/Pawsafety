@@ -129,7 +129,6 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
     }));
   };
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (adoptionForm.showBreedDropdown && !event.target.closest('.breed-dropdown-container')) {
@@ -401,7 +400,7 @@ const ImpoundDashboard = () => {
   // Function to open Google Maps with coordinates
   const openGoogleMaps = (location, locationName) => {
     if (!location || !location.latitude || !location.longitude) {
-      alert('Location coordinates not available');
+      toast.error('Location coordinates not available');
       return;
     }
     
@@ -473,13 +472,11 @@ const ImpoundDashboard = () => {
     const [hasLoaded, setHasLoaded] = useState(false);
 
     const handleLoad = () => {
-      console.log('Image loaded:', src);
       setIsLoading(false);
       setHasLoaded(true);
     };
 
     const handleError = () => {
-      console.log('Image error:', src);
       setIsLoading(false);
       setHasError(true);
     };
@@ -531,7 +528,6 @@ const ImpoundDashboard = () => {
       const date = new Date(year, i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
-      // Count adopted pets in this month
       const monthPets = adoptedPets.filter(pet => {
         const petDate = pet.adoptedAt?.toDate ? pet.adoptedAt.toDate() : new Date(pet.adoptedAt);
         return petDate.getMonth() === date.getMonth() && 
@@ -557,7 +553,6 @@ const ImpoundDashboard = () => {
       const date = new Date(year, i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
-      // Count stray reports in this month
       const monthReports = strayReports.filter(report => {
         const reportDate = report.reportTime?.toDate ? report.reportTime.toDate() : new Date(report.reportTime);
         return reportDate.getMonth() === date.getMonth() && 
@@ -633,13 +628,7 @@ const ImpoundDashboard = () => {
     return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},250 L 50,250 Z`;
   };
 
-  // Debug useEffect for notification modal state
-  useEffect(() => {
-    console.log('showNotificationModal changed:', showNotificationModal);
-    console.log('selectedNotification changed:', selectedNotification);
-  }, [showNotificationModal, selectedNotification]);
 
-  // Generate chart data when data changes (real-time updates)
   useEffect(() => {
     if (adoptablePets && strayReports) {
       setIsDataLoading(true);
@@ -717,9 +706,7 @@ const ImpoundDashboard = () => {
     daysAtImpound: ''
   });
 
-  // Real-time feed for reports
   useEffect(() => {
-    // Ask notification permission once
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
@@ -781,7 +768,6 @@ const ImpoundDashboard = () => {
     return unsubscribe;
   }, []);
 
-  // Adoption applications (submitted from mobile app)
   useEffect(() => {
     const qApps = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(qApps, (snap) => {
@@ -810,7 +796,6 @@ const ImpoundDashboard = () => {
     return unsubscribe;
   }, []);
 
-  // Adoptable pets posted by impound
   useEffect(() => {
     const qPets = query(collection(db, 'adoptable_pets'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(qPets, (snap) => {
@@ -819,7 +804,6 @@ const ImpoundDashboard = () => {
     return unsubscribe;
   }, []);
 
-  // Adopted pets (transferred from impound)
   useEffect(() => {
     const qAdoptedPets = query(
       collection(db, 'pets'), 
@@ -1052,31 +1036,23 @@ const ImpoundDashboard = () => {
   };
 
   const handleNotificationClick = async (notification, event) => {
-    console.log('Notification clicked:', notification);
-    console.log('Event:', event);
-    
     // Prevent event propagation to avoid closing the modal
     event.stopPropagation();
     event.preventDefault();
     
     try {
-    // Mark notification as read
-    if (!notification.impoundRead) {
-      await markNotificationAsRead(notification.id);
-        console.log('Notification marked as read');
+      // Mark notification as read
+      if (!notification.impoundRead) {
+        await markNotificationAsRead(notification.id);
       }
       
-      // Show notification detail modal
       setSelectedNotification(notification);
       setShowNotificationModal(true);
-      console.log('Notification detail modal should open');
-      console.log('Selected notification:', notification);
     } catch (error) {
       console.error('Error in handleNotificationClick:', error);
     }
   };
 
-  // Close notifications dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showNotifications && 
@@ -1133,12 +1109,10 @@ const ImpoundDashboard = () => {
     }
   };
 
-  // Lost report: print
   const handlePrintLostReport = (report) => {
     try {
       const reportedAt = report.reportTime?.toDate ? report.reportTime.toDate().toLocaleString() : '';
       
-      // Create a temporary div with the print content
       const printContent = document.createElement('div');
       printContent.innerHTML = `
         <div style="font-family: Arial, sans-serif; padding: 8px; color: #111827; width: 100%; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box;">
@@ -1553,7 +1527,6 @@ const ImpoundDashboard = () => {
       }
 
       const allUsers = Array.from(usersMap.values());
-      console.log('Fetched users for transfer:', allUsers.length);
       setRegisteredUsers(allUsers);
       
       if (allUsers.length === 0) {
@@ -1573,7 +1546,6 @@ const ImpoundDashboard = () => {
     
     setTransferring(true);
     try {
-      // Add pet to the user's pets collection
       await addDoc(collection(db, 'pets'), {
         petName: selectedAdoptable.petName,
         petType: selectedAdoptable.breed?.toLowerCase().includes('cat') ? 'cat' : 'dog',
