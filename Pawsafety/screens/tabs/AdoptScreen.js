@@ -1183,20 +1183,8 @@ const AdoptScreen = () => {
                   </View>
                 </View>
                 
-                {selectedPet?.age && (
-                  <View style={[styles.petDetailItem, !selectedPet?.location && styles.petDetailItemLast]}>
-                    <View style={styles.petDetailIcon}>
-                      <MaterialIcons name="cake" size={20} color="#10B981" />
-                    </View>
-                    <View style={styles.petDetailContent}>
-                      <Text style={styles.petDetailLabel}>Age</Text>
-                      <Text style={styles.petDetailValue}>{selectedPet.age}</Text>
-                    </View>
-                  </View>
-                )}
-                
                 {selectedPet?.location && (
-                  <View style={[styles.petDetailItem, styles.petDetailItemLast]}>
+                  <View style={[styles.petDetailItem, (!selectedPet?.daysAtImpound || selectedPet?.daysAtImpound === '') && styles.petDetailItemLast]}>
                     <View style={styles.petDetailIcon}>
                       <MaterialIcons name="location-on" size={20} color="#EF4444" />
                     </View>
@@ -1206,6 +1194,26 @@ const AdoptScreen = () => {
                     </View>
                   </View>
                 )}
+                
+                <View style={[styles.petDetailItem, styles.petDetailItemLast]}>
+                  <View style={styles.petDetailIcon}>
+                    <MaterialIcons name="schedule" size={20} color="#8B5CF6" />
+                  </View>
+                  <View style={styles.petDetailContent}>
+                    <Text style={styles.petDetailLabel}>Days Sheltered</Text>
+                    <Text style={styles.petDetailValue}>
+                      {selectedPet?.daysAtImpound && 
+                       selectedPet.daysAtImpound !== '' && 
+                       selectedPet.daysAtImpound !== null && 
+                       selectedPet.daysAtImpound !== undefined &&
+                       Number(selectedPet.daysAtImpound) >= 0 ? (
+                        `${selectedPet.daysAtImpound} ${Number(selectedPet.daysAtImpound) === 1 ? 'day' : 'days'}`
+                      ) : (
+                        'Not specified'
+                      )}
+                    </Text>
+                  </View>
+                </View>
               </View>
 
 

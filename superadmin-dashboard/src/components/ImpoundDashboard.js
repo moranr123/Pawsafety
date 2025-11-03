@@ -225,15 +225,6 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
             )}
           </div>
         </div>
-      <div className="max-w-md">
-        <label className={labelBase}>Age</label>
-        <input
-          className={inputBase}
-          value={adoptionForm.age}
-          onChange={(e) => setAdoptionForm((p) => ({ ...p, age: e.target.value }))}
-          placeholder="e.g., 2 years"
-        />
-      </div>
       <div className="max-w-md relative">
         <label className={labelBase}>Gender</label>
         <div className="relative">
@@ -259,6 +250,18 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
             </svg>
           </div>
         </div>
+      </div>
+      <div className="max-w-md">
+        <label className={labelBase}>Days at Impound</label>
+        <input
+          type="number"
+          className={inputBase}
+          value={adoptionForm.daysAtImpound}
+          onChange={(e) => setAdoptionForm((p) => ({ ...p, daysAtImpound: e.target.value }))}
+          placeholder="e.g., 30"
+          min="0"
+        />
+        <p className="mt-1 text-xs text-gray-500">Enter the number of days the stray has been at the impound</p>
       </div>
       <div className="md:col-span-2 max-w-md">
         <label className={labelBase}>Description</label>
@@ -670,7 +673,6 @@ const ImpoundDashboard = () => {
     petName: '',
     petType: '',
     breed: '',
-    age: '',
     gender: '',
     description: '',
     vaccinated: false,
@@ -681,6 +683,7 @@ const ImpoundDashboard = () => {
     antiRabiesDate: '',
     readyForAdoption: true,
     imageFile: null,
+    daysAtImpound: ''
   });
   const [savingAdoptable, setSavingAdoptable] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -700,7 +703,6 @@ const ImpoundDashboard = () => {
     petName: '',
     petType: '',
     breed: '',
-    age: '',
     gender: '',
     description: '',
     vaccinated: false,
@@ -711,7 +713,8 @@ const ImpoundDashboard = () => {
     antiRabiesDate: '',
     readyForAdoption: true,
     imageFile: null,
-    showBreedDropdown: false
+    showBreedDropdown: false,
+    daysAtImpound: ''
   });
 
   // Real-time feed for reports
@@ -907,6 +910,7 @@ const ImpoundDashboard = () => {
         antiRabiesDate: editingAdoptable.antiRabiesDate || '',
         readyForAdoption: editingAdoptable.readyForAdoption !== false,
         imageFile: null,
+        daysAtImpound: editingAdoptable.daysAtImpound || '',
       });
     }
   }, [editingAdoptable, showEditAdoptableModal]);
@@ -948,7 +952,6 @@ const ImpoundDashboard = () => {
         petName: editAdoptForm.petName,
         petType: editAdoptForm.petType,
         breed: editAdoptForm.breed,
-        age: editAdoptForm.age,
         gender: editAdoptForm.gender,
         description: editAdoptForm.description,
         vaccinated: !!editAdoptForm.vaccinated,
@@ -957,6 +960,7 @@ const ImpoundDashboard = () => {
         dewormedDate: editAdoptForm.dewormedDate || '',
         antiRabies: !!editAdoptForm.antiRabies,
         antiRabiesDate: editAdoptForm.antiRabiesDate || '',
+        daysAtImpound: editAdoptForm.daysAtImpound || '',
         readyForAdoption: !!editAdoptForm.readyForAdoption,
         ...(imageUrl ? { imageUrl } : {}),
       });
@@ -1452,7 +1456,6 @@ const ImpoundDashboard = () => {
         petName: adoptionForm.petName,
         petType: adoptionForm.petType,
         breed: adoptionForm.breed,
-        age: adoptionForm.age,
         gender: adoptionForm.gender,
         description: adoptionForm.description,
         vaccinated: !!adoptionForm.vaccinated,
@@ -1461,6 +1464,7 @@ const ImpoundDashboard = () => {
         dewormedDate: adoptionForm.dewormedDate || '',
         antiRabies: !!adoptionForm.antiRabies,
         antiRabiesDate: adoptionForm.antiRabiesDate || '',
+        daysAtImpound: adoptionForm.daysAtImpound || '',
         imageUrl,
         readyForAdoption: !!adoptionForm.readyForAdoption,
         createdAt: serverTimestamp(),
@@ -1484,7 +1488,9 @@ const ImpoundDashboard = () => {
         antiRabies: false,
         antiRabiesDate: '',
         readyForAdoption: true,
-        imageFile: null
+        imageFile: null,
+        showBreedDropdown: false,
+        daysAtImpound: ''
       });
     } catch (error) {
       console.error('Error posting adoptable pet:', error);
@@ -3339,13 +3345,14 @@ const ImpoundDashboard = () => {
         {/* Edit Adoptable Modal */}
         {showEditAdoptableModal && editingAdoptable && (
           <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
-              <div className="flex items-center justify-between p-4 border-b">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
                 <h3 className="text-lg font-semibold text-gray-900">Edit {editingAdoptable.petName || 'Pet'}</h3>
                 <button onClick={() => setShowEditAdoptableModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
               </div>
-              <form onSubmit={handleSaveEditAdoptable} className="p-4 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex-1 overflow-y-auto p-4">
+                <form onSubmit={handleSaveEditAdoptable} className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="max-w-md">
                     <label className={labelBase}>Pet Name</label>
                     <input className={inputBase} value={editAdoptForm.petName} onChange={(e) => setEditAdoptForm((p) => ({ ...p, petName: e.target.value }))} required />
@@ -3410,10 +3417,6 @@ const ImpoundDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="max-w-md">
-                    <label className={labelBase}>Age</label>
-                    <input className={inputBase} value={editAdoptForm.age} onChange={(e) => setEditAdoptForm((p) => ({ ...p, age: e.target.value }))} />
-                </div>
                   <div className="max-w-md relative">
                     <label className={labelBase}>Gender</label>
                     <div className="relative">
@@ -3444,6 +3447,18 @@ const ImpoundDashboard = () => {
                     <label className={labelBase}>Health Status</label>
                     <input className={inputBase} value={editAdoptForm.healthStatus} onChange={(e) => setEditAdoptForm((p) => ({ ...p, healthStatus: e.target.value }))} />
                 </div>
+                  <div className="max-w-md">
+                    <label className={labelBase}>Days at Impound</label>
+                    <input
+                      type="number"
+                      className={inputBase}
+                      value={editAdoptForm.daysAtImpound}
+                      onChange={(e) => setEditAdoptForm((p) => ({ ...p, daysAtImpound: e.target.value }))}
+                      placeholder="e.g., 30"
+                      min="0"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Enter the number of days the stray has been at the impound</p>
+                  </div>
                   <div className="max-w-md md:col-span-2">
                     <label className={labelBase}>Description</label>
                     <textarea className={inputBase} rows={3} value={editAdoptForm.description} onChange={(e) => setEditAdoptForm((p) => ({ ...p, description: e.target.value }))} />
@@ -3542,13 +3557,14 @@ const ImpoundDashboard = () => {
                   <div className="flex items-center space-x-2 md:col-span-2 max-w-md">
                     <input id="editReadyForAdoption" type="checkbox" checked={!!editAdoptForm.readyForAdoption} onChange={(e) => setEditAdoptForm((p) => ({ ...p, readyForAdoption: e.target.checked }))} className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" />
                     <label htmlFor="editReadyForAdoption" className="text-base text-gray-800">Ready for Adoption</label>
+                    </div>
                   </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowEditAdoptableModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200">Cancel</button>
-                  <button type="submit" disabled={savingAdoptable} className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{savingAdoptable ? 'Saving...' : 'Save Changes'}</button>
-                </div>
-              </form>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button type="button" onClick={() => setShowEditAdoptableModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200">Cancel</button>
+                    <button type="submit" disabled={savingAdoptable} className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{savingAdoptable ? 'Saving...' : 'Save Changes'}</button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         )}
@@ -4043,10 +4059,6 @@ const ImpoundDashboard = () => {
                   <div>
                     <span className="text-gray-600">Gender:</span>
                     <span className="ml-2 font-medium">{selectedAdoptable.gender}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Age:</span>
-                    <span className="ml-2 font-medium">{selectedAdoptable.age || 'N/A'}</span>
                   </div>
                 </div>
               </div>
