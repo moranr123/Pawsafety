@@ -397,6 +397,24 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
 const ImpoundDashboard = () => {
   const { currentUser, logout } = useAuth();
   
+  // Helper function to log admin activities
+  const logActivity = async (action, actionType, details = '') => {
+    try {
+      await addDoc(collection(db, 'admin_activities'), {
+        adminId: currentUser?.uid || '',
+        adminName: currentUser?.displayName || currentUser?.email || 'Impound Admin',
+        adminEmail: currentUser?.email || '',
+        adminRole: 'impound_admin',
+        action,
+        actionType,
+        details,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error logging activity:', error);
+    }
+  };
+  
   // Function to open Google Maps with coordinates
   const openGoogleMaps = (location, locationName) => {
     if (!location || !location.latitude || !location.longitude) {
@@ -949,6 +967,14 @@ const ImpoundDashboard = () => {
         ...(imageUrl ? { imageUrl } : {}),
       });
       toast.success('Pet updated successfully');
+      
+      // Log activity
+      await logActivity(
+        `Updated adoptable pet "${editAdoptForm.petName}"`,
+        'update',
+        `Updated pet: ${editAdoptForm.petName} (${editAdoptForm.petType || 'Unknown Type'})`
+      );
+      
       setShowEditAdoptableModal(false);
       setEditingAdoptable(null);
     } catch (error) {
@@ -1104,6 +1130,14 @@ const ImpoundDashboard = () => {
       }
 
       toast.success(`Report marked as ${newStatus}`);
+      
+      // Log activity
+      const report = strayReports.find(r => r.id === reportId);
+      await logActivity(
+        `Updated stray report status to ${newStatus}`,
+        'update',
+        `Updated stray report ${reportId} status to ${newStatus} at ${report?.locationName || 'Unknown location'}`
+      );
     } catch (e) {
       toast.error('Failed to update status');
     }
@@ -1228,6 +1262,13 @@ const ImpoundDashboard = () => {
       }
 
       toast.success('Incident report resolved successfully');
+      
+      // Log activity
+      await logActivity(
+        `Resolved incident report`,
+        'update',
+        `Resolved incident report ${report.id} at ${report.locationName || 'Unknown location'}`
+      );
     } catch (error) {
       console.error('Error resolving incident report:', error);
       toast.error('Failed to resolve incident report');
@@ -1275,6 +1316,14 @@ const ImpoundDashboard = () => {
       }
 
       toast.success('Incident report declined successfully');
+      
+      // Log activity
+      await logActivity(
+        `Declined incident report`,
+        'update',
+        `Declined incident report ${selectedIncidentForDecline.id} - Reason: ${declineReason.trim()}`
+      );
+      
       setShowDeclineModal(false);
       setSelectedIncidentForDecline(null);
       setDeclineReason('');
@@ -1324,6 +1373,14 @@ const ImpoundDashboard = () => {
       }
 
       toast.success('Stray report declined successfully');
+      
+      // Log activity
+      await logActivity(
+        `Declined stray report`,
+        'update',
+        `Declined stray report ${selectedStrayForDecline.id} - Reason: ${strayDeclineReason}`
+      );
+      
       setShowStrayDeclineModal(false);
       setSelectedStrayForDecline(null);
       setStrayDeclineReason('');
@@ -1352,6 +1409,14 @@ const ImpoundDashboard = () => {
         setShowAppModal(false);
       }
       toast.success(`Application marked as ${status}`);
+      
+      // Log activity
+      const app = adoptionApplications.find(a => a.id === appId);
+      await logActivity(
+        `Updated adoption application status to ${status}`,
+        'update',
+        `Updated application ${appId} status to ${status} for pet: ${app?.petName || 'Unknown'}`
+      );
     } catch (e) {
       toast.error('Failed to update application');
     }
@@ -1380,6 +1445,13 @@ const ImpoundDashboard = () => {
         setShowAppModal(false);
       }
       toast.success('Application declined');
+      
+      // Log activity
+      await logActivity(
+        `Declined adoption application`,
+        'update',
+        `Declined application ${app.id} for pet: ${app.petName || 'Unknown'} - Reason: ${trimmed}`
+      );
     } catch (e) {
       toast.error('Failed to decline application');
     }
@@ -1446,6 +1518,13 @@ const ImpoundDashboard = () => {
       });
 
       toast.success('Adoptable pet posted successfully');
+      
+      // Log activity
+      await logActivity(
+        `Created adoptable pet "${adoptionForm.petName}"`,
+        'create',
+        `Created adoptable pet: ${adoptionForm.petName} (${adoptionForm.petType || 'Unknown Type'})`
+      );
       
       // Reset form to match the current state structure
       setAdoptionForm({
@@ -1587,6 +1666,14 @@ const ImpoundDashboard = () => {
       await deleteDoc(doc(db, 'adoptable_pets', selectedAdoptable.id));
 
       toast.success(`${selectedAdoptable.petName} has been successfully transferred to ${selectedUser.displayName}`);
+      
+      // Log activity
+      await logActivity(
+        `Transferred pet "${selectedAdoptable.petName}" to user`,
+        'create',
+        `Transferred pet ${selectedAdoptable.petName} (${selectedAdoptable.breed || 'Unknown'}) to user ${selectedUser.displayName} (${selectedUser.email || 'Unknown'})`
+      );
+      
       setShowTransferModal(false);
       setSelectedAdoptable(null);
       setSelectedUser(null);

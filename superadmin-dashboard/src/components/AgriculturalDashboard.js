@@ -67,6 +67,25 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
 
 const AgriculturalDashboard = () => {
   const { currentUser, logout } = useAuth();
+  
+  // Helper function to log admin activities
+  const logActivity = async (action, actionType, details = '') => {
+    try {
+      await addDoc(collection(db, 'admin_activities'), {
+        adminId: currentUser?.uid || '',
+        adminName: currentUser?.displayName || currentUser?.email || 'Agricultural Admin',
+        adminEmail: currentUser?.email || '',
+        adminRole: 'agricultural_admin',
+        action,
+        actionType,
+        details,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error logging activity:', error);
+    }
+  };
+  
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -462,6 +481,13 @@ const getOwnerProfileImage = (pet) => {
       }
 
       toast.success('Pet registration approved');
+      
+      // Log activity
+      await logActivity(
+        `Approved pet registration for "${petDoc?.petName || 'Unknown Pet'}"`,
+        'update',
+        `Approved registration for pet: ${petDoc?.petName} (${petDoc?.petType || 'Unknown Type'}) owned by ${petDoc?.ownerFullName || 'Unknown Owner'}`
+      );
     } catch (error) {
       console.error('Error approving registration:', error);
       toast.error('Failed to approve registration');
@@ -514,6 +540,13 @@ const getOwnerProfileImage = (pet) => {
       });
       
       toast.success('Pet registration rejected and archived');
+      
+      // Log activity
+      await logActivity(
+        `Rejected pet registration for "${petName}"`,
+        'update',
+        `Rejected registration for pet: ${petName} (${petDoc?.petType || 'Unknown Type'}) owned by ${ownerName}`
+      );
     } catch (error) {
       console.error('Error rejecting registration:', error);
       toast.error('Failed to reject registration');
@@ -541,6 +574,13 @@ const getOwnerProfileImage = (pet) => {
       });
       
       toast.success(`${petName} has been archived successfully`);
+      
+      // Log activity
+      await logActivity(
+        `Archived pet "${petName}"`,
+        'update',
+        `Archived pet: ${petName}`
+      );
     } catch (error) {
       console.error('Error archiving pet:', error);
       toast.error('Failed to archive pet');
@@ -730,6 +770,13 @@ const getOwnerProfileImage = (pet) => {
       await batch.commit();
       
       toast.success(`${userName} has been activated successfully`);
+      
+      // Log activity
+      await logActivity(
+        `Activated user account for ${userName}`,
+        'status_change',
+        `Activated user: ${userName} (${userEmail})`
+      );
     } catch (error) {
       console.error('Error activating user:', error);
       toast.error('Failed to activate user');
@@ -779,6 +826,13 @@ const getOwnerProfileImage = (pet) => {
       await batch.commit();
       
       toast.success(`${userName} has been deactivated successfully`);
+      
+      // Log activity
+      await logActivity(
+        `Deactivated user account for ${userName}`,
+        'status_change',
+        `Deactivated user: ${userName} (${userEmail})`
+      );
     } catch (error) {
       console.error('Error deactivating user:', error);
       toast.error('Failed to deactivate user');
