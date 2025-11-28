@@ -215,9 +215,12 @@ const EditReportScreen = ({ navigation, route }) => {
       alignItems: 'center',
     },
     backButton: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 12,
-      padding: SPACING.sm,
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      borderRadius: 20,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
       marginRight: SPACING.md,
     },
     headerTitle: {
@@ -484,7 +487,7 @@ const EditReportScreen = ({ navigation, route }) => {
             style={styles.backButton} 
             onPress={() => navigation.goBack()}
           >
-            <MaterialIcons name="arrow-back" size={20} color={COLORS.white} />
+            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Report</Text>
         </View>

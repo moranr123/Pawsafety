@@ -22,6 +22,9 @@ import MyPetsScreen from '../screens/MyPetsScreen';
 import ArchivedPetsScreen from '../screens/ArchivedPetsScreen';
 import SettingsScreen from '../screens/tabs/SettingsScreen';
 import PetCareGuideScreen from '../screens/PetCareGuideScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import CreatePostScreen from '../screens/CreatePostScreen';
+import FriendsListScreen from '../screens/FriendsListScreen';
 
 const Stack = createStackNavigator();
 const MainStack = createStackNavigator();
@@ -68,8 +71,20 @@ const MainStackNavigator = () => {
         component={SettingsScreen}
       />
       <MainStack.Screen 
+        name="Profile" 
+        component={ProfileScreen}
+      />
+      <MainStack.Screen 
         name="PetCareGuide" 
         component={PetCareGuideScreen}
+      />
+      <MainStack.Screen 
+        name="CreatePost" 
+        component={CreatePostScreen}
+      />
+      <MainStack.Screen 
+        name="FriendsList" 
+        component={FriendsListScreen}
       />
     </MainStack.Navigator>
   );

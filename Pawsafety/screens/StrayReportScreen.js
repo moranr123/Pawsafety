@@ -20,9 +20,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { db } from '../services/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth } from '../services/firebase';
+import NotificationService from '../services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -226,7 +227,7 @@ const StrayReportScreen = ({ navigation, route }) => {
         imageUrl = await getDownloadURL(imageRef);
       }
       // Save report to Firestore
-      await addDoc(collection(db, 'stray_reports'), {
+      const reportRef = await addDoc(collection(db, 'stray_reports'), {
         imageUrl,
         location,
         locationName,
@@ -235,6 +236,15 @@ const StrayReportScreen = ({ navigation, route }) => {
         status: reportType, // Use the selected report type
         userId: (auth.currentUser && auth.currentUser.uid) || null,
       });
+
+      // If this is a "Found Pet" report, notify users with active lost pet reports
+      if (reportType === 'Found' && location) {
+        // Run notification check asynchronously (don't block the UI)
+        notifyLostPetOwners(location, locationName, description, imageUrl, reportRef.id).catch(() => {
+          // Error handled silently - notification is optional
+        });
+      }
+
       Alert.alert(
         'Report Submitted',
         'Your stray pet report has been submitted successfully',
@@ -248,6 +258,81 @@ const StrayReportScreen = ({ navigation, route }) => {
 
   const removeImage = (index) => {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius of the Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  // Notify users with active lost pet reports
+  const notifyLostPetOwners = async (foundLocation, foundLocationName, foundDescription, foundImageUrl, reportId) => {
+    try {
+      // Query for active lost pet reports
+      const lostReportsQuery = query(
+        collection(db, 'stray_reports'),
+        where('status', '==', 'Lost')
+      );
+      
+      const lostReportsSnapshot = await getDocs(lostReportsQuery);
+      const notificationService = NotificationService.getInstance();
+      const maxDistance = 10; // 10 km radius
+      const notifiedUsers = new Set(); // Track users already notified to avoid duplicates
+
+      lostReportsSnapshot.forEach((doc) => {
+        const lostReport = { id: doc.id, ...doc.data() };
+        
+        // Skip if no location data
+        if (!lostReport.location || !lostReport.location.latitude || !lostReport.location.longitude) {
+          return;
+        }
+
+        // Skip if this is the same user reporting
+        if (lostReport.userId === auth.currentUser?.uid) {
+          return;
+        }
+
+        // Calculate distance between found location and lost pet location
+        const distance = calculateDistance(
+          foundLocation.latitude,
+          foundLocation.longitude,
+          lostReport.location.latitude,
+          lostReport.location.longitude
+        );
+
+        // If within 10km radius, send notification
+        if (distance <= maxDistance && !notifiedUsers.has(lostReport.userId)) {
+          notifiedUsers.add(lostReport.userId);
+          
+          // Create notification for the lost pet owner
+          notificationService.createNotification({
+            userId: lostReport.userId,
+            title: '🔍 Found Pet Alert',
+            body: `A pet matching your lost pet report has been found nearby (${distance.toFixed(1)} km away). Check the details!`,
+            type: 'found_pet',
+            data: {
+              reportId: reportId,
+              lostReportId: lostReport.id,
+              distance: distance.toFixed(1),
+              location: foundLocation,
+              locationName: foundLocationName,
+            },
+          }).catch(() => {
+            // Error handled silently - notification creation may fail
+          });
+        }
+      });
+    } catch (error) {
+      // Error handled silently - notifications are optional
+    }
   };
 
   const styles = useMemo(() => StyleSheet.create({

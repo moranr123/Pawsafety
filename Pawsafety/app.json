@@ -22,7 +22,8 @@
           "color": "#667eea",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "splash": {
       "image": "./assets/LogoBlue.png",
@@ -34,7 +35,9 @@
       "bundleIdentifier": "com.pawsafety.app",
       "buildNumber": "1",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {

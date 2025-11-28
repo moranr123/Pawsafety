@@ -2,30 +2,68 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from './firebase';
 import { doc, setDoc, onSnapshot, collection, query, where, limit } from 'firebase/firestore';
 
-// Configure notification handler
+// Global variable to track push notification preference
+let globalPushNotificationsEnabled = true;
+
+// Configure notification handler - checks preference dynamically
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async () => {
+    // Check if push notifications are enabled
+    if (!globalPushNotificationsEnabled) {
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+      };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 class NotificationService {
   static instance = null;
   expoPushToken = null;
   notificationListeners = [];
+  pushNotificationsEnabled = true;
 
   static getInstance() {
     if (!NotificationService.instance) {
       NotificationService.instance = new NotificationService();
+      // Load push notification preference on initialization
+      NotificationService.instance.loadPushNotificationPreference();
     }
     return NotificationService.instance;
+  }
+
+  // Load push notification preference from AsyncStorage
+  async loadPushNotificationPreference() {
+    try {
+      const savedPreference = await AsyncStorage.getItem('PUSH_NOTIFICATIONS_ENABLED');
+      if (savedPreference !== null) {
+        this.pushNotificationsEnabled = savedPreference === 'true';
+        globalPushNotificationsEnabled = this.pushNotificationsEnabled;
+      }
+    } catch (error) {
+      // Error handled silently - use default value
+    }
+  }
+
+  // Set push notifications enabled/disabled
+  setPushNotificationsEnabled(enabled) {
+    this.pushNotificationsEnabled = enabled;
+    globalPushNotificationsEnabled = enabled;
   }
 
   // Initialize push notifications
@@ -110,6 +148,11 @@ class NotificationService {
 
   // Send local notification
   async sendLocalNotification(title, body, data = {}) {
+    // Check if push notifications are enabled before showing
+    if (!this.pushNotificationsEnabled) {
+      return;
+    }
+    
     await Notifications.scheduleNotificationAsync({
       content: {
         title,
@@ -143,13 +186,16 @@ class NotificationService {
             };
 
             if (!notificationData.read) {
-              // Show local notification
-              this.sendLocalNotification(
-                notificationData.title,
-                notificationData.body,
-                notificationData.data
-              );
+              // Only show local notification if push notifications are enabled
+              if (this.pushNotificationsEnabled) {
+                this.sendLocalNotification(
+                  notificationData.title,
+                  notificationData.body,
+                  notificationData.data
+                );
+              }
 
+              // Always call onNewNotification to update UI (even if notifications are disabled)
               if (onNewNotification) {
                 onNewNotification(notificationData);
               }

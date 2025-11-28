@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,23 +12,25 @@ import {
   Modal,
   Alert,
   Dimensions,
-  Platform
+  Platform,
+  Animated
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebase';
-import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc } from 'firebase/firestore';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useProfileImage } from '../../contexts/ProfileImageContext';
 import UserManualModal from '../../components/UserManualModal';
+import PostCard from '../../components/PostCard';
 
 const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS } = useTheme();
   const { profileImage } = useProfileImage();
-  const [recentReports, setRecentReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
@@ -37,7 +39,8 @@ const HomeTabScreen = ({ navigation }) => {
   const [transferNotifs, setTransferNotifs] = useState([]);
   const [registrationNotifs, setRegistrationNotifs] = useState([]);
   const [incidentNotifs, setIncidentNotifs] = useState([]);
-  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays
+  const [foundPetNotifs, setFoundPetNotifs] = useState([]);
+  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets
   const [notifMenu, setNotifMenu] = useState(null); // { type: 'app'|'pet', id: string } | null
   const [showBanner, setShowBanner] = useState(false);
   const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0, strays: 0 });
@@ -49,9 +52,14 @@ const HomeTabScreen = ({ navigation }) => {
   const [hiddenTransferIds, setHiddenTransferIds] = useState(new Set());
   const [hiddenRegistrationIds, setHiddenRegistrationIds] = useState(new Set());
   const [hiddenIncidentIds, setHiddenIncidentIds] = useState(new Set());
+  const [hiddenFoundPetIds, setHiddenFoundPetIds] = useState(new Set());
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
   const [userManualVisible, setUserManualVisible] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-300)).current;
+  const [posts, setPosts] = useState([]);
+  const [hiddenPostIds, setHiddenPostIds] = useState(new Set());
 
   // Handle screen dimension changes
   useEffect(() => {
@@ -114,23 +122,25 @@ const HomeTabScreen = ({ navigation }) => {
   useEffect(() => {
     (async () => {
       try {
-        const [appJson, petJson, transferJson, registrationJson, incidentJson] = await Promise.all([
+        const [appJson, petJson, transferJson, registrationJson, incidentJson, foundPetJson] = await Promise.all([
           AsyncStorage.getItem('PAW_HIDDEN_APP_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_PET_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_TRANSFER_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_REGISTRATION_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_INCIDENT_NOTIFS'),
+          AsyncStorage.getItem('PAW_HIDDEN_FOUND_PET_NOTIFS'),
         ]);
         if (appJson) setHiddenAppIds(new Set(JSON.parse(appJson)));
         if (petJson) setHiddenPetIds(new Set(JSON.parse(petJson)));
         if (transferJson) setHiddenTransferIds(new Set(JSON.parse(transferJson)));
         if (registrationJson) setHiddenRegistrationIds(new Set(JSON.parse(registrationJson)));
         if (incidentJson) setHiddenIncidentIds(new Set(JSON.parse(incidentJson)));
+        if (foundPetJson) setHiddenFoundPetIds(new Set(JSON.parse(foundPetJson)));
       } catch (_) {}
     })();
   }, []);
 
-  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet, nextIncidentSet) => {
+  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet, nextIncidentSet, nextFoundPetSet) => {
     try {
       await Promise.all([
         AsyncStorage.setItem('PAW_HIDDEN_APP_NOTIFS', JSON.stringify(Array.from(nextAppSet || hiddenAppIds))),
@@ -138,6 +148,7 @@ const HomeTabScreen = ({ navigation }) => {
         AsyncStorage.setItem('PAW_HIDDEN_TRANSFER_NOTIFS', JSON.stringify(Array.from(nextTransferSet || hiddenTransferIds))),
         AsyncStorage.setItem('PAW_HIDDEN_REGISTRATION_NOTIFS', JSON.stringify(Array.from(nextRegistrationSet || hiddenRegistrationIds))),
         AsyncStorage.setItem('PAW_HIDDEN_INCIDENT_NOTIFS', JSON.stringify(Array.from(nextIncidentSet || hiddenIncidentIds))),
+        AsyncStorage.setItem('PAW_HIDDEN_FOUND_PET_NOTIFS', JSON.stringify(Array.from(nextFoundPetSet || hiddenFoundPetIds))),
       ]);
     } catch (_) {}
   };
@@ -148,7 +159,7 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenAppIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(next, null, null, null, null);
+        persistHiddenSets(next, null, null, null, null, null);
         return next;
       });
     } else if (type === 'transfer') {
@@ -156,7 +167,7 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenTransferIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, null, next, null, null);
+        persistHiddenSets(null, null, next, null, null, null);
         return next;
       });
     } else if (type === 'registration') {
@@ -164,7 +175,7 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenRegistrationIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, null, null, next, null);
+        persistHiddenSets(null, null, null, next, null, null);
         return next;
       });
     } else if (type === 'incident') {
@@ -172,7 +183,15 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenIncidentIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, null, null, null, next);
+        persistHiddenSets(null, null, null, null, next, null);
+        return next;
+      });
+    } else if (type === 'found_pet') {
+      setFoundPetNotifs((prev) => prev.filter((f) => f.id !== id));
+      setHiddenFoundPetIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        persistHiddenSets(null, null, null, null, null, next);
         return next;
       });
     } else {
@@ -180,13 +199,13 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenPetIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, next, null, null, null);
+        persistHiddenSets(null, next, null, null, null, null);
         return next;
       });
     }
     setNotifMenu(null);
   };
-  const notifCount = Math.min(99, (appNotifs?.length || 0) + (petNotifs?.length || 0) + (transferNotifs?.length || 0) + (registrationNotifs?.length || 0));
+  const notifCount = Math.min(99, (appNotifs?.length || 0) + (petNotifs?.length || 0) + (transferNotifs?.length || 0) + (registrationNotifs?.length || 0) + (foundPetNotifs?.length || 0));
   
   const notifUnreadCount = useMemo(() => {
     try {
@@ -196,54 +215,68 @@ const HomeTabScreen = ({ navigation }) => {
       const lastRegistration = (() => { try { return Number((globalThis.__PAW_LAST_REGISTRATION__) || 0); } catch (_) { return 0; } })();
       const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
       const lastStray = (() => { try { return Number((globalThis.__PAW_LAST_STRAY__) || 0); } catch (_) { return 0; } })();
+      const lastFoundPet = (() => { try { return Number((globalThis.__PAW_LAST_FOUND_PET__) || 0); } catch (_) { return 0; } })();
       
       const unreadApp = (appNotifs || []).filter((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp).length;
       const unreadPet = (petNotifs || []).filter((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet).length;
       const unreadTransfer = (transferNotifs || []).filter((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0) > lastTransfer).length;
       const unreadRegistration = (registrationNotifs || []).filter((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0) > lastRegistration).length;
       const unreadIncident = (incidentNotifs || []).filter((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident).length;
-      const unreadStray = (recentReports || []).filter((s) => (s.reportTime?.toDate ? s.reportTime.toDate().getTime() : 0) > lastStray).length;
+      const unreadFoundPet = (foundPetNotifs || []).filter((f) => {
+        const createdAt = f.createdAt ? (typeof f.createdAt === 'string' ? new Date(f.createdAt).getTime() : f.createdAt.toDate ? f.createdAt.toDate().getTime() : 0) : 0;
+        return createdAt > lastFoundPet;
+      }).length;
       
-      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadStray);
+      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadFoundPet);
     } catch (e) {
       return 0;
     }
-  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, recentReports, lastReadUpdate]);
+  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, lastReadUpdate]);
 
   useEffect(() => {
-    let loadingCount = 1; // Track only reports query
-    
-    // Fetch recent reports
-    const reportsQuery = query(
-      collection(db, 'stray_reports'),
-      orderBy('reportTime', 'desc'),
-      limit(5)
-    );
-    
-    const reportsUnsubscribe = onSnapshot(reportsQuery, (snapshot) => {
-      const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Filter out found reports from MyPetsScreen (foundBy: 'owner'), resolved, declined, and invalid reports
-      const filteredReports = reports.filter(report => {
-        const status = (report.status || 'Stray').toLowerCase();
-        // Exclude found reports that came from MyPetsScreen
-        if (status === 'found' && report.foundBy === 'owner') {
-          return false;
+    setLoading(false);
+  }, []);
+
+  // Load hidden posts from AsyncStorage
+  useEffect(() => {
+    const loadHiddenPosts = async () => {
+      try {
+        const hiddenPosts = await AsyncStorage.getItem('hidden_posts');
+        if (hiddenPosts) {
+          const hiddenArray = JSON.parse(hiddenPosts);
+          setHiddenPostIds(new Set(hiddenArray));
         }
-        // Exclude resolved, declined, and invalid reports
-        if (['resolved', 'declined', 'invalid'].includes(status)) {
-          return false;
-        }
-        return true;
-      });
-      setRecentReports(filteredReports);
-      loadingCount--;
-      if (loadingCount === 0) setLoading(false);
-    });
-    
-    return () => {
-      reportsUnsubscribe();
+      } catch (error) {
+        // Error handled silently
+      }
     };
-  }, [user?.uid]);
+    loadHiddenPosts();
+  }, []);
+
+  // Fetch posts from Firestore
+  useEffect(() => {
+    const postsQuery = query(
+      collection(db, 'posts'),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(
+      postsQuery,
+      (snapshot) => {
+        const postsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setPosts(postsData);
+      },
+      (error) => {
+        // Error handled silently
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // Notifications sources - Optimized with limits and server-side filtering
   useEffect(() => {
@@ -258,12 +291,12 @@ const HomeTabScreen = ({ navigation }) => {
     const unsubscribers = [];
 
     // Adoption application updates - ADD LIMIT to reduce reads
-    const appsQ = query(
-      collection(db, 'adoption_applications'),
-      where('userId', '==', user.uid),
+      const appsQ = query(
+        collection(db, 'adoption_applications'),
+        where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
       limit(20) // CRITICAL: Limit at query level, not after fetch
-    );
+      );
     unsubscribers.push(
       onSnapshot(appsQ, (snap) => {
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -289,13 +322,13 @@ const HomeTabScreen = ({ navigation }) => {
     );
 
     // Transfer notifications - Combine with limit
-    const transferQ = query(
-      collection(db, 'user_notifications'),
-      where('userId', '==', user.uid),
-      where('type', '==', 'pet_transfer'),
+      const transferQ = query(
+        collection(db, 'user_notifications'),
+        where('userId', '==', user.uid),
+        where('type', '==', 'pet_transfer'),
       orderBy('createdAt', 'desc'),
       limit(20)
-    );
+      );
     unsubscribers.push(
       onSnapshot(transferQ, (snap) => {
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -304,13 +337,13 @@ const HomeTabScreen = ({ navigation }) => {
     );
 
     // Pet registration status notifications
-    const registrationQ = query(
-      collection(db, 'notifications'),
-      where('userId', '==', user.uid),
-      where('type', 'in', ['pet_registration_approved', 'pet_registration_rejected']),
+      const registrationQ = query(
+        collection(db, 'notifications'),
+        where('userId', '==', user.uid),
+        where('type', 'in', ['pet_registration_approved', 'pet_registration_rejected']),
       orderBy('createdAt', 'desc'),
       limit(20)
-    );
+      );
     unsubscribers.push(
       onSnapshot(registrationQ, (snap) => {
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -319,17 +352,32 @@ const HomeTabScreen = ({ navigation }) => {
     );
 
     // Incident report notifications
-    const incidentQ = query(
-      collection(db, 'user_notifications'),
-      where('userId', '==', user.uid),
-      where('type', 'in', ['incident_resolved', 'incident_declined', 'stray_resolved', 'stray_declined']),
+      const incidentQ = query(
+        collection(db, 'user_notifications'),
+        where('userId', '==', user.uid),
+        where('type', 'in', ['incident_resolved', 'incident_declined', 'stray_resolved', 'stray_declined']),
       orderBy('createdAt', 'desc'),
       limit(20)
-    );
+      );
     unsubscribers.push(
       onSnapshot(incidentQ, (snap) => {
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setIncidentNotifs(items);
+      })
+    );
+
+    // Found pet notifications
+    const foundPetQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'found_pet'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(foundPetQ, (snap) => {
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setFoundPetNotifs(items);
       })
     );
 
@@ -374,14 +422,11 @@ const HomeTabScreen = ({ navigation }) => {
       const latestTransfer = Math.max(0, ...transferNotifs.map((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0)));
       const latestRegistration = Math.max(0, ...registrationNotifs.map((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0)));
       const latestIncident = Math.max(0, ...incidentNotifs.map((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0)));
-      const latestStray = Math.max(0, ...recentReports.map((s) => (s.reportTime?.toDate ? s.reportTime.toDate().getTime() : 0)));
-      
       if (latestApp) await AsyncStorage.setItem('PAW_LAST_SEEN_APP_NOTIF', String(latestApp));
       if (latestPet) await AsyncStorage.setItem('PAW_LAST_SEEN_PET_NOTIF', String(latestPet));
       if (latestTransfer) await AsyncStorage.setItem('PAW_LAST_SEEN_TRANSFER_NOTIF', String(latestTransfer));
       if (latestRegistration) await AsyncStorage.setItem('PAW_LAST_SEEN_REGISTRATION_NOTIF', String(latestRegistration));
       if (latestIncident) await AsyncStorage.setItem('PAW_LAST_SEEN_INCIDENT_NOTIF', String(latestIncident));
-      if (latestStray) await AsyncStorage.setItem('PAW_LAST_SEEN_STRAY_NOTIF', String(latestStray));
       
       // Update global timestamps for badge calculation
       globalThis.__PAW_LAST_APP__ = latestApp;
@@ -389,7 +434,6 @@ const HomeTabScreen = ({ navigation }) => {
       globalThis.__PAW_LAST_TRANSFER__ = latestTransfer;
       globalThis.__PAW_LAST_REGISTRATION__ = latestRegistration;
       globalThis.__PAW_LAST_INCIDENT__ = latestIncident;
-      globalThis.__PAW_LAST_STRAY__ = latestStray;
       
       setLastReadUpdate(Date.now()); // Trigger badge recalculation
     } catch (e) {}
@@ -404,14 +448,11 @@ const HomeTabScreen = ({ navigation }) => {
       const latestTransfer = Math.max(0, ...transferNotifs.map((t) => (t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0)));
       const latestRegistration = Math.max(0, ...registrationNotifs.map((r) => (r.createdAt?.toDate ? r.createdAt.toDate().getTime() : 0)));
       const latestIncident = Math.max(0, ...incidentNotifs.map((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0)));
-      const latestStray = Math.max(0, ...recentReports.map((s) => (s.reportTime?.toDate ? s.reportTime.toDate().getTime() : 0)));
-      
       if (latestApp) await AsyncStorage.setItem('PAW_LAST_SEEN_APP_NOTIF', String(latestApp));
       if (latestPet) await AsyncStorage.setItem('PAW_LAST_SEEN_PET_NOTIF', String(latestPet));
       if (latestTransfer) await AsyncStorage.setItem('PAW_LAST_SEEN_TRANSFER_NOTIF', String(latestTransfer));
       if (latestRegistration) await AsyncStorage.setItem('PAW_LAST_SEEN_REGISTRATION_NOTIF', String(latestRegistration));
       if (latestIncident) await AsyncStorage.setItem('PAW_LAST_SEEN_INCIDENT_NOTIF', String(latestIncident));
-      if (latestStray) await AsyncStorage.setItem('PAW_LAST_SEEN_STRAY_NOTIF', String(latestStray));
       
       try { 
         globalThis.__PAW_LAST_APP__ = latestApp; 
@@ -442,28 +483,35 @@ const HomeTabScreen = ({ navigation }) => {
               const allIds = new Set(hiddenAppIds);
               for (const a of prev) allIds.add(a.id);
               setHiddenAppIds(allIds);
-              persistHiddenSets(allIds, null, null, null, null);
+              persistHiddenSets(allIds, null, null, null, null, null);
               return [];
             });
             setPetNotifs((prev) => {
               const allIds = new Set(hiddenPetIds);
               for (const p of prev) allIds.add(p.id);
               setHiddenPetIds(allIds);
-              persistHiddenSets(null, allIds, null, null, null);
+              persistHiddenSets(null, allIds, null, null, null, null);
               return [];
             });
             setRegistrationNotifs((prev) => {
               const allIds = new Set(hiddenRegistrationIds);
               for (const r of prev) allIds.add(r.id);
               setHiddenRegistrationIds(allIds);
-              persistHiddenSets(null, null, null, allIds, null);
+              persistHiddenSets(null, null, null, allIds, null, null);
               return [];
             });
             setIncidentNotifs((prev) => {
               const allIds = new Set(hiddenIncidentIds);
               for (const i of prev) allIds.add(i.id);
               setHiddenIncidentIds(allIds);
-              persistHiddenSets(null, null, null, null, allIds);
+              persistHiddenSets(null, null, null, null, allIds, null);
+              return [];
+            });
+            setFoundPetNotifs((prev) => {
+              const allIds = new Set(hiddenFoundPetIds);
+              for (const f of prev) allIds.add(f.id);
+              setHiddenFoundPetIds(allIds);
+              persistHiddenSets(null, null, null, null, null, allIds);
               return [];
             });
           },
@@ -478,6 +526,7 @@ const HomeTabScreen = ({ navigation }) => {
                   notif.type === 'transfer' ? 'PAW_LAST_SEEN_TRANSFER_NOTIF' :
                   notif.type === 'registration' ? 'PAW_LAST_SEEN_REGISTRATION_NOTIF' :
                   notif.type === 'incident' ? 'PAW_LAST_SEEN_INCIDENT_NOTIF' :
+                  notif.type === 'found_pet' ? 'PAW_LAST_SEEN_FOUND_PET_NOTIF' :
                   'PAW_LAST_SEEN_PET_NOTIF';
       const prevStr = await AsyncStorage.getItem(key);
       const prev = prevStr ? Number(prevStr) : 0;
@@ -488,6 +537,7 @@ const HomeTabScreen = ({ navigation }) => {
           if (notif.type === 'app') globalThis.__PAW_LAST_APP__ = ts; 
           else if (notif.type === 'transfer') globalThis.__PAW_LAST_TRANSFER__ = ts;
           else if (notif.type === 'registration') globalThis.__PAW_LAST_REGISTRATION__ = ts;
+          else if (notif.type === 'found_pet') globalThis.__PAW_LAST_FOUND_PET__ = ts;
           else globalThis.__PAW_LAST_PET__ = ts;
         } catch (_) {}
         // Trigger UI update to refresh unread counts and indicators
@@ -594,24 +644,8 @@ const HomeTabScreen = ({ navigation }) => {
       paddingHorizontal: SPACING.lg,
       marginBottom: SPACING.lg,
     },
-    quickActionsSection: {
-      backgroundColor: COLORS.lightBlue,
-      borderRadius: RADIUS.large,
-      paddingVertical: SPACING.lg,
-      marginHorizontal: SPACING.sm,
-      marginBottom: SPACING.xl,
-      ...SHADOWS.light,
-    },
     petsSection: {
       backgroundColor: COLORS.golden,
-      borderRadius: RADIUS.large,
-      paddingVertical: SPACING.lg,
-      marginHorizontal: SPACING.sm,
-      marginBottom: SPACING.xl,
-      ...SHADOWS.light,
-    },
-    reportsSection: {
-      backgroundColor: COLORS.mediumBlue,
       borderRadius: RADIUS.large,
       paddingVertical: SPACING.lg,
       marginHorizontal: SPACING.sm,
@@ -760,36 +794,6 @@ const HomeTabScreen = ({ navigation }) => {
       fontWeight: FONTS.weights.medium,
       color: '#FFFFFF',
     },
-    tipCard: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      marginHorizontal: SPACING.lg,
-      marginBottom: SPACING.xl,
-      flexDirection: 'row',
-      alignItems: 'center',
-      ...SHADOWS.light,
-    },
-    tipIcon: {
-      fontSize: FONTS.sizes.xxlarge,
-      marginRight: SPACING.md,
-    },
-    tipContent: {
-      flex: 1,
-    },
-    tipTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
-      marginBottom: SPACING.xs,
-    },
-    tipText: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 18,
-    },
     loadingContainer: {
       alignItems: 'center',
       paddingVertical: SPACING.xl,
@@ -831,27 +835,126 @@ const HomeTabScreen = ({ navigation }) => {
     petEmoji: {
       fontSize: 60,
     },
-
+    createPostCard: {
+      backgroundColor: '#ffffff',
+      marginHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+      marginBottom: SPACING.sm,
+      borderRadius: 10,
+      padding: 12,
+      ...SHADOWS.light,
+    },
+    createPostHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    createPostProfileImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 8,
+    },
+    createPostProfilePlaceholder: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 8,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#e4e6eb',
+    },
+    createPostInput: {
+      flex: 1,
+      backgroundColor: '#f0f2f5',
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      justifyContent: 'center',
+      minHeight: 40,
+    },
+    createPostPlaceholder: {
+      fontSize: 15,
+      color: '#65676b',
+      fontFamily: FONTS.family,
+    },
+    createPostActions: {
+      flexDirection: 'row',
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
+    },
+    createPostActionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      flex: 1,
+      justifyContent: 'center',
+    },
+    createPostActionText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#65676b',
+      marginLeft: 8,
+      fontFamily: FONTS.family,
+    },
+    quickActionsCard: {
+      backgroundColor: '#ffffff',
+      marginHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+      borderRadius: 10,
+      padding: SPACING.md,
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      ...SHADOWS.light,
+    },
+    quickActionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      borderRadius: 8,
+      flex: 1,
+      justifyContent: 'center',
+      marginHorizontal: SPACING.xs,
+    },
+    quickActionIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.sm,
+    },
+    quickActionText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      fontFamily: FONTS.family,
+    },
   }), [COLORS]);
 
-  const QuickActionCard = ({ title, description, icon, onPress, color = COLORS.darkPurple }) => (
-    <TouchableOpacity style={[styles.actionCard, { borderLeftColor: color }]} onPress={onPress}>
-      <View style={styles.cardContent}>
-        <Text style={styles.cardIcon}>{icon}</Text>
-        <View style={styles.cardText}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardDescription}>{description}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
 
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>PawSafety</Text>
+          <TouchableOpacity 
+            style={styles.iconButton}
+            onPress={() => {
+              setSidebarVisible(true);
+              Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+              }).start();
+            }}
+          >
+            <MaterialIcons name="menu" size={24} color={COLORS.white} />
+          </TouchableOpacity>
           <View style={styles.headerIcons}>
             <TouchableOpacity 
               style={[styles.iconButton, { position: 'relative' }]}
@@ -867,25 +970,11 @@ const HomeTabScreen = ({ navigation }) => {
             <TouchableOpacity 
               style={styles.iconButton}
               onPress={() => {
-                // Handle profile press
-                navigation.navigate('Settings');
+                // Handle chat press
+                Alert.alert('Chat', 'Chat feature coming soon!');
               }}
             >
-              {profileImage ? (
-                <Image 
-                  source={{ uri: profileImage }} 
-                  style={styles.profileImage}
-                  contentFit="cover"
-                />
-              ) : (
-                <MaterialIcons name="account-circle" size={24} color={COLORS.white} />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.iconButton}
-              onPress={() => setUserManualVisible(true)}
-            >
-              <MaterialIcons name="help-outline" size={24} color={COLORS.white} />
+              <MaterialIcons name="question-answer" size={24} color={COLORS.white} />
             </TouchableOpacity>
           </View>
         </View>
@@ -904,125 +993,316 @@ const HomeTabScreen = ({ navigation }) => {
           />
         }
       >
-
-
-
-
-        {/* Quick Actions */}
-        <View style={[styles.section, styles.quickActionsSection]}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          
-          <QuickActionCard
-            title="Register Pet"
-            description="Add a new pet to your family"
-            icon="📝"
-            color={COLORS.golden}
-            onPress={() => navigation.navigate('RegisterPet')}
-          />
-
-          <QuickActionCard
-            title="File a Report"
-            description="Report a stray, lost, or found pet"
-            icon="📍"
-            color={COLORS.success}
-            onPress={() => navigation.navigate('StrayReport')}
-          />
-
-          <QuickActionCard
-            title="My Reports"
-            description="View and manage your submitted reports"
-            icon="📋"
-            color={COLORS.darkPurple}
-            onPress={() => navigation.navigate('MyReports')}
-          />
-
-          <QuickActionCard
-            title="Pet Care Guide"
-            description="How to care for your pet"
-            icon="📘"
-            color={COLORS.darkPurple}
-            onPress={() => navigation.navigate('PetCareGuide')}
-          />
-        </View>
-
-
-        {/* Recent Reports */}
-        <View style={[styles.section, styles.reportsSection]}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, styles.sectionTitleInHeader]}>Recent Reports</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Strays')}>
-              <Text style={styles.viewAllButton}>View All</Text>
+        {/* Create Post Field */}
+        <View style={styles.createPostCard}>
+          <View style={styles.createPostHeader}>
+            {profileImage ? (
+              <Image 
+                source={{ uri: profileImage }} 
+                style={styles.createPostProfileImage}
+              />
+            ) : (
+              <View style={styles.createPostProfilePlaceholder}>
+                <MaterialIcons name="account-circle" size={40} color="#65676b" />
+              </View>
+            )}
+            <TouchableOpacity 
+              style={styles.createPostInput}
+              onPress={() => navigation.navigate('CreatePost')}
+            >
+              <Text style={styles.createPostPlaceholder}>
+                What's on your mind?
+              </Text>
             </TouchableOpacity>
           </View>
-          
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.white} />
-              <Text style={styles.loadingText}>Loading reports...</Text>
-            </View>
-          ) : recentReports.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No reports yet</Text>
-            </View>
-          ) : (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.reportsScrollContainer}
+          <View style={styles.createPostActions}>
+            <TouchableOpacity 
+              style={styles.createPostActionButton}
+              onPress={() => navigation.navigate('CreatePost')}
             >
-              {recentReports.map((report) => (
-                <ImageBackground 
-                  key={report.id}
-                  source={report.imageUrl ? { uri: report.imageUrl } : null}
-                  style={styles.reportCard}
-                  imageStyle={styles.cardBackgroundImage}
-                >
-                  {!report.imageUrl && (
-                    <View style={styles.placeholderBackground}>
-                      <Text style={styles.petEmoji}>🐾</Text>
-                    </View>
-                  )}
-                  <View style={styles.darkOverlay} />
-                  
-                  <View style={styles.reportContent}>
-                    <View style={styles.reportHeader}>
-                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(report.status) }]}>
-                        <Text style={styles.statusBadgeText}>{report.status || 'Stray'}</Text>
-                      </View>
-                    </View>
-                    
-                    <Text style={styles.reportLocation}>📍 {report.locationName || 'Unknown Location'}</Text>
-                    <Text style={styles.reportDistance}>{formatTimeAgo(report.reportTime)}</Text>
-                    <Text style={styles.reportDescription} numberOfLines={3}>
-                      {report.description || 'No description provided'}
-                    </Text>
-                    
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity 
-                        style={styles.helpButton}
-                        onPress={() => setSelectedReportDetails(report)}
-                      >
-                        <Text style={styles.helpButtonText}>View Details</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </ImageBackground>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        {/* Safety Tip */}
-        <View style={styles.tipCard}>
-          <Text style={styles.tipIcon}>💡</Text>
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>Safety Tip</Text>
-            <Text style={styles.tipText}>
-              Always keep your pet's ID tags updated with current contact information.
-            </Text>
+              <MaterialIcons name="photo-library" size={24} color="#45bd62" />
+              <Text style={styles.createPostActionText}>Photo</Text>
+            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsCard}>
+          <TouchableOpacity 
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('RegisterPet')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#e3f2fd' }]}>
+              <MaterialIcons name="pets" size={24} color="#1976d2" />
+            </View>
+            <Text style={styles.quickActionText}>Register Pet</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('StrayReport')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#fff3e0' }]}>
+              <MaterialIcons name="report" size={24} color="#f57c00" />
+            </View>
+            <Text style={styles.quickActionText}>File a Report</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Posts Feed */}
+        {posts
+          .filter(post => !hiddenPostIds.has(post.id))
+          .map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              onPostDeleted={(postId) => {
+                setPosts(prev => prev.filter(p => p.id !== postId));
+              }}
+              onPostHidden={(postId) => {
+                setHiddenPostIds(prev => new Set([...prev, postId]));
+              }}
+            />
+          ))}
+        
+        {posts.filter(post => !hiddenPostIds.has(post.id)).length === 0 && (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Text style={{ fontSize: 16, color: '#65676b', textAlign: 'center' }}>
+              No posts yet. Be the first to share something!
+            </Text>
+          </View>
+        )}
+
       </ScrollView>
+
+      {/* Sidebar */}
+      {sidebarVisible && (
+        <>
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 1000,
+            }}
+            activeOpacity={1}
+            onPress={() => {
+              Animated.timing(slideAnim, {
+                toValue: -300,
+                duration: 300,
+                useNativeDriver: true,
+              }).start(() => {
+                setSidebarVisible(false);
+              });
+            }}
+          />
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: 280,
+              backgroundColor: '#ffffff',
+              zIndex: 1001,
+              shadowColor: '#000',
+              shadowOffset: { width: 2, height: 0 },
+              shadowOpacity: 0.25,
+              shadowRadius: 10,
+              elevation: 10,
+              transform: [{ translateX: slideAnim }],
+            }}
+          >
+            <View style={{ paddingTop: 60, paddingHorizontal: 20 }}>
+              {/* Sidebar Header */}
+              <View style={{ marginBottom: 30, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                <Text style={{ fontSize: 24, fontWeight: '800', color: '#1f2937' }}>Menu</Text>
+              </View>
+
+              {/* Sidebar Items */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginBottom: 8,
+                }}
+                onPress={() => {
+                  Animated.timing(slideAnim, {
+                    toValue: -300,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setSidebarVisible(false);
+                  });
+                  Alert.alert('Add Friend', 'Add Friend feature coming soon!');
+                }}
+              >
+                <MaterialIcons name="person-add" size={24} color={COLORS.darkPurple} />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                  Add Friend
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginBottom: 8,
+                }}
+                onPress={() => {
+                  Animated.timing(slideAnim, {
+                    toValue: -300,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setSidebarVisible(false);
+                  });
+                  navigation.navigate('Profile');
+                }}
+              >
+                <MaterialIcons name="account-circle" size={24} color={COLORS.darkPurple} />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                  Profile
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginBottom: 8,
+                }}
+                onPress={() => {
+                  Animated.timing(slideAnim, {
+                    toValue: -300,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setSidebarVisible(false);
+                  });
+                  navigation.navigate('MyReports');
+                }}
+              >
+                <MaterialIcons name="history" size={24} color={COLORS.darkPurple} />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                  Reports History
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginBottom: 8,
+                }}
+                onPress={() => {
+                  Animated.timing(slideAnim, {
+                    toValue: -300,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setSidebarVisible(false);
+                  });
+                  navigation.navigate('PetCareGuide');
+                }}
+              >
+                <MaterialIcons name="book" size={24} color={COLORS.darkPurple} />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                  Pet Care Guide
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginBottom: 8,
+                }}
+                onPress={() => {
+                  Animated.timing(slideAnim, {
+                    toValue: -300,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setSidebarVisible(false);
+                  });
+                  navigation.navigate('Settings');
+                }}
+              >
+                <MaterialIcons name="settings" size={24} color={COLORS.darkPurple} />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                  Settings
+                </Text>
+              </TouchableOpacity>
+
+              <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 16,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    backgroundColor: '#fee2e2',
+                  }}
+                  onPress={async () => {
+                    Alert.alert(
+                      'Logout',
+                      'Are you sure you want to logout?',
+                      [
+                        {
+                          text: 'Cancel',
+                          style: 'cancel',
+                        },
+                        {
+                          text: 'Logout',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await signOut(auth);
+                              Animated.timing(slideAnim, {
+                                toValue: -300,
+                                duration: 300,
+                                useNativeDriver: true,
+                              }).start(() => {
+                                setSidebarVisible(false);
+                              });
+                            } catch (error) {
+                              Alert.alert('Error', 'Failed to logout. Please try again.');
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <MaterialIcons name="logout" size={24} color="#dc2626" />
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#dc2626', marginLeft: 16 }}>
+                    Logout
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </>
+      )}
 
       {/* Notifications Modal */}
       <Modal
@@ -1031,149 +1311,113 @@ const HomeTabScreen = ({ navigation }) => {
         animationType="slide"
         onRequestClose={() => setNotifVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16, zIndex: 100 }}>
+        <View style={{ flex: 1, backgroundColor: '#f0f2f5' }}>
+          {/* Header */}
           <View style={{ 
-            backgroundColor: '#ffffff', 
-            borderRadius: 24, 
-            overflow: 'hidden', 
-            maxHeight: '90%',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 20 },
-            shadowOpacity: 0.25,
-            shadowRadius: 25,
-            elevation: 15
+            backgroundColor: '#ffffff',
+            paddingTop: 50,
+            paddingBottom: 12,
+            paddingHorizontal: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: '#e4e6eb',
           }}>
-            {/* Header */}
-            <View style={{ 
-              padding: 24, 
-              borderBottomWidth: 1, 
-              borderBottomColor: '#e2e8f0',
-              backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20
-            }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <View>
-                  <Text style={{ fontSize: 26, fontWeight: '800', color: '#1f2937', marginBottom: 2 }}>
-                    🔔 Notifications
-                  </Text>
-                  <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '500' }}>
-                    Stay updated with your applications and pet transfers
-                  </Text>
-                </View>
-
-              </View>
-              
-                            {/* Filter Tabs */}
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 4 }}
-                style={{ marginHorizontal: -4 }}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: '#050505' }}>
+                Notifications
+              </Text>
+              <TouchableOpacity 
+                onPress={() => setNotifVisible(false)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: '#e4e6eb',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
               >
-                <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 4 }}>
-                  {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays'].map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
-                      style={{
-                        paddingHorizontal: 16,
-                        paddingVertical: 10,
-                        borderRadius: 25,
-                        borderWidth: 1.5,
-                        borderColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : '#d1d5db',
-                        backgroundColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : 'rgba(255, 255, 255, 0.95)',
-                        alignItems: 'center',
-                        shadowColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#8b5cf6' : 'transparent',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.2,
-                        shadowRadius: 4,
-                        elevation: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? 3 : 0,
-                        minWidth: 80
-                      }}
-                    >
-                      <Text style={{
-                        color: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#ffffff' : '#374151',
-                        fontWeight: '700',
-                        fontSize: 11,
-                        textAlign: 'center'
-                      }}>
-                        {opt}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
+                <MaterialIcons name="close" size={20} color="#050505" />
+              </TouchableOpacity>
             </View>
-
-            {/* Content */}
-            <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
-              {/* Action Buttons */}
-              <View style={{ 
-                flexDirection: 'row', 
-                justifyContent: 'space-between', 
-                alignItems: 'center', 
-                marginBottom: 20,
-                paddingHorizontal: 4
-              }}>
-                <Text style={{ fontWeight: '800', fontSize: 18, color: '#1f2937' }}>Recent Updates</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity 
-                    onPress={handleMarkAllReadCombined} 
-                    disabled={(() => {
-                      const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
-                      const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
-                      const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
-                      const hasUnreadApp = (appNotifs || []).some((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp);
-                      const hasUnreadPet = (petNotifs || []).some((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet);
-                      const hasUnreadIncident = (incidentNotifs || []).some((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident);
-                      return !(hasUnreadApp || hasUnreadPet || hasUnreadIncident);
-                    })()}
-                    style={{ 
-                      paddingHorizontal: 12, 
-                      paddingVertical: 8, 
-                      borderRadius: 12, 
-                      backgroundColor: '#f3f4f6',
-                      borderWidth: 1,
-                      borderColor: '#e5e7eb',
-                      opacity: (() => {
-                        const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
-                        const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
-                        const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
-                        const hasUnreadApp = (appNotifs || []).some((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp);
-                        const hasUnreadPet = (petNotifs || []).some((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet);
-                        const hasUnreadIncident = (incidentNotifs || []).some((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident);
-                        return (hasUnreadApp || hasUnreadPet || hasUnreadIncident) ? 1 : 0.5;
-                      })()
+            
+            {/* Filter Tabs */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingRight: 16 }}
+            >
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      backgroundColor: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#1877f2' : '#e4e6eb',
                     }}
                   >
-                   <Text style={{ 
-                     fontWeight: '600', 
-                     fontSize: 12,
-                     color: (() => {
-                       const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
-                       const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
-                       const hasUnreadApp = (appNotifs || []).some((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp);
-                       const hasUnreadPet = (petNotifs || []).some((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet);
-                       return (hasUnreadApp || hasUnreadPet) ? '#374151' : '#9ca3af';
-                     })()
-                   }}>Mark all read</Text>
+                    <Text style={{
+                      color: (notifFilter === opt || (opt === 'Apps' && notifFilter === 'Applications')) ? '#ffffff' : '#050505',
+                      fontWeight: '600',
+                      fontSize: 14,
+                    }}>
+                      {opt}
+                    </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={handleDeleteAllCombined} 
-                    style={{ 
-                      paddingHorizontal: 12, 
-                      paddingVertical: 8, 
-                      borderRadius: 12, 
-                      backgroundColor: '#fef2f2',
-                      borderWidth: 1,
-                      borderColor: '#fecaca'
-                    }}
-                  >
-                    <Text style={{ fontWeight: '600', color: '#dc2626', fontSize: 12 }}>Delete all</Text>
-                  </TouchableOpacity>
-                </View>
+                ))}
               </View>
+            </ScrollView>
+          </View>
+
+          {/* Content */}
+          <ScrollView style={{ flex: 1, backgroundColor: '#ffffff' }} showsVerticalScrollIndicator={false}>
+            {/* Action Buttons */}
+            <View style={{ 
+              flexDirection: 'row', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: '#e4e6eb',
+            }}>
+              <TouchableOpacity 
+                onPress={handleMarkAllReadCombined} 
+                disabled={(() => {
+                  const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
+                  const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
+                  const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
+                  const hasUnreadApp = (appNotifs || []).some((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp);
+                  const hasUnreadPet = (petNotifs || []).some((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet);
+                  const hasUnreadIncident = (incidentNotifs || []).some((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident);
+                  return !(hasUnreadApp || hasUnreadPet || hasUnreadIncident);
+                })()}
+                style={{ 
+                  paddingHorizontal: 12, 
+                  paddingVertical: 6, 
+                  borderRadius: 6, 
+                  backgroundColor: '#e4e6eb',
+                }}
+              >
+                <Text style={{ 
+                  fontWeight: '600', 
+                  fontSize: 13,
+                  color: '#1877f2',
+                }}>Mark all as read</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleDeleteAllCombined} 
+                style={{ 
+                  paddingHorizontal: 12, 
+                  paddingVertical: 6, 
+                  borderRadius: 6, 
+                }}
+              >
+                <MaterialIcons name="delete-outline" size={20} color="#65676b" />
+              </TouchableOpacity>
+            </View>
               {(() => {
                 const lastSeenApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
                 const lastSeenPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
@@ -1196,7 +1440,7 @@ const HomeTabScreen = ({ navigation }) => {
                   type: 'pet',
                   ts: p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0,
                   title: 'New Pet is available for adoption',
-                  sub: `${p.petName || 'Pet'} • ${p.breed || 'Unknown breed'} • ${p.age || 'Unknown age'}`,
+                  sub: `${p.petName || 'Pet'} • ${p.breed || 'Unknown breed'}`,
                   data: p,
                 }));
                 const transfers = (transferNotifs || [])
@@ -1231,323 +1475,270 @@ const HomeTabScreen = ({ navigation }) => {
                   sub: `${i.location || 'Unknown location'} • ${i.message || (i.type.includes('stray') ? 'Stray report status updated' : 'Incident report status updated')}`,
                   data: i,
                 }));
-                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents].sort((a, b) => b.ts - a.ts);
+                const foundPets = (foundPetNotifs || [])
+                  .filter((f) => !hiddenFoundPetIds.has(f.id))
+                  .map((f) => ({
+                  id: f.id,
+                  type: 'found_pet',
+                  ts: f.createdAt ? (typeof f.createdAt === 'string' ? new Date(f.createdAt).getTime() : f.createdAt.toDate ? f.createdAt.toDate().getTime() : 0) : 0,
+                  title: f.title || '🔍 Found Pet Alert',
+                  sub: `${f.data?.data?.locationName || f.data?.locationName || 'Unknown location'} • ${f.data?.data?.distance ? f.data.data.distance + ' km away' : f.data?.distance ? f.data.distance + ' km away' : 'Nearby'}`,
+                  data: f,
+                }));
+                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets].sort((a, b) => b.ts - a.ts);
                 if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
                 if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                 if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
                 if (notifFilter === 'Registration') list = list.filter((n) => n.type === 'registration');
                 if (notifFilter === 'Incidents') list = list.filter((n) => n.type === 'incident');
                 if (notifFilter === 'Strays') list = list.filter((n) => n.type === 'stray');
-                if (list.length === 0) return <Text style={{ color: '#64748b' }}>No notifications yet.</Text>;
-                return list.map((n) => (
+                if (notifFilter === 'Found Pets') list = list.filter((n) => n.type === 'found_pet');
+                if (list.length === 0) return (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Text style={{ color: '#65676b', fontSize: 15 }}>No notifications yet.</Text>
+                  </View>
+                );
+                return list.map((n) => {
+                  const isUnread = (n.type === 'app' ? (n.ts > (Number(lastSeenApp) || 0)) : n.type === 'transfer' ? (n.ts > (Number(lastSeenTransfer) || 0)) : n.type === 'registration' ? (n.ts > (Number(lastSeenRegistration) || 0)) : n.type === 'found_pet' ? (n.ts > (Number(globalThis.__PAW_LAST_FOUND_PET__) || 0)) : (n.ts > (Number(lastSeenPet) || 0)));
+                  return (
                   <View key={`${n.type}-${n.id}`} style={{ 
-                    position: 'relative', 
-                    borderWidth: 1, 
-                    borderColor: '#f1f5f9', 
-                    borderRadius: 16, 
-                    padding: 16, 
-                    marginBottom: 12, 
-                    backgroundColor: '#ffffff',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 8,
-                    elevation: 2
+                    position: 'relative',
+                    backgroundColor: isUnread ? '#f0f2f5' : '#ffffff',
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#e4e6eb',
                   }}>
                     <TouchableOpacity 
-                      onPress={() => setNotifMenu((m) => (m && m.id === n.id ? null : { type: n.type, id: n.id }))} 
-                      style={{ 
-                        position: 'absolute', 
-                        top: 12, 
-                        right: 12, 
-                        padding: 6, 
-                        zIndex: 20,
-                        borderRadius: 8,
-                        backgroundColor: '#f9fafb'
-                      }}
-                    >
-                      <MaterialIcons name="more-horiz" size={18} color="#6b7280" />
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
                       onPress={async () => {
-                        // Mark as read for this specific notification
                         await markNotificationAsRead(n);
+                        if (n.type === 'found_pet' && n.data?.data?.reportId) {
+                          try {
+                            const reportDoc = await getDoc(doc(db, 'stray_reports', n.data.data.reportId));
+                            if (reportDoc.exists()) {
+                              const reportData = { id: reportDoc.id, ...reportDoc.data() };
+                              setSelectedReportDetails(reportData);
+                            }
+                          } catch (error) {
+                            // Error handled silently
+                          }
+                        }
                         setSelectedNotif(n);
                         setNotifVisible(false);
                       }} 
-                      activeOpacity={0.7} 
-                      style={{ flex: 1 }}
+                      activeOpacity={0.7}
+                      style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'flex-start', 
+                        padding: 12,
+                        paddingHorizontal: 16,
+                      }}
                     >
-                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                        {/* Status Indicator */}
-                        <View style={{ 
-                          width: 12, 
-                          height: 12, 
-                          borderRadius: 6, 
-                          backgroundColor: (n.type === 'app' ? (n.ts > (Number(lastSeenApp) || 0)) : n.type === 'transfer' ? (n.ts > (Number(lastSeenTransfer) || 0)) : n.type === 'registration' ? (n.ts > (Number(lastSeenRegistration) || 0)) : (n.ts > (Number(lastSeenPet) || 0))) ? '#10b981' : '#d1d5db',
-                          marginTop: 2
-                        }} />
-                        
-                        {/* Content */}
-                        <View style={{ flex: 1, paddingRight: 32 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                            <MaterialIcons 
-                              name={n.type === 'pet' 
-                                ? 'favorite' 
-                                : n.type === 'transfer'
-                                  ? 'pets'
-                                  : n.type === 'registration'
-                                    ? (n.data?.type === 'pet_registration_approved' 
-                                      ? 'check-circle' 
-                                      : 'cancel')
-                                    : (n.data?.status === 'Approved' 
-                                      ? 'check-circle' 
-                                      : (n.data?.status === 'Declined' 
-                                        ? 'cancel' 
-                                        : 'info'))}
-                              size={18}
-                              color={n.type === 'pet' 
-                                ? '#f59e0b' 
-                                : n.type === 'transfer'
-                                  ? '#8b5cf6'
-                                  : n.type === 'registration'
-                                    ? (n.data?.type === 'pet_registration_approved' 
-                                      ? '#16a34a' 
-                                      : '#dc2626')
-                                    : (n.data?.status === 'Declined' 
-                                      ? '#dc2626' 
-                                      : (n.data?.status === 'Approved' 
-                                        ? '#16a34a' 
-                                        : '#6b7280'))}
-                              style={{ marginRight: 6 }}
-                            />
-                            <Text style={{ 
-                              fontWeight: '700', 
-                              fontSize: 16, 
-                              color: (n.type === 'pet' 
-                                ? '#f59e0b' 
-                                : n.type === 'transfer'
-                                  ? '#8b5cf6'
-                                  : n.type === 'registration'
-                                    ? (n.data?.type === 'pet_registration_approved' 
-                                      ? '#16a34a' 
-                                      : '#dc2626')
-                                    : (n.data?.status === 'Declined' 
-                                      ? '#dc2626' 
-                                      : (n.data?.status === 'Approved' 
-                                        ? '#16a34a' 
-                                        : '#1f2937')))
-                            }}>
-                              {n.title}
-                            </Text>
-                          </View>
-                          <Text style={{ 
-                            color: (n.type === 'pet' 
-                              ? '#f59e0b' 
-                              : n.type === 'transfer'
-                                ? '#8b5cf6'
-                                : n.type === 'registration'
-                                  ? (n.data?.type === 'pet_registration_approved' 
-                                    ? '#16a34a' 
-                                    : '#dc2626')
+                      {/* Avatar/Icon */}
+                      <View style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: n.type === 'pet' ? '#fef3c7' : n.type === 'transfer' ? '#ede9fe' : n.type === 'found_pet' ? '#d1fae5' : n.type === 'registration' ? (n.data?.type === 'pet_registration_approved' ? '#d1fae5' : '#fee2e2') : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginRight: 12,
+                      }}>
+                        <MaterialIcons 
+                          name={n.type === 'pet' 
+                            ? 'favorite' 
+                            : n.type === 'transfer'
+                              ? 'pets'
+                              : n.type === 'found_pet'
+                                ? 'search'
+                              : n.type === 'registration'
+                                ? (n.data?.type === 'pet_registration_approved' 
+                                  ? 'check-circle' 
+                                  : 'cancel')
+                                : (n.data?.status === 'Approved' 
+                                  ? 'check-circle' 
                                   : (n.data?.status === 'Declined' 
-                                    ? '#dc2626' 
-                                    : (n.data?.status === 'Approved' 
-                                      ? '#16a34a' 
-                                      : '#6b7280'))), 
-                            fontSize: 14,
-                            marginBottom: 6
-                          }}>
-                            {n.sub}
-                          </Text>
-                          <Text style={{ 
-                            color: '#9ca3af', 
-                            fontSize: 12,
-                            fontWeight: '500'
-                          }}>
-                            {n.ts ? new Date(n.ts).toLocaleDateString() + ' • ' + new Date(n.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-                          </Text>
-                        </View>
+                                    ? 'cancel' 
+                                    : 'info'))}
+                          size={20}
+                          color={n.type === 'pet' 
+                            ? '#f59e0b' 
+                            : n.type === 'transfer'
+                              ? '#8b5cf6'
+                              : n.type === 'found_pet'
+                                ? '#16a34a'
+                              : n.type === 'registration'
+                                ? (n.data?.type === 'pet_registration_approved' 
+                                  ? '#16a34a' 
+                                  : '#dc2626')
+                                : (n.data?.status === 'Declined' 
+                                  ? '#dc2626' 
+                                  : (n.data?.status === 'Approved' 
+                                    ? '#16a34a' 
+                                    : '#65676b'))}
+                        />
                       </View>
+                      
+                      {/* Content */}
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <Text style={{ 
+                          fontWeight: isUnread ? '700' : '600', 
+                          fontSize: 15, 
+                          color: '#050505',
+                          marginBottom: 4,
+                          lineHeight: 20,
+                        }}>
+                          {n.title}
+                        </Text>
+                        <Text style={{ 
+                          color: '#65676b', 
+                          fontSize: 14,
+                          marginBottom: 4,
+                          lineHeight: 18,
+                        }}>
+                          {n.sub}
+                        </Text>
+                        <Text style={{ 
+                          color: '#8a8d91', 
+                          fontSize: 12,
+                        }}>
+                          {n.ts ? (() => {
+                            const now = new Date();
+                            const notifDate = new Date(n.ts);
+                            const diffMs = now - notifDate;
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMs / 3600000);
+                            const diffDays = Math.floor(diffMs / 86400000);
+                            
+                            if (diffMins < 1) return 'Just now';
+                            if (diffMins < 60) return `${diffMins}m`;
+                            if (diffHours < 24) return `${diffHours}h`;
+                            if (diffDays < 7) return `${diffDays}d`;
+                            return notifDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          })() : ''}
+                        </Text>
+                      </View>
+                      
+                      {/* More Options */}
+                      <TouchableOpacity 
+                        onPress={() => setNotifMenu((m) => (m && m.id === n.id ? null : { type: n.type, id: n.id }))} 
+                        style={{ 
+                          padding: 8,
+                          borderRadius: 20,
+                        }}
+                      >
+                        <MaterialIcons name="more-horiz" size={20} color="#65676b" />
+                      </TouchableOpacity>
                     </TouchableOpacity>
                     
                     {/* Dropdown Menu */}
                     {notifMenu && notifMenu.id === n.id && notifMenu.type === n.type && (
                       <View style={{ 
                         position: 'absolute', 
-                        top: 40, 
-                        right: 12, 
+                        top: 50, 
+                        right: 16, 
                         backgroundColor: '#ffffff', 
                         borderWidth: 1, 
-                        borderColor: '#e5e7eb', 
-                        borderRadius: 12, 
+                        borderColor: '#e4e6eb', 
+                        borderRadius: 8, 
                         overflow: 'hidden', 
                         zIndex: 30,
                         shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 4 },
+                        shadowOffset: { width: 0, height: 2 },
                         shadowOpacity: 0.1,
                         shadowRadius: 8,
-                        elevation: 5
+                        elevation: 5,
+                        minWidth: 120,
                       }}>
                         <TouchableOpacity 
-                          onPress={() => handleDeleteNotif(n.type, n.id)} 
+                          onPress={() => {
+                            handleDeleteNotif(n.type, n.id);
+                            setNotifMenu(null);
+                          }} 
                           style={{ 
-                            paddingVertical: 10, 
+                            paddingVertical: 12, 
                             paddingHorizontal: 16,
-                            borderBottomWidth: 1,
-                            borderBottomColor: '#f3f4f6'
                           }}
                         >
                           <Text style={{ color: '#dc2626', fontWeight: '600', fontSize: 14 }}>Delete</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
-                          onPress={() => setNotifMenu(null)} 
-                          style={{ 
-                            paddingVertical: 10, 
-                            paddingHorizontal: 16 
-                          }}
-                        >
-                          <Text style={{ color: '#374151', fontWeight: '500', fontSize: 14 }}>Cancel</Text>
-                        </TouchableOpacity>
                       </View>
                     )}
                   </View>
-                ));
+                  );
+                });
               })()}
-            </ScrollView>
-            
-            {/* Footer */}
-            <View style={{ 
-              padding: 20, 
-              borderTopWidth: 1, 
-              borderTopColor: '#f1f5f9',
-              backgroundColor: '#fafafa',
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <Text style={{ color: '#6b7280', fontSize: 12 }}>
-                {(() => {
-                  const apps = (appNotifs || [])
-                    .filter((a) => !hiddenAppIds.has(a.id))
-                    .map((a) => ({
-                      id: a.id,
-                      type: 'app',
-                      ts: a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0,
-                      title: (a.status === 'Approved' ? 'Application Approved' : a.status === 'Declined' ? 'Application Declined' : 'Application Update'),
-                      sub: `Pet: ${a.petName || a.petBreed || 'Pet'} • Status: ${a.status || 'Submitted'}`,
-                      data: a,
-                    }));
-                  const pets = (petNotifs || [])
-                    .filter((p) => !hiddenPetIds.has(p.id))
-                    .map((p) => ({
-                      id: p.id,
-                      type: 'pet',
-                      ts: p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0,
-                      title: 'New Pet is available for adoption',
-                      sub: `${p.petName || 'Pet'} • ${p.breed || 'Unknown breed'} • ${p.age || 'Unknown age'}`,
-                      data: p,
-                    }));
-                  const transfers = (transferNotifs || [])
-                    .filter((t) => !hiddenTransferIds.has(t.id))
-                    .map((t) => ({
-                      id: t.id,
-                      type: 'transfer',
-                      ts: t.createdAt?.toDate ? t.createdAt.toDate().getTime() : 0,
-                      title: t.title || 'Pet Transferred to You!',
-                      sub: `${t.petName || 'Pet'} • ${t.petBreed || 'Unknown breed'} • From Impound`,
-                      data: t,
-                    }));
-                  const incidents = (incidentNotifs || [])
-                    .filter((i) => !hiddenIncidentIds.has(i.id))
-                    .map((i) => ({
-                      id: i.id,
-                      type: i.type.includes('stray') ? 'stray' : 'incident',
-                      ts: i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0,
-                      title: i.type === 'incident_resolved' ? 'Incident Report Resolved' : 
-                             i.type === 'incident_declined' ? 'Incident Report Declined' :
-                             i.type === 'stray_resolved' ? 'Stray Report Resolved' : 'Stray Report Declined',
-                      sub: `${i.location || 'Unknown location'} • ${i.message || (i.type.includes('stray') ? 'Stray report status updated' : 'Incident report status updated')}`,
-                      data: i,
-                    }));
-                  let list = [...apps, ...pets, ...transfers, ...incidents].sort((a, b) => b.ts - a.ts);
-                  if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
-                  if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
-                  if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
-                  if (notifFilter === 'Incidents') list = list.filter((n) => n.type === 'incident');
-                  if (notifFilter === 'Strays') list = list.filter((n) => n.type === 'stray');
-                  return `${list.length} notification${list.length !== 1 ? 's' : ''}`;
-                })()}
-              </Text>
-              <TouchableOpacity 
-                onPress={() => setNotifVisible(false)} 
-                style={{ 
-                  paddingVertical: 12, 
-                  paddingHorizontal: 20, 
-                  backgroundColor: '#1f2937', 
-                  borderRadius: 12 
-                }}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     
-    {/* Notification Details Modal - Moved outside notifications modal */}
-    {selectedNotif && (
+    {/* Notification Details Modal */}
+    <Modal
+      visible={!!selectedNotif}
+      transparent
+      animationType="slide"
+      onRequestClose={() => {
+        setSelectedNotif(null);
+        setSelectedReportDetails(null);
+      }}
+    >
       <View style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        flex: 1,
         backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 2000,
         padding: 20
       }}>
-          <View style={{
+        <View 
+          style={{
             backgroundColor: '#ffffff',
             borderRadius: 20,
             width: '100%',
-            maxHeight: '85%',
+            maxWidth: 500,
+            height: '85%',
+            maxHeight: screenData.height * 0.85,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 10 },
             shadowOpacity: 0.3,
             shadowRadius: 20,
-            elevation: 10
+            elevation: 10,
+            overflow: 'hidden',
+            flexDirection: 'column'
+          }}
+        >
+          {/* Header */}
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: '#f1f5f9',
+            backgroundColor: '#ffffff',
+            flexShrink: 0
           }}>
-            {/* Header */}
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: 20,
-              borderBottomWidth: 1,
-              borderBottomColor: '#f1f5f9'
-            }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 20, fontWeight: '800', color: '#1f2937' }}>
-                  {selectedNotif.title}
-                </Text>
-                <Text style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>
-                  {selectedNotif.type === 'app' ? 'Application Update' : 
-                   selectedNotif.type === 'transfer' ? 'Pet Transfer Notification' : 
-                   selectedNotif.type === 'registration' ? 'Pet Registration Update' :
-                   selectedNotif.type === 'incident' ? 'Incident Report Update' :
-                   selectedNotif.type === 'stray' ? 'Stray Report Update' :
-                   'New Pet Available'}
-                </Text>
-              </View>
-
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#1f2937' }}>
+                {selectedNotif?.title}
+              </Text>
+              <Text style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>
+                {selectedNotif?.type === 'app' ? 'Application Update' : 
+                 selectedNotif?.type === 'transfer' ? 'Pet Transfer Notification' : 
+                 selectedNotif?.type === 'registration' ? 'Pet Registration Update' :
+                 selectedNotif?.type === 'incident' ? 'Incident Report Update' :
+                 selectedNotif?.type === 'stray' ? 'Stray Report Update' :
+                 selectedNotif?.type === 'found_pet' ? 'Found Pet Alert' :
+                 'New Pet Available'}
+              </Text>
             </View>
+          </View>
 
-            {/* Content */}
-            <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+          {/* Content */}
+          {selectedNotif && (
+          <ScrollView 
+            style={{ flex: 1, minHeight: 0 }}
+            contentContainerStyle={{ padding: 20, paddingBottom: 20 }}
+            showsVerticalScrollIndicator={true}
+            bounces={true}
+          >
               {selectedNotif.type === 'app' ? (
                 <>
                   {/* Status Card */}
@@ -1625,7 +1816,7 @@ const HomeTabScreen = ({ navigation }) => {
                     </View>
                   )}
                 </>
-              ) : selectedNotif.type === 'transfer' ? (
+              ) : selectedNotif?.type === 'transfer' ? (
                 <>
                   {/* Transfer Success Card */}
                   <View style={{
@@ -1737,7 +1928,7 @@ const HomeTabScreen = ({ navigation }) => {
                     </View>
                   </View>
                 </>
-              ) : selectedNotif.type === 'registration' ? (
+              ) : selectedNotif?.type === 'registration' ? (
                 <>
                   {/* Registration Status Card */}
                   <View style={{
@@ -1815,7 +2006,7 @@ const HomeTabScreen = ({ navigation }) => {
                     </View>
                   )}
                 </>
-              ) : selectedNotif.type === 'incident' ? (
+              ) : selectedNotif?.type === 'incident' ? (
                 <>
                   {/* Incident Status Card */}
                   <View style={{
@@ -1916,7 +2107,114 @@ const HomeTabScreen = ({ navigation }) => {
                     </View>
                   )}
                 </>
-              ) : selectedNotif.type === 'stray' ? (
+              ) : selectedNotif?.type === 'found_pet' ? (
+                <>
+                  {/* Found Pet Alert Card */}
+                  <View style={{
+                    backgroundColor: '#dcfce7',
+                    padding: 16,
+                    borderRadius: 12,
+                    marginBottom: 20,
+                    borderLeftWidth: 4,
+                    borderLeftColor: '#16a34a'
+                  }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>
+                      🔍 Found Pet Alert
+                    </Text>
+                    <Text style={{ color: '#374151', fontSize: 14 }}>
+                      A pet matching your lost pet report has been found nearby! Check the details below.
+                    </Text>
+                    {selectedNotif.data?.data?.distance && (
+                      <Text style={{ color: '#16a34a', fontSize: 14, marginTop: 8, fontWeight: '600' }}>
+                        📍 Distance: {selectedNotif.data.data.distance} km away
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Found Pet Report Card */}
+                  {selectedReportDetails ? (
+                    <>
+                      {/* Report Image */}
+                      {selectedReportDetails.imageUrl && (
+                        <View style={{ marginBottom: 20, alignItems: 'center' }}>
+                          <Image 
+                            source={{ uri: selectedReportDetails.imageUrl }} 
+                            style={{ 
+                              width: '100%', 
+                              height: 200, 
+                              borderRadius: 16,
+                              backgroundColor: '#f3f4f6'
+                            }} 
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
+
+                      {/* Report Status */}
+                      <View style={{
+                        backgroundColor: getStatusColor(selectedReportDetails.status) === COLORS.error ? '#fee2e2' :
+                                       getStatusColor(selectedReportDetails.status) === COLORS.warning ? '#fef3c7' : '#dbeafe',
+                        padding: 16,
+                        borderRadius: 12,
+                        marginBottom: 20,
+                        borderLeftWidth: 4,
+                        borderLeftColor: getStatusColor(selectedReportDetails.status)
+                      }}>
+                        <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>
+                          Status: {selectedReportDetails.status || 'Found'}
+                        </Text>
+                        <Text style={{ color: '#374151', fontSize: 14 }}>
+                          {selectedReportDetails.status === 'Found' ? 'This pet has been found and is safe!' :
+                           selectedReportDetails.status === 'Reunited' ? 'This pet has been reunited with its owner!' :
+                           'This is a found pet report.'}
+                        </Text>
+                      </View>
+
+                      {/* Location Information */}
+                      <View style={{ marginBottom: 20 }}>
+                        <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                          📍 Location
+                        </Text>
+                        <Text style={{ fontSize: 14, color: '#374151', marginBottom: 8 }}>
+                          {selectedReportDetails.locationName || 'Unknown Location'}
+                        </Text>
+                        {selectedReportDetails.location && (
+                          <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                            Coordinates: {selectedReportDetails.location.latitude.toFixed(6)}, {selectedReportDetails.location.longitude.toFixed(6)}
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Description */}
+                      <View style={{ marginBottom: 20 }}>
+                        <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                          Description
+                        </Text>
+                        <Text style={{ fontSize: 14, color: '#374151', lineHeight: 20 }}>
+                          {selectedReportDetails.description || 'No description provided'}
+                        </Text>
+                      </View>
+
+                      {/* Report Time */}
+                      <View style={{ marginBottom: 20 }}>
+                        <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                          Report Time
+                        </Text>
+                        <Text style={{ fontSize: 14, color: '#374151' }}>
+                          {selectedReportDetails.reportTime ? formatTimeAgo(selectedReportDetails.reportTime) : 'Unknown'}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <View style={{ marginBottom: 20, alignItems: 'center', padding: 20 }}>
+                      <ActivityIndicator size="large" color={COLORS.darkPurple} />
+                      <Text style={{ marginTop: 12, color: '#6b7280', fontSize: 14 }}>
+                        Loading report details...
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : selectedNotif?.type === 'stray' ? (
                 <>
                   {/* Stray Status Card */}
                   <View style={{
@@ -2117,33 +2415,39 @@ const HomeTabScreen = ({ navigation }) => {
                   </View>
                 </>
               )}
-            </ScrollView>
+          </ScrollView>
+          )}
 
-            {/* Footer */}
-            <View style={{
-              padding: 20,
-              borderTopWidth: 1,
-              borderTopColor: '#f1f5f9',
-              flexDirection: 'row',
-              justifyContent: 'flex-end'
-            }}>
-              <TouchableOpacity 
-                onPress={() => setSelectedNotif(null)}
-                style={{
-                  backgroundColor: '#1f2937',
-                  paddingHorizontal: 24,
-                  paddingVertical: 12,
-                  borderRadius: 12
-                }}
-              >
-                <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 16 }}>
-                  Close
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {/* Footer */}
+          <View style={{
+            padding: 20,
+            borderTopWidth: 1,
+            borderTopColor: '#f1f5f9',
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            backgroundColor: '#ffffff',
+            flexShrink: 0
+          }}>
+            <TouchableOpacity 
+              onPress={() => {
+                setSelectedNotif(null);
+                setSelectedReportDetails(null);
+              }}
+              style={{
+                backgroundColor: '#1f2937',
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+                borderRadius: 12
+              }}
+            >
+              <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 16 }}>
+                Close
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      )}
+      </View>
+    </Modal>
 
       {/* Pet Details Modal */}
       {selectedPetDetails && (
@@ -2569,8 +2873,8 @@ const HomeTabScreen = ({ navigation }) => {
         </Modal>
       )}
 
-      {/* Report Details Modal */}
-      {selectedReportDetails && (
+      {/* Report Details Modal - Only show if not showing found_pet notification modal */}
+      {selectedReportDetails && (!selectedNotif || selectedNotif.type !== 'found_pet') && (
         <Modal
           visible={!!selectedReportDetails}
           transparent

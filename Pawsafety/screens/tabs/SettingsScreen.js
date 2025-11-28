@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,31 @@ import {
   Switch
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import { signOut } from 'firebase/auth';
-import { auth, storage } from '../../services/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../../services/firebase';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useProfileImage } from '../../contexts/ProfileImageContext';
+import NotificationService from '../../services/NotificationService';
 
 const SettingsScreen = ({ navigation }) => {
   const user = auth.currentUser;
-  const { colors: COLORS, isDarkMode, toggleTheme } = useTheme();
-  const { profileImage, updateProfileImage } = useProfileImage();
-  const [isUploading, setIsUploading] = useState(false);
+  const { colors: COLORS } = useTheme();
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
+
+  // Load push notification preference on mount
+  useEffect(() => {
+    const loadPushNotificationPreference = async () => {
+      try {
+        const savedPreference = await AsyncStorage.getItem('PUSH_NOTIFICATIONS_ENABLED');
+        if (savedPreference !== null) {
+          setPushNotificationsEnabled(savedPreference === 'true');
+        }
+      } catch (error) {
+        // Error handled silently - use default value
+      }
+    };
+    loadPushNotificationPreference();
+  }, []);
 
   // Create styles using current theme colors
   const styles = useMemo(() => StyleSheet.create({
@@ -39,6 +50,7 @@ const SettingsScreen = ({ navigation }) => {
       borderBottomWidth: 1,
       borderBottomColor: 'rgba(255, 255, 255, 0.1)',
       ...SHADOWS.light,
+      position: 'relative',
     },
     headerContent: {
       flexDirection: 'row',
@@ -46,9 +58,12 @@ const SettingsScreen = ({ navigation }) => {
       justifyContent: 'space-between',
     },
     backButton: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 12,
-      padding: SPACING.sm,
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      borderRadius: 20,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
       marginRight: SPACING.md,
     },
     headerTitle: {
@@ -62,76 +77,6 @@ const SettingsScreen = ({ navigation }) => {
       flex: 1,
       paddingHorizontal: SPACING.lg,
       paddingTop: SPACING.lg,
-    },
-    profileCard: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      marginHorizontal: SPACING.lg,
-      marginBottom: SPACING.lg,
-      flexDirection: 'row',
-      alignItems: 'center',
-      ...SHADOWS.medium,
-    },
-    profileImageContainer: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      marginRight: SPACING.md,
-      position: 'relative',
-      overflow: 'hidden',
-    },
-    profileImage: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-    },
-    profileImagePlaceholder: {
-      width: 60,
-      height: 60,
-      backgroundColor: COLORS.lightBlue,
-      borderRadius: 30,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    profileEmoji: {
-      fontSize: 30,
-    },
-    addImageOverlay: {
-      position: 'absolute',
-      bottom: 0,
-      right: 0,
-      backgroundColor: COLORS.darkPurple,
-      borderRadius: 12,
-      width: 24,
-      height: 24,
-      justifyContent: 'center',
-      alignItems: 'center',
-      ...SHADOWS.medium,
-    },
-    profileInfo: {
-      flex: 1,
-    },
-    profileName: {
-      fontSize: FONTS.sizes.large,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-    },
-    profileEmail: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      marginBottom: SPACING.sm,
-    },
-    editProfileButton: {
-      alignSelf: 'flex-start',
-    },
-    editProfileText: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.mediumBlue,
-      fontWeight: FONTS.weights.medium,
     },
     section: {
       marginHorizontal: SPACING.lg,
@@ -188,107 +133,51 @@ const SettingsScreen = ({ navigation }) => {
       color: COLORS.secondaryText,
       marginLeft: SPACING.sm,
     },
-    logoutSection: {
-      marginHorizontal: SPACING.lg,
-      marginTop: SPACING.lg,
-    },
-    logoutButton: {
-      backgroundColor: COLORS.error,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      ...SHADOWS.medium,
-    },
-    logoutIcon: {
-      fontSize: FONTS.sizes.xlarge,
-      marginRight: SPACING.sm,
-    },
-    logoutText: {
-      color: COLORS.white,
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-    },
     bottomSpacing: {
       height: 100,
     },
   }), [COLORS]);
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut(auth);
-            } catch (error) {
-              Alert.alert('Error', error.message);
-            }
-          }
-        }
-      ]
-    );
+  const togglePushNotifications = async (value) => {
+    try {
+      setPushNotificationsEnabled(value);
+      // Save preference to AsyncStorage
+      await AsyncStorage.setItem('PUSH_NOTIFICATIONS_ENABLED', value.toString());
+      
+      // Update NotificationService preference
+      const notificationService = NotificationService.getInstance();
+      notificationService.setPushNotificationsEnabled(value);
+      
+      Alert.alert(
+        'Push Notifications',
+        `Push notifications ${value ? 'enabled' : 'disabled'}`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update push notification preference. Please try again.');
+    }
   };
 
-  const toggleDarkMode = () => {
-    toggleTheme();
+  const handleAppVersionPress = () => {
+    const version = '1.0.0';
+    const buildNumber = '1';
     Alert.alert(
-      'Dark Mode',
-      `Dark mode ${!isDarkMode ? 'enabled' : 'disabled'}!`,
+      'App Version',
+      `PawSafety\n\nVersion: ${version}\nBuild: ${buildNumber}\n\n© 2024 PawSafety. All rights reserved.`,
       [{ text: 'OK' }]
     );
   };
 
-  const selectProfileImage = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (permissionResult.granted === false) {
-        Alert.alert('Permission Required', 'Permission to access camera roll is required!');
-        return;
-      }
+  const handleAboutPawSafety = () => {
+    Alert.alert(
+      'About PawSafety',
+      'PawSafety is a comprehensive pet safety and management application designed to help pet owners keep their furry friends safe and connected.\n\nOur mission is to provide a platform that helps reunite lost pets with their owners and create a community of pet lovers who care for each other.\n\nFeatures:\n• Pet Registration\n• Lost & Found Reports\n• Pet Scanning\n• Adoption Services\n• Emergency Contacts',
+      [{ text: 'OK' }]
+    );
+  };
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
-        
-        // Upload to Firebase Storage
-        setIsUploading(true);
-        try {
-          const response = await fetch(imageUri);
-          const blob = await response.blob();
-          const imageRef = ref(storage, `profile-images/${user.uid}_${Date.now()}.jpg`);
-          await uploadBytes(imageRef, blob);
-          const downloadURL = await getDownloadURL(imageRef);
-          
-          // Update global profile image context
-          await updateProfileImage(downloadURL);
-          
-          Alert.alert('Success', 'Profile image updated successfully!');
-        } catch (error) {
-          // Error handled - Alert already shown
-          Alert.alert('Error', 'Failed to upload image. Please try again.');
-        } finally {
-          setIsUploading(false);
-        }
-      }
-    } catch (error) {
-      // Error handled - Alert already shown
-      Alert.alert('Error', 'Failed to select image. Please try again.');
-    }
+  const handleBackPress = () => {
+    navigation.goBack();
   };
 
   const SettingsSection = ({ title, children }) => (
@@ -314,47 +203,6 @@ const SettingsScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const ProfileCard = () => (
-    <View style={styles.profileCard}>
-      <TouchableOpacity 
-        style={styles.profileImageContainer}
-        onPress={selectProfileImage}
-        disabled={isUploading}
-      >
-        {profileImage ? (
-          <Image 
-            source={{ uri: profileImage }} 
-            style={styles.profileImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={styles.profileImagePlaceholder}>
-            <Text style={styles.profileEmoji}>👤</Text>
-          </View>
-        )}
-        <View style={styles.addImageOverlay}>
-          <MaterialIcons 
-            name="add-a-photo" 
-            size={20} 
-            color={COLORS.white} 
-          />
-        </View>
-      </TouchableOpacity>
-      <View style={styles.profileInfo}>
-        <Text style={styles.profileName}>{user?.displayName || 'Pet Lover'}</Text>
-        <Text style={styles.profileEmail}>{user?.email}</Text>
-        <TouchableOpacity 
-          style={styles.editProfileButton}
-          onPress={selectProfileImage}
-          disabled={isUploading}
-        >
-          <Text style={styles.editProfileText}>
-            {isUploading ? 'Uploading...' : 'Add Profile'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   return (
     <View style={styles.container}>
@@ -362,9 +210,9 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton} 
-            onPress={() => navigation.goBack()}
+            onPress={handleBackPress}
           >
-            <MaterialIcons name="arrow-back" size={20} color={COLORS.white} />
+            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
         </View>
@@ -372,18 +220,16 @@ const SettingsScreen = ({ navigation }) => {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
-        <ProfileCard />
-
         <SettingsSection title="App Preferences">
           <SettingsItem
-            icon="🌙"
-            title="Dark Mode"
-            subtitle="Switch to dark theme"
+            icon="🔔"
+            title="Push Notifications"
+            subtitle="Receive notifications about your pets and reports"
             showArrow={false}
             rightComponent={
               <Switch 
-                value={isDarkMode} 
-                onValueChange={toggleDarkMode}
+                value={pushNotificationsEnabled} 
+                onValueChange={togglePushNotifications}
                 trackColor={{ false: COLORS.gray, true: COLORS.mediumBlue }} 
               />
             }
@@ -397,23 +243,16 @@ const SettingsScreen = ({ navigation }) => {
             icon="ℹ️"
             title="App Version"
             subtitle="1.0.0"
-            showArrow={false}
+            showArrow={true}
+            onPress={handleAppVersionPress}
           />
           <SettingsItem
             icon="🏢"
             title="About PawSafety"
             subtitle="Our mission and team"
-            onPress={() => Alert.alert('About', 'About PawSafety would open here')}
+            onPress={handleAboutPawSafety}
           />
         </SettingsSection>
-
-        {/* Logout Button */}
-        <View style={styles.logoutSection}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutIcon}>🚪</Text>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
