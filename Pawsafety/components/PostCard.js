@@ -65,7 +65,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       marginHorizontal: SPACING.md,
       marginTop: SPACING.md,
       borderRadius: 10,
-      overflow: 'hidden',
+      overflow: 'visible',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.1,
@@ -206,6 +206,23 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     commentsText: {
       fontSize: 15,
       color: '#65676b',
+    },
+    optionsMenuOverlay: {
+      position: 'absolute',
+      top: -1000,
+      left: -1000,
+      right: -1000,
+      bottom: -1000,
+      zIndex: 998,
+      backgroundColor: 'transparent',
+    },
+    optionsMenuContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 999,
     },
     optionsMenu: {
       position: 'absolute',
@@ -1200,6 +1217,18 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
 
   return (
     <>
+      {/* Options Menu Overlay Modal */}
+      <Modal
+        visible={showOptionsMenu}
+        transparent={true}
+        animationType="none"
+        onRequestClose={() => setShowOptionsMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowOptionsMenu(false)}>
+          <View style={{ flex: 1, backgroundColor: 'transparent' }} />
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <View style={styles.card}>
         {/* Header */}
         <View style={styles.header}>

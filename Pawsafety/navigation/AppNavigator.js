@@ -25,6 +25,7 @@ import PetCareGuideScreen from '../screens/PetCareGuideScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
 import FriendsListScreen from '../screens/FriendsListScreen';
+import AddFriendsScreen from '../screens/AddFriendsScreen';
 
 const Stack = createStackNavigator();
 const MainStack = createStackNavigator();
@@ -86,6 +87,10 @@ const MainStackNavigator = () => {
         name="FriendsList" 
         component={FriendsListScreen}
       />
+      <MainStack.Screen 
+        name="AddFriends" 
+        component={AddFriendsScreen}
+      />
     </MainStack.Navigator>
   );
 };
@@ -144,6 +149,9 @@ const AppNavigator = () => {
         
         // Initialize push notifications when user logs in
         if (validUser) {
+          // Load user-specific push notification preference
+          await notificationService.loadPushNotificationPreference(validUser.uid);
+          
           const token = await notificationService.initializePushNotifications(validUser.uid);
           
           // Set up notification listeners

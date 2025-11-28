@@ -26,6 +26,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useProfileImage } from '../../contexts/ProfileImageContext';
 import UserManualModal from '../../components/UserManualModal';
 import PostCard from '../../components/PostCard';
+import NotificationService from '../../services/NotificationService';
 
 const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
@@ -40,7 +41,8 @@ const HomeTabScreen = ({ navigation }) => {
   const [registrationNotifs, setRegistrationNotifs] = useState([]);
   const [incidentNotifs, setIncidentNotifs] = useState([]);
   const [foundPetNotifs, setFoundPetNotifs] = useState([]);
-  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets
+  const [socialNotifs, setSocialNotifs] = useState([]);
+  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets | Social
   const [notifMenu, setNotifMenu] = useState(null); // { type: 'app'|'pet', id: string } | null
   const [showBanner, setShowBanner] = useState(false);
   const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0, strays: 0 });
@@ -226,12 +228,13 @@ const HomeTabScreen = ({ navigation }) => {
         const createdAt = f.createdAt ? (typeof f.createdAt === 'string' ? new Date(f.createdAt).getTime() : f.createdAt.toDate ? f.createdAt.toDate().getTime() : 0) : 0;
         return createdAt > lastFoundPet;
       }).length;
+      const unreadSocial = (socialNotifs || []).filter((s) => !s.read).length;
       
-      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadFoundPet);
+      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadFoundPet + unreadSocial);
     } catch (e) {
       return 0;
     }
-  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, lastReadUpdate]);
+  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, socialNotifs, lastReadUpdate]);
 
   useEffect(() => {
     setLoading(false);
@@ -381,6 +384,34 @@ const HomeTabScreen = ({ navigation }) => {
       })
     );
 
+    // Social notifications (post likes, comment likes, comments, replies)
+    const socialQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', 'in', ['post_like', 'comment_like', 'post_comment', 'comment_reply']),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+    unsubscribers.push(
+      onSnapshot(socialQ, (snap) => {
+        const items = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            type: 'social',
+            socialType: data.type, // Store original type (post_like, comment_like, etc.)
+            ts: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+            title: data.title || '',
+            sub: data.body || '',
+            data: data.data || {},
+            read: data.read || false,
+          };
+        });
+        setSocialNotifs(items);
+      })
+    );
+
     return () => {
       unsubscribers.forEach(unsub => unsub && unsub());
     };
@@ -522,6 +553,18 @@ const HomeTabScreen = ({ navigation }) => {
 
   const markNotificationAsRead = async (notif) => {
     try {
+      // Handle social notifications differently - mark as read in Firestore
+      if (notif.type === 'social') {
+        try {
+          const notificationService = NotificationService.getInstance();
+          await notificationService.markNotificationAsRead(notif.id);
+          setLastReadUpdate(Date.now());
+        } catch (error) {
+          // Error handled silently
+        }
+        return;
+      }
+
       const key = notif.type === 'app' ? 'PAW_LAST_SEEN_APP_NOTIF' : 
                   notif.type === 'transfer' ? 'PAW_LAST_SEEN_TRANSFER_NOTIF' :
                   notif.type === 'registration' ? 'PAW_LAST_SEEN_REGISTRATION_NOTIF' :
@@ -967,15 +1010,6 @@ const HomeTabScreen = ({ navigation }) => {
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.iconButton}
-              onPress={() => {
-                // Handle chat press
-                Alert.alert('Chat', 'Chat feature coming soon!');
-              }}
-            >
-              <MaterialIcons name="question-answer" size={24} color={COLORS.white} />
-            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -1139,12 +1173,38 @@ const HomeTabScreen = ({ navigation }) => {
                   }).start(() => {
                     setSidebarVisible(false);
                   });
-                  Alert.alert('Add Friend', 'Add Friend feature coming soon!');
+                  navigation.navigate('AddFriends');
                 }}
               >
                 <MaterialIcons name="person-add" size={24} color={COLORS.darkPurple} />
                 <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
-                  Add Friend
+                  Add Friends
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginBottom: 8,
+                }}
+                onPress={() => {
+                  Animated.timing(slideAnim, {
+                    toValue: -300,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setSidebarVisible(false);
+                  });
+                  navigation.navigate('MyPets');
+                }}
+              >
+                <MaterialIcons name="pets" size={24} color={COLORS.darkPurple} />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                  My Pets Profile
                 </Text>
               </TouchableOpacity>
 
@@ -1347,7 +1407,7 @@ const HomeTabScreen = ({ navigation }) => {
               contentContainerStyle={{ paddingRight: 16 }}
             >
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets'].map((opt) => (
+                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets', 'Social'].map((opt) => (
                   <TouchableOpacity
                     key={opt}
                     onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
@@ -1485,7 +1545,18 @@ const HomeTabScreen = ({ navigation }) => {
                   sub: `${f.data?.data?.locationName || f.data?.locationName || 'Unknown location'} • ${f.data?.data?.distance ? f.data.data.distance + ' km away' : f.data?.distance ? f.data.distance + ' km away' : 'Nearby'}`,
                   data: f,
                 }));
-                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets].sort((a, b) => b.ts - a.ts);
+                const social = (socialNotifs || [])
+                  .map((s) => ({
+                  id: s.id,
+                  type: 'social',
+                  socialType: s.socialType,
+                  ts: s.ts,
+                  title: s.title || '',
+                  sub: s.sub || '',
+                  data: s.data || {},
+                  read: s.read || false,
+                }));
+                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets, ...social].sort((a, b) => b.ts - a.ts);
                 if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
                 if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                 if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
@@ -1493,13 +1564,16 @@ const HomeTabScreen = ({ navigation }) => {
                 if (notifFilter === 'Incidents') list = list.filter((n) => n.type === 'incident');
                 if (notifFilter === 'Strays') list = list.filter((n) => n.type === 'stray');
                 if (notifFilter === 'Found Pets') list = list.filter((n) => n.type === 'found_pet');
+                if (notifFilter === 'Social') list = list.filter((n) => n.type === 'social');
                 if (list.length === 0) return (
                   <View style={{ padding: 40, alignItems: 'center' }}>
                     <Text style={{ color: '#65676b', fontSize: 15 }}>No notifications yet.</Text>
                   </View>
                 );
                 return list.map((n) => {
-                  const isUnread = (n.type === 'app' ? (n.ts > (Number(lastSeenApp) || 0)) : n.type === 'transfer' ? (n.ts > (Number(lastSeenTransfer) || 0)) : n.type === 'registration' ? (n.ts > (Number(lastSeenRegistration) || 0)) : n.type === 'found_pet' ? (n.ts > (Number(globalThis.__PAW_LAST_FOUND_PET__) || 0)) : (n.ts > (Number(lastSeenPet) || 0)));
+                  const isUnread = n.type === 'social' 
+                    ? !n.read 
+                    : (n.type === 'app' ? (n.ts > (Number(lastSeenApp) || 0)) : n.type === 'transfer' ? (n.ts > (Number(lastSeenTransfer) || 0)) : n.type === 'registration' ? (n.ts > (Number(lastSeenRegistration) || 0)) : n.type === 'found_pet' ? (n.ts > (Number(globalThis.__PAW_LAST_FOUND_PET__) || 0)) : (n.ts > (Number(lastSeenPet) || 0)));
                   return (
                   <View key={`${n.type}-${n.id}`} style={{ 
                     position: 'relative',
@@ -1537,43 +1611,63 @@ const HomeTabScreen = ({ navigation }) => {
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: n.type === 'pet' ? '#fef3c7' : n.type === 'transfer' ? '#ede9fe' : n.type === 'found_pet' ? '#d1fae5' : n.type === 'registration' ? (n.data?.type === 'pet_registration_approved' ? '#d1fae5' : '#fee2e2') : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
+                        backgroundColor: n.type === 'social' 
+                          ? '#e3f2fd' 
+                          : n.type === 'pet' 
+                            ? '#fef3c7' 
+                            : n.type === 'transfer' 
+                              ? '#ede9fe' 
+                              : n.type === 'found_pet' 
+                                ? '#d1fae5' 
+                                : n.type === 'registration' 
+                                  ? (n.data?.type === 'pet_registration_approved' ? '#d1fae5' : '#fee2e2') 
+                                  : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
                         justifyContent: 'center',
                         alignItems: 'center',
                         marginRight: 12,
                       }}>
                         <MaterialIcons 
-                          name={n.type === 'pet' 
-                            ? 'favorite' 
-                            : n.type === 'transfer'
-                              ? 'pets'
-                              : n.type === 'found_pet'
-                                ? 'search'
+                          name={n.type === 'social'
+                            ? (n.socialType === 'post_like' 
+                                ? 'thumb-up' 
+                                : n.socialType === 'comment_like'
+                                  ? 'thumb-up'
+                                  : n.socialType === 'post_comment'
+                                    ? 'comment'
+                                    : 'subdirectory-arrow-left')
+                            : n.type === 'pet' 
+                              ? 'favorite' 
+                              : n.type === 'transfer'
+                                ? 'pets'
+                                : n.type === 'found_pet'
+                                  ? 'search'
                               : n.type === 'registration'
                                 ? (n.data?.type === 'pet_registration_approved' 
-                                  ? 'check-circle' 
-                                  : 'cancel')
+                                    ? 'check-circle' 
+                                    : 'cancel')
                                 : (n.data?.status === 'Approved' 
-                                  ? 'check-circle' 
-                                  : (n.data?.status === 'Declined' 
-                                    ? 'cancel' 
-                                    : 'info'))}
+                                    ? 'check-circle' 
+                                    : (n.data?.status === 'Declined' 
+                                        ? 'cancel' 
+                                        : 'info'))}
                           size={20}
-                          color={n.type === 'pet' 
-                            ? '#f59e0b' 
-                            : n.type === 'transfer'
-                              ? '#8b5cf6'
-                              : n.type === 'found_pet'
-                                ? '#16a34a'
+                          color={n.type === 'social'
+                            ? '#1877f2'
+                            : n.type === 'pet' 
+                              ? '#f59e0b' 
+                              : n.type === 'transfer'
+                                ? '#8b5cf6'
+                                : n.type === 'found_pet'
+                                  ? '#16a34a'
                               : n.type === 'registration'
                                 ? (n.data?.type === 'pet_registration_approved' 
-                                  ? '#16a34a' 
-                                  : '#dc2626')
-                                : (n.data?.status === 'Declined' 
-                                  ? '#dc2626' 
-                                  : (n.data?.status === 'Approved' 
                                     ? '#16a34a' 
-                                    : '#65676b'))}
+                                    : '#dc2626')
+                                : (n.data?.status === 'Declined' 
+                                    ? '#dc2626' 
+                                    : (n.data?.status === 'Approved' 
+                                        ? '#16a34a' 
+                                        : '#65676b'))}
                         />
                       </View>
                       

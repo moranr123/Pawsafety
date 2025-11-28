@@ -10,7 +10,7 @@ import HomeTabScreen from '../screens/tabs/HomeTabScreen';
 import StraysScreen from '../screens/tabs/StraysScreen';
 import ScanScreen from '../screens/tabs/ScanScreen';
 import AdoptScreen from '../screens/tabs/AdoptScreen';
-import MyPetsScreen from '../screens/MyPetsScreen';
+import MessagesScreen from '../screens/MessagesScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -155,13 +155,12 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             'Home': 'home',
             'Strays': 'report',
             'Adopt': 'favorite',
-            'MyPets': 'pets',
+            'Messages': 'message',
           };
           const iconName = iconMap[routeName] || 'help';
-          const isPetsIcon = routeName === 'MyPets';
           
           return (
-            <View style={isPetsIcon ? { marginTop: -2 } : {}}>
+            <View>
               <MaterialIcons 
                 name={iconName} 
                 size={Platform.OS === 'ios' ? (isSmallDevice ? 22 : isTablet ? 30 : 24) : (isSmallDevice ? 24 : isTablet ? 32 : 26)} 
@@ -222,9 +221,9 @@ const TabNavigator = () => {
         options={{ tabBarLabel: 'Adopt' }}
       />
       <Tab.Screen 
-        name="MyPets" 
-        component={MyPetsScreen}
-        options={{ tabBarLabel: 'My Pets' }}
+        name="Messages" 
+        component={MessagesScreen}
+        options={{ tabBarLabel: 'Messages' }}
       />
     </Tab.Navigator>
   );

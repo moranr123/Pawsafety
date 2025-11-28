@@ -1005,6 +1005,10 @@ Thank you for helping reunite pets with their families! ❤️`;
 
   const { isSmallDevice, isTablet } = getResponsiveDimensions();
 
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
+
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
@@ -1023,6 +1027,15 @@ Thank you for helping reunite pets with their families! ❤️`;
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+    },
+    backButton: {
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      borderRadius: 20,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.md,
     },
     headerActions: {
       flexDirection: 'row',
@@ -2558,6 +2571,12 @@ Thank you for helping reunite pets with their families! ❤️`;
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={handleBackPress}
+          >
+            <MaterialIcons name="arrow-back" size={24} color={COLORS.white} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>My Pets</Text>
           <View style={styles.headerActions}>
           <View style={styles.statsContainer}>

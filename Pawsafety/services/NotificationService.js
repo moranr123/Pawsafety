@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from './firebase';
-import { doc, setDoc, onSnapshot, collection, query, where, limit } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, where, limit, serverTimestamp } from 'firebase/firestore';
 
 // Global variable to track push notification preference
 let globalPushNotificationsEnabled = true;
@@ -23,11 +23,11 @@ Notifications.setNotificationHandler({
       };
     }
     return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
     };
   },
 });
@@ -37,32 +37,42 @@ class NotificationService {
   expoPushToken = null;
   notificationListeners = [];
   pushNotificationsEnabled = true;
+  currentUserId = null;
 
   static getInstance() {
     if (!NotificationService.instance) {
       NotificationService.instance = new NotificationService();
-      // Load push notification preference on initialization
-      NotificationService.instance.loadPushNotificationPreference();
     }
     return NotificationService.instance;
   }
 
-  // Load push notification preference from AsyncStorage
-  async loadPushNotificationPreference() {
+  // Load push notification preference from AsyncStorage for specific user
+  async loadPushNotificationPreference(userId) {
     try {
-      const savedPreference = await AsyncStorage.getItem('PUSH_NOTIFICATIONS_ENABLED');
+      if (!userId) return;
+      this.currentUserId = userId;
+      // Use user-specific storage key
+      const storageKey = `PUSH_NOTIFICATIONS_ENABLED_${userId}`;
+      const savedPreference = await AsyncStorage.getItem(storageKey);
       if (savedPreference !== null) {
         this.pushNotificationsEnabled = savedPreference === 'true';
         globalPushNotificationsEnabled = this.pushNotificationsEnabled;
+      } else {
+        // Default to enabled if no preference is saved
+        this.pushNotificationsEnabled = true;
+        globalPushNotificationsEnabled = true;
       }
     } catch (error) {
       // Error handled silently - use default value
+      this.pushNotificationsEnabled = true;
+      globalPushNotificationsEnabled = true;
     }
   }
 
-  // Set push notifications enabled/disabled
-  setPushNotificationsEnabled(enabled) {
+  // Set push notifications enabled/disabled for specific user
+  setPushNotificationsEnabled(enabled, userId) {
     this.pushNotificationsEnabled = enabled;
+    this.currentUserId = userId;
     globalPushNotificationsEnabled = enabled;
   }
 
@@ -188,11 +198,11 @@ class NotificationService {
             if (!notificationData.read) {
               // Only show local notification if push notifications are enabled
               if (this.pushNotificationsEnabled) {
-                this.sendLocalNotification(
-                  notificationData.title,
-                  notificationData.body,
-                  notificationData.data
-                );
+              this.sendLocalNotification(
+                notificationData.title,
+                notificationData.body,
+                notificationData.data
+              );
               }
 
               // Always call onNewNotification to update UI (even if notifications are disabled)
@@ -218,7 +228,7 @@ class NotificationService {
       const notificationRef = doc(collection(db, 'notifications'));
       await setDoc(notificationRef, {
         ...notification,
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
         read: false,
       });
       return notificationRef.id;

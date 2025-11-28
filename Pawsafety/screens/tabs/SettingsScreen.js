@@ -7,25 +7,32 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
-  Switch
+  Switch,
+  StatusBar
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../../services/firebase';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useProfileImage } from '../../contexts/ProfileImageContext';
 import NotificationService from '../../services/NotificationService';
 
 const SettingsScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS } = useTheme();
+  const { profileImage } = useProfileImage();
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
 
   // Load push notification preference on mount
   useEffect(() => {
     const loadPushNotificationPreference = async () => {
       try {
-        const savedPreference = await AsyncStorage.getItem('PUSH_NOTIFICATIONS_ENABLED');
+        if (!user?.uid) return;
+        // Use user-specific storage key
+        const storageKey = `PUSH_NOTIFICATIONS_ENABLED_${user.uid}`;
+        const savedPreference = await AsyncStorage.getItem(storageKey);
         if (savedPreference !== null) {
           setPushNotificationsEnabled(savedPreference === 'true');
         }
@@ -34,71 +41,68 @@ const SettingsScreen = ({ navigation }) => {
       }
     };
     loadPushNotificationPreference();
-  }, []);
+  }, [user?.uid]);
 
-  // Create styles using current theme colors
+  // Create styles using Facebook-style design
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: COLORS.background,
+      backgroundColor: '#f0f2f5',
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.lg,
+      backgroundColor: '#ffffff',
       paddingTop: 50,
-      paddingBottom: SPACING.md,
+      paddingBottom: 12,
+      paddingHorizontal: 16,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-      ...SHADOWS.light,
-      position: 'relative',
-    },
-    headerContent: {
+      borderBottomColor: '#e4e6eb',
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
     },
     backButton: {
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      borderRadius: 20,
-      width: 40,
-      height: 40,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: SPACING.md,
+      padding: 8,
+      marginRight: 8,
     },
     headerTitle: {
-      fontSize: 20,
-      fontFamily: 'SF Pro Display',
+      fontSize: 24,
       fontWeight: '700',
-      color: COLORS.white,
+      color: '#050505',
       flex: 1,
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,
     },
     section: {
-      marginHorizontal: SPACING.lg,
-      marginBottom: SPACING.lg,
+      marginTop: 8,
+      backgroundColor: '#ffffff',
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderTopColor: '#e4e6eb',
+      borderBottomColor: '#e4e6eb',
+    },
+    sectionHeader: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: '#f0f2f5',
     },
     sectionTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginBottom: SPACING.sm,
-      marginLeft: SPACING.xs,
+      fontSize: 13,
+      fontWeight: '600',
+      color: '#65676b',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
     },
     settingsItem: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      marginBottom: SPACING.xs,
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      ...SHADOWS.light,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+      backgroundColor: '#ffffff',
+    },
+    settingsItemLast: {
+      borderBottomWidth: 0,
     },
     itemLeft: {
       flexDirection: 'row',
@@ -106,47 +110,55 @@ const SettingsScreen = ({ navigation }) => {
       flex: 1,
     },
     itemIcon: {
-      fontSize: FONTS.sizes.xlarge,
-      marginRight: SPACING.md,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: '#e4e6eb',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
     },
     itemText: {
       flex: 1,
     },
     itemTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
-      color: COLORS.text,
+      fontSize: 15,
+      fontWeight: '400',
+      color: '#050505',
+      lineHeight: 20,
     },
     itemSubtitle: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      fontSize: 13,
+      color: '#65676b',
       marginTop: 2,
+      lineHeight: 18,
     },
     itemRight: {
       flexDirection: 'row',
       alignItems: 'center',
     },
     arrow: {
-      fontSize: FONTS.sizes.xlarge,
-      color: COLORS.secondaryText,
-      marginLeft: SPACING.sm,
+      marginLeft: 8,
     },
     bottomSpacing: {
-      height: 100,
+      height: 20,
     },
-  }), [COLORS]);
+  }), []);
 
   const togglePushNotifications = async (value) => {
     try {
+      if (!user?.uid) {
+        Alert.alert('Error', 'User not logged in.');
+        return;
+      }
       setPushNotificationsEnabled(value);
-      // Save preference to AsyncStorage
-      await AsyncStorage.setItem('PUSH_NOTIFICATIONS_ENABLED', value.toString());
+      // Save preference to AsyncStorage with user-specific key
+      const storageKey = `PUSH_NOTIFICATIONS_ENABLED_${user.uid}`;
+      await AsyncStorage.setItem(storageKey, value.toString());
       
       // Update NotificationService preference
       const notificationService = NotificationService.getInstance();
-      notificationService.setPushNotificationsEnabled(value);
+      notificationService.setPushNotificationsEnabled(value, user.uid);
       
       Alert.alert(
         'Push Notifications',
@@ -182,15 +194,29 @@ const SettingsScreen = ({ navigation }) => {
 
   const SettingsSection = ({ title, children }) => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      {title && (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+      )}
       {children}
     </View>
   );
 
-  const SettingsItem = ({ title, subtitle, icon, onPress, showArrow = true, rightComponent }) => (
-    <TouchableOpacity style={styles.settingsItem} onPress={onPress}>
+  const SettingsItem = ({ title, subtitle, icon, iconName, onPress, showArrow = true, rightComponent, isLast = false }) => (
+    <TouchableOpacity 
+      style={[styles.settingsItem, isLast && styles.settingsItemLast]} 
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.itemLeft}>
-        <Text style={styles.itemIcon}>{icon}</Text>
+        <View style={styles.itemIcon}>
+          {iconName ? (
+            <MaterialIcons name={iconName} size={20} color="#1877f2" />
+          ) : icon ? (
+            <Text style={{ fontSize: 20 }}>{icon}</Text>
+          ) : null}
+        </View>
         <View style={styles.itemText}>
           <Text style={styles.itemTitle}>{title}</Text>
           {subtitle && <Text style={styles.itemSubtitle}>{subtitle}</Text>}
@@ -198,7 +224,9 @@ const SettingsScreen = ({ navigation }) => {
       </View>
       <View style={styles.itemRight}>
         {rightComponent}
-        {showArrow && <Text style={styles.arrow}>›</Text>}
+        {showArrow && !rightComponent && (
+          <MaterialIcons name="chevron-right" size={24} color="#bcc0c4" style={styles.arrow} />
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -206,23 +234,23 @@ const SettingsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={handleBackPress}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={handleBackPress}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#050505" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settings</Text>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-
-        <SettingsSection title="App Preferences">
+        {/* Preferences Section */}
+        <SettingsSection title="Preferences">
           <SettingsItem
-            icon="🔔"
+            iconName="notifications"
             title="Push Notifications"
             subtitle="Receive notifications about your pets and reports"
             showArrow={false}
@@ -230,27 +258,30 @@ const SettingsScreen = ({ navigation }) => {
               <Switch 
                 value={pushNotificationsEnabled} 
                 onValueChange={togglePushNotifications}
-                trackColor={{ false: COLORS.gray, true: COLORS.mediumBlue }} 
+                trackColor={{ false: '#ccd0d5', true: '#42b72a' }}
+                thumbColor={pushNotificationsEnabled ? '#ffffff' : '#f4f3f4'}
               />
             }
+            isLast={true}
           />
         </SettingsSection>
 
-
-
+        {/* About Section */}
         <SettingsSection title="About">
           <SettingsItem
-            icon="ℹ️"
+            iconName="info"
             title="App Version"
             subtitle="1.0.0"
             showArrow={true}
             onPress={handleAppVersionPress}
+            isLast={false}
           />
           <SettingsItem
-            icon="🏢"
+            iconName="business"
             title="About PawSafety"
             subtitle="Our mission and team"
             onPress={handleAboutPawSafety}
+            isLast={true}
           />
         </SettingsSection>
 
