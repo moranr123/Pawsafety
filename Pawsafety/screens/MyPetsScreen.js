@@ -408,45 +408,8 @@ const MyPetsScreen = ({ navigation }) => {
       setLoading(false);
     });
 
-    // Listen for user notifications
-    const notificationsQuery = query(
-      collection(db, 'notifications'),
-      where('userId', '==', user.uid),
-      where('read', '==', false)
-    );
-
-    const unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const notification = change.doc.data();
-          
-          // Show alert for new notifications
-          Alert.alert(
-            notification.title,
-            notification.message,
-            [
-              {
-                text: 'OK',
-                onPress: async () => {
-                  // Mark notification as read
-                  try {
-                    await updateDoc(doc(db, 'notifications', change.doc.id), {
-                      read: true
-                    });
-                  } catch (error) {
-                    console.error('Error marking notification as read:', error);
-                  }
-                }
-              }
-            ]
-          );
-        }
-      });
-    });
-    
     return () => {
       unsubscribe();
-      unsubscribeNotifications();
     };
   }, [user]);
 

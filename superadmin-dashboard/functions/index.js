@@ -6,16 +6,37 @@ admin.initializeApp();
 // Expo push notifications for mobile app
 const fetch = require('node-fetch');
 async function sendExpoPush(to, title, body, data = {}) {
-  if (!to) return;
+  if (!to) {
+    console.log('No push token provided');
+    return;
+  }
   try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const message = {
+      to: to,
+      sound: 'default',
+      title: title,
+      body: body,
+      data: data,
+      priority: 'high',
+      channelId: 'default'
+    };
+    
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ to, title, body, data })
+      body: JSON.stringify([message]) // Expo API expects an array
     });
+    
+    const result = await response.json();
+    console.log('Expo push notification sent:', JSON.stringify(result));
+    
+    if (result.data && result.data[0] && result.data[0].status === 'error') {
+      console.error('Expo push error:', result.data[0].message);
+    }
   } catch (e) {
     console.error('Expo push error', e);
   }
@@ -111,12 +132,32 @@ exports.onApplicationUpdated = onDocumentUpdated({ region: 'us-central1', docume
     if (before.status === after.status) return;
     const userId = after.userId;
     if (!userId) return;
-    const tokenDoc = await admin.firestore().collection('user_push_tokens').doc(userId).get();
-    const token = tokenDoc.exists ? tokenDoc.data().expoPushToken : null;
-    if (!token) return;
+    
     const title = 'Adoption Application Update';
     const body = `Your application for ${after.petName || after.petBreed || 'a pet'} was ${after.status}.`;
-    await sendExpoPush(token, title, body, { type: 'application_status', status: after.status, appId: event.params.appId });
+    const notificationData = { 
+      type: 'app', 
+      status: after.status, 
+      appId: event.params.appId 
+    };
+    
+    // Create notification in Firestore (for NotificationService to detect)
+    await admin.firestore().collection('notifications').add({
+      title,
+      body,
+      type: 'app',
+      userId,
+      read: false,
+      data: notificationData,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    
+    // Also send direct push notification (for when app is closed)
+    const tokenDoc = await admin.firestore().collection('user_push_tokens').doc(userId).get();
+    const token = tokenDoc.exists ? tokenDoc.data().expoPushToken : null;
+    if (token) {
+      await sendExpoPush(token, title, body, notificationData);
+    }
   } catch (e) {
     console.error('onApplicationUpdated error', e);
   }
@@ -124,21 +165,72 @@ exports.onApplicationUpdated = onDocumentUpdated({ region: 'us-central1', docume
 
 // Trigger: notify all users when a new pet is posted (basic broadcast via topic collection)
 exports.onAdoptablePetCreated = onDocumentCreated({ region: 'us-central1', document: 'adoptable_pets/{petId}' }, async (event) => {
+  console.log('onAdoptablePetCreated triggered for petId:', event.params.petId);
   try {
     const data = event.data?.data();
-    if (!data) return;
-    // Fetch all user tokens (for demo scale; for production, consider topics/subscriptions)
-    const snapshot = await admin.firestore().collection('user_push_tokens').get();
+    console.log('Pet data:', JSON.stringify(data));
+    if (!data) {
+      console.log('No data found in document');
+      return;
+    }
+    
+    // Only send notifications if pet is ready for adoption
+    if (data.readyForAdoption === false) {
+      console.log('Pet is not ready for adoption, skipping notification');
+      return;
+    }
+    
     const title = 'New Pet for Adoption';
     const body = `${data.petName || data.breed || 'A pet'} is now available for adoption!`;
-    const pushes = [];
+    const notificationData = { type: 'pet', petId: event.params.petId };
+    
+    // Fetch all user tokens (for demo scale; for production, consider topics/subscriptions)
+    const snapshot = await admin.firestore().collection('user_push_tokens').get();
+    console.log(`Found ${snapshot.size} user push tokens`);
+    
+    if (snapshot.empty) {
+      console.log('No push tokens found in database');
+      return;
+    }
+    
+    // Create notifications in Firestore for each user (for NotificationService to detect)
+    const notificationPromises = [];
+    const pushPromises = [];
+    
     snapshot.forEach((docSnap) => {
+      const userId = docSnap.id;
       const token = docSnap.data()?.expoPushToken;
-      if (token) pushes.push(sendExpoPush(token, title, body, { type: 'new_pet', petId: event.params.petId }));
+      
+      // Create notification document in Firestore
+      notificationPromises.push(
+        admin.firestore().collection('notifications').add({
+          title,
+          body,
+          type: 'pet',
+          userId,
+          read: false,
+          data: notificationData,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      );
+      
+      // Also send direct push notification (for when app is closed)
+      if (token) {
+        pushPromises.push(sendExpoPush(token, title, body, notificationData));
+      }
     });
-    await Promise.all(pushes);
+    
+    // Create all notifications in Firestore
+    await Promise.all(notificationPromises);
+    console.log(`Created ${notificationPromises.length} notifications in Firestore`);
+    
+    // Send direct push notifications
+    console.log(`Sending ${pushPromises.length} push notifications`);
+    await Promise.all(pushPromises);
+    console.log('All push notifications sent successfully');
   } catch (e) {
-    console.error('onAdoptablePetCreated error', e);
+    console.error('onAdoptablePetCreated error:', e);
+    console.error('Error stack:', e.stack);
   }
 });
 

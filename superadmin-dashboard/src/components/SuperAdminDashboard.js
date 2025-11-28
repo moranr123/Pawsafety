@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebase/config';
+import { db } from '../firebase/config';
 import { 
   collection, 
-  setDoc, 
   doc, 
   updateDoc, 
   onSnapshot, 
@@ -23,7 +21,6 @@ import {
   UserCheck, 
   UserX, 
   Users,
-  Shield,
   Settings,
   Activity,
   Clock,
@@ -44,7 +41,6 @@ import LogoWhite from '../assets/Logowhite.png';
 
 const SuperAdminDashboard = () => {
   const { currentUser, logout } = useAuth();
-  const navigate = useNavigate();
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -148,7 +144,6 @@ const SuperAdminDashboard = () => {
             }));
             
             const filteredActivities = allActivities.filter(activity => {
-              const actionType = activity.actionType || '';
               const details = activity.details || '';
               const action = activity.action || '';
               const adminEmail = activity.adminEmail || '';
@@ -256,7 +251,7 @@ const SuperAdminDashboard = () => {
         unsubscribe();
       }
     };
-  }, []);
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     let unsubscribe;

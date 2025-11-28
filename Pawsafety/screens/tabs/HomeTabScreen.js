@@ -358,7 +358,7 @@ const HomeTabScreen = ({ navigation }) => {
         const incidentsNew = (incidentNotifs || []).filter((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident).length;
         const straysNew = (incidentNotifs || []).filter((i) => i.type && i.type.includes('stray') && (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident).length;
         setBannerCounts({ apps: appsNew, pets: petsNew, transfers: transfersNew, registrations: registrationsNew, incidents: incidentsNew, strays: straysNew });
-        setShowBanner((appsNew + petsNew + transfersNew + registrationsNew + incidentsNew + straysNew) > 0);
+        // setShowBanner((appsNew + petsNew + transfersNew + registrationsNew + incidentsNew + straysNew) > 0); // Disabled for push notifications only
       } catch (e) {}
     })();
   }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, lastReadUpdate]);
@@ -886,105 +886,7 @@ const HomeTabScreen = ({ navigation }) => {
           </View>
         </View>
       </View>
-      {showBanner && (
-        <View style={{ 
-          paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg, 
-          paddingTop: isSmallDevice ? SPACING.xs : SPACING.sm 
-        }}>
-          <View
-            style={{
-              backgroundColor: COLORS.darkPurple,
-              borderRadius: isSmallDevice ? 12 : 14,
-              paddingVertical: isSmallDevice ? SPACING.md : SPACING.lg,
-              paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
-              ...SHADOWS.light,
-            }}
-          >
-            {/* Title Section */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: isSmallDevice ? 8 : 10, marginBottom: isSmallDevice ? SPACING.sm : SPACING.md }}>
-              <MaterialIcons 
-                name="notifications-active" 
-                size={isSmallDevice ? 20 : isTablet ? 26 : 22} 
-                color="#ffffff" 
-              />
-              <Text style={{ 
-                color: '#ffffff', 
-                fontWeight: '800',
-                fontSize: Platform.OS === 'android' 
-                  ? (isSmallDevice ? FONTS.sizes.small - 1 : isTablet ? FONTS.sizes.small + 1 : FONTS.sizes.small)
-                  : (isSmallDevice ? FONTS.sizes.small : isTablet ? FONTS.sizes.small + 2 : FONTS.sizes.small + 1),
-                lineHeight: Platform.OS === 'android' ? (isSmallDevice ? 16 : 18) : (isSmallDevice ? 18 : 20),
-                flex: 1,
-              }}>
-                {bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays} new notification{(bannerCounts.apps + bannerCounts.pets + bannerCounts.transfers + bannerCounts.registrations + bannerCounts.incidents + bannerCounts.strays) > 1 ? 's' : ''}
-              </Text>
-            </View>
-            
-            {/* Button Section */}
-            <View style={{ flexDirection: 'row', gap: isSmallDevice ? 8 : 10, justifyContent: 'center' }}>
-              <TouchableOpacity
-                onPress={updateLastSeenAndOpen}
-                style={{ 
-                  backgroundColor: '#ffffff', 
-                  paddingHorizontal: isSmallDevice ? 16 : 20, 
-                  paddingVertical: isSmallDevice ? 6 : 8, 
-                  borderRadius: isSmallDevice ? 8 : 10,
-                  minWidth: isSmallDevice ? 80 : 90,
-                  minHeight: isSmallDevice ? 28 : 32,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  elevation: 2,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 2,
-                }}
-              >
-                <Text style={{ 
-                  color: COLORS.darkPurple, 
-                  fontWeight: '800',
-                  fontSize: Platform.OS === 'android' 
-                    ? (isSmallDevice ? FONTS.sizes.small - 2 : isTablet ? FONTS.sizes.small : FONTS.sizes.small - 1)
-                    : (isSmallDevice ? FONTS.sizes.small - 1 : isTablet ? FONTS.sizes.small + 1 : FONTS.sizes.small),
-                  textAlign: 'center',
-                  textAlignVertical: 'center',
-                  includeFontPadding: false,
-                }}>View</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setShowBanner(false)}
-                style={{ 
-                  borderWidth: 2, 
-                  borderColor: '#ffffff', 
-                  paddingHorizontal: isSmallDevice ? 16 : 20, 
-                  paddingVertical: isSmallDevice ? 6 : 8, 
-                  borderRadius: isSmallDevice ? 8 : 10,
-                  minWidth: isSmallDevice ? 80 : 90,
-                  minHeight: isSmallDevice ? 28 : 32,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  elevation: 2,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 2,
-                }}
-              >
-                <Text style={{ 
-                  color: '#ffffff', 
-                  fontWeight: '800',
-                  fontSize: Platform.OS === 'android' 
-                    ? (isSmallDevice ? FONTS.sizes.small - 2 : isTablet ? FONTS.sizes.small : FONTS.sizes.small - 1)
-                    : (isSmallDevice ? FONTS.sizes.small - 1 : isTablet ? FONTS.sizes.small + 1 : FONTS.sizes.small),
-                  textAlign: 'center',
-                  textAlignVertical: 'center',
-                  includeFontPadding: false,
-                }}>Dismiss</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+      {/* Banner removed for push notifications only */}
 
       <ScrollView 
         style={styles.scrollView} 

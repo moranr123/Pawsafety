@@ -6,6 +6,7 @@ import { auth, db } from '../services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Alert } from 'react-native';
 import { COLORS, FONTS } from '../constants/theme';
+import NotificationService from '../services/NotificationService';
 
 // Import screens
 import LoginScreen from '../screens/LoginScreen';
@@ -122,17 +123,49 @@ const AppNavigator = () => {
   };
 
   useEffect(() => {
+    const notificationService = NotificationService.getInstance();
+    let notificationUnsubscribe = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       if (authUser) {
         const validUser = await checkUserStatus(authUser);
         setUser(validUser);
+        
+        // Initialize push notifications when user logs in
+        if (validUser) {
+          const token = await notificationService.initializePushNotifications(validUser.uid);
+          if (token) {
+            console.log('Push notifications initialized:', token);
+          }
+          
+          // Set up notification listeners
+          notificationUnsubscribe = notificationService.setupNotificationListeners(
+            validUser.uid,
+            (newNotification) => {
+              console.log('New notification received:', newNotification);
+              // Notification will be shown automatically via sendLocalNotification
+            }
+          );
+        }
       } else {
         setUser(null);
+        // Cleanup notification listeners on logout
+        if (notificationUnsubscribe) {
+          notificationUnsubscribe();
+          notificationUnsubscribe = null;
+        }
+        notificationService.cleanup();
       }
       setLoading(false);
     });
 
-    return unsubscribe; // Cleanup subscription on unmount
+    return () => {
+      unsubscribe();
+      if (notificationUnsubscribe) {
+        notificationUnsubscribe();
+      }
+      notificationService.cleanup();
+    };
   }, []);
 
   if (loading) {
