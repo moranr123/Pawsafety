@@ -19,9 +19,9 @@ const HomeScreen = () => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      Alert.alert('Success', 'Logged out successfully');
+      // Navigation handled by auth state change
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', 'Failed to log out. Please try again.');
     }
   };
 

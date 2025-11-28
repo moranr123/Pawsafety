@@ -18,23 +18,12 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useProfileImage } from '../../contexts/ProfileImageContext';
-import NotificationService from '../../services/NotificationService';
 
 const SettingsScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS, isDarkMode, toggleTheme } = useTheme();
   const { profileImage, updateProfileImage } = useProfileImage();
   const [isUploading, setIsUploading] = useState(false);
-
-  const handleTestNotification = async () => {
-    const notificationService = NotificationService.getInstance();
-    await notificationService.sendLocalNotification(
-      'Test Notification',
-      'If you see this, push notifications are working! 🎉',
-      { type: 'test', testId: Date.now() }
-    );
-    Alert.alert('Success', 'Test notification sent!');
-  };
 
   // Create styles using current theme colors
   const styles = useMemo(() => StyleSheet.create({
@@ -290,14 +279,14 @@ const SettingsScreen = ({ navigation }) => {
           
           Alert.alert('Success', 'Profile image updated successfully!');
         } catch (error) {
-          console.error('Error uploading image:', error);
+          // Error handled - Alert already shown
           Alert.alert('Error', 'Failed to upload image. Please try again.');
         } finally {
           setIsUploading(false);
         }
       }
     } catch (error) {
-      console.error('Error selecting image:', error);
+      // Error handled - Alert already shown
       Alert.alert('Error', 'Failed to select image. Please try again.');
     }
   };
@@ -417,17 +406,6 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => Alert.alert('About', 'About PawSafety would open here')}
           />
         </SettingsSection>
-
-        {/* Test Notification Button */}
-        <View style={styles.logoutSection}>
-          <TouchableOpacity 
-            style={[styles.logoutButton, { backgroundColor: COLORS.lightBlue }]} 
-            onPress={handleTestNotification}
-          >
-            <Text style={styles.logoutIcon}>🔔</Text>
-            <Text style={styles.logoutText}>Test Notification</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Logout Button */}
         <View style={styles.logoutSection}>

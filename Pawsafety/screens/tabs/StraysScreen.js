@@ -9,14 +9,14 @@ import {
   ImageBackground,
   Modal,
   RefreshControl,
-  Dimensions,
-  Platform
+  Platform,
+  useWindowDimensions
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { db } from '../../services/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 
@@ -29,26 +29,21 @@ const StraysScreen = ({ navigation }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [closedBanners, setClosedBanners] = useState({});
-  const [screenData, setScreenData] = useState(Dimensions.get('window'));
 
-  // Handle screen dimension changes
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', ({ window }) => {
-      setScreenData(window);
-    });
-    return () => subscription?.remove();
-  }, []);
-
-  // Dynamic responsive calculations
-  const currentWidth = screenData.width;
-  const currentHeight = screenData.height;
+  // Optimized: Use built-in hook instead of Dimensions listener
+  const { width: currentWidth, height: currentHeight } = useWindowDimensions();
   const isSmallDevice = currentWidth < 375 || currentHeight < 667;
   const isTablet = currentWidth > 768;
   const wp = (percentage) => (currentWidth * percentage) / 100;
   const hp = (percentage) => (currentHeight * percentage) / 100;
 
   useEffect(() => {
-    const q = query(collection(db, 'stray_reports'), orderBy('reportTime', 'desc'));
+    // Optimized: Add limit to reduce Firebase reads
+    const q = query(
+      collection(db, 'stray_reports'), 
+      orderBy('reportTime', 'desc'),
+      limit(50) // Limit to most recent 50 reports
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });

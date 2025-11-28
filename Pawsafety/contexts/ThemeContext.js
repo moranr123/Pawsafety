@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { LIGHT_THEME, DARK_THEME } from '../constants/theme';
 
 // Create Theme Context
@@ -8,15 +8,17 @@ const ThemeContext = createContext();
 export const ThemeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  // Memoize toggle function to prevent recreation
+  const toggleTheme = useCallback(() => {
+    setIsDarkMode(prev => !prev);
+  }, []);
 
-  const theme = {
+  // Memoize theme object to prevent unnecessary re-renders
+  const theme = useMemo(() => ({
     colors: isDarkMode ? DARK_THEME : LIGHT_THEME,
     isDarkMode,
     toggleTheme,
-  };
+  }), [isDarkMode, toggleTheme]);
 
   return (
     <ThemeContext.Provider value={theme}>

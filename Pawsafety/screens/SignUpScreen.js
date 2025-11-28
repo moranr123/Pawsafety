@@ -20,6 +20,8 @@ import { auth } from '../services/firebase';
 import { createUserDocument } from '../services/userService';
 import { useTheme } from '../contexts/ThemeContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import { validateEmail, validatePassword, validateName } from '../utils/validation';
+import { showAuthError, getAuthErrorMessage } from '../utils/authErrors';
 
 const SignUpScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -61,23 +63,23 @@ const SignUpScreen = ({ navigation }) => {
       return;
     }
 
-    if (fullName.trim().length < 2) {
-      Alert.alert('Error', 'Please enter a valid full name');
+    // Validate name using utility
+    const nameValidation = validateName(fullName);
+    if (!nameValidation.valid) {
+      Alert.alert('Error', nameValidation.message);
       return;
     }
 
-    if (!validateNameInput(fullName)) {
-      Alert.alert('Error', 'Full name can only contain letters, spaces, hyphens, and apostrophes');
-      return;
-    }
-
+    // Validate email using utility
     if (!validateEmail(email)) {
       Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+    // Validate password using utility
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      Alert.alert('Error', passwordValidation.message);
       return;
     }
 
@@ -103,7 +105,7 @@ const SignUpScreen = ({ navigation }) => {
       // Create user document in Firestore
       const userDocCreated = await createUserDocument(userCredential.user);
       if (!userDocCreated) {
-        console.warn('Failed to create user document in Firestore');
+        // User document creation failed - non-critical
       }
       
       // Send email verification
@@ -118,7 +120,7 @@ const SignUpScreen = ({ navigation }) => {
       // Show success modal
       setSuccessModalVisible(true);
     } catch (error) {
-      Alert.alert('Sign Up Error', error.message);
+      showAuthError(error, Alert);
     } finally {
       setLoading(false);
     }
@@ -175,16 +177,11 @@ const SignUpScreen = ({ navigation }) => {
       setResendCooldown(60);
       Alert.alert('Success', 'Verification email has been resent!\n\n📁 Please check your spam/junk folder if you don\'t see the email.');
     } catch (error) {
-      if (error.code === 'auth/user-not-found') {
-        Alert.alert('Error', 'Account not found. Please try signing up again.');
-      } else if (error.code === 'auth/wrong-password') {
-        Alert.alert('Error', 'Invalid password. Please check your password and try again.');
-      } else if (error.code === 'auth/too-many-requests') {
-        Alert.alert('Too Many Requests', 'Too many verification emails sent. Please wait before trying again.');
+      const { title, message } = getAuthErrorMessage(error);
+      if (error.code === 'auth/too-many-requests') {
         setResendCooldown(300); // 5 minute cooldown for rate limiting
-      } else {
-        Alert.alert('Error', 'Failed to resend verification email. Please try again.');
       }
+      Alert.alert(title, message);
     }
   };
 

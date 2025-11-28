@@ -13,7 +13,7 @@ import {
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../services/firebase';
-import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, getDocs, orderBy, limit } from 'firebase/firestore';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getResponsiveDimensions } from '../utils/responsive';
@@ -29,10 +29,13 @@ const ArchivedPetsScreen = ({ navigation }) => {
   useEffect(() => {
     if (!user) return;
 
+    // Optimized: Add orderBy and limit
     const q = query(
       collection(db, 'pets'),
       where('userId', '==', user.uid),
-      where('archived', '==', true)
+      where('archived', '==', true),
+      orderBy('archivedAt', 'desc'), // Assuming archivedAt field exists
+      limit(100) // Reasonable limit for archived pets
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {

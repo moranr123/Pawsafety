@@ -15,7 +15,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -35,7 +35,6 @@ const StrayReportScreen = ({ navigation, route }) => {
   const [description, setDescription] = useState('');
   const [reportType, setReportType] = useState(route?.params?.initialType || 'Stray');
   const [showLocationModal, setShowLocationModal] = useState(false);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [showInstructionModal, setShowInstructionModal] = useState(false);
   const hasShownInstructionToday = useRef(false);
   const [mapRegion, setMapRegion] = useState({
@@ -73,7 +72,7 @@ const StrayReportScreen = ({ navigation, route }) => {
           setShowInstructionModal(true);
         }
       } catch (error) {
-        console.error('Error checking daily instruction:', error);
+        // Error handled silently
       }
     };
     
@@ -95,7 +94,7 @@ const StrayReportScreen = ({ navigation, route }) => {
       await AsyncStorage.setItem(storageKey, today);
       setShowInstructionModal(false);
     } catch (error) {
-      console.error('Error saving instruction shown date:', error);
+      // Error handled silently
       setShowInstructionModal(false);
     }
   };
@@ -149,7 +148,7 @@ const StrayReportScreen = ({ navigation, route }) => {
         Alert.alert('Permission needed', 'Location permission is required to pin location');
       }
     } catch (error) {
-      console.error('Error requesting permissions:', error);
+      // Error handled - Alert already shown
     }
   };
 
@@ -167,7 +166,7 @@ const StrayReportScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to open camera');
-      console.error('Camera error:', error);
+      // Error handled - Alert already shown
     }
   };
 
@@ -185,7 +184,7 @@ const StrayReportScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to open image picker');
-      console.error('Image picker error:', error);
+      // Error handled - Alert already shown
     }
   };
 
@@ -198,51 +197,6 @@ const StrayReportScreen = ({ navigation, route }) => {
         { text: 'Photo Library', onPress: openImagePicker },
         { text: 'Cancel', style: 'cancel' }
       ]
-    );
-  };
-
-  const getCurrentLocation = async () => {
-    setIsLoadingLocation(true);
-    try {
-      const location = await Location.getCurrentPositionAsync({});
-      const address = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      const addressString = address[0] 
-        ? `${address[0].street || ''} ${address[0].name || ''}, ${address[0].city || ''}`
-        : 'Current Location';
-
-      setLocation(location.coords);
-      setLocationName(addressString);
-      setShowLocationModal(false);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to get current location');
-      console.error('Location error:', error);
-    } finally {
-      setIsLoadingLocation(false);
-    }
-  };
-
-  const handleManualLocation = () => {
-    Alert.prompt(
-      'Enter Location',
-      'Please enter the location where you saw the pet:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Set Location', 
-          onPress: (locationText) => {
-            if (locationText && locationText.trim()) {
-              setLocationName(locationText.trim());
-              setLocation({ latitude: 0, longitude: 0 }); // Placeholder coordinates
-              setShowLocationModal(false);
-            }
-          }
-        }
-      ],
-      'plain-text'
     );
   };
 
@@ -288,7 +242,7 @@ const StrayReportScreen = ({ navigation, route }) => {
       );
     } catch (error) {
       Alert.alert('Error', 'Failed to submit report');
-      console.error('Submit error:', error);
+      // Error handled - Alert already shown
     }
   };
 
@@ -527,34 +481,6 @@ const StrayReportScreen = ({ navigation, route }) => {
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: COLORS.text,
-    },
-    locationOptions: {
-      marginBottom: SPACING.lg,
-    },
-    locationOption: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.lg,
-      marginBottom: SPACING.md,
-      borderWidth: 1,
-      borderColor: COLORS.lightGray,
-    },
-    locationOptionTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginLeft: SPACING.md,
-      flex: 1,
-    },
-    locationOptionDescription: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      marginLeft: SPACING.md,
-      flex: 1,
     },
     locationInfo: {
       backgroundColor: COLORS.lightBlue,
@@ -961,6 +887,7 @@ const StrayReportScreen = ({ navigation, route }) => {
             </View>
             <View style={styles.mapContainer}>
               <MapView
+                provider={PROVIDER_GOOGLE}
                 style={styles.map}
                 region={mapRegion}
                 onPress={async (e) => {

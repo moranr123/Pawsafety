@@ -8,7 +8,6 @@ import { db } from './firebase';
  */
 export const createUserDocument = async (authUser) => {
   if (!authUser) {
-    console.error('No auth user provided to createUserDocument');
     return false;
   }
 
@@ -18,7 +17,6 @@ export const createUserDocument = async (authUser) => {
     // Check if user already exists
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
-      console.log('User document already exists:', authUser.uid);
       return true;
     }
 
@@ -35,11 +33,10 @@ export const createUserDocument = async (authUser) => {
     };
 
     await setDoc(userDocRef, userData);
-    console.log('User document created successfully:', authUser.uid);
     return true;
 
   } catch (error) {
-    console.error('Error creating user document:', error);
+    // Error handled silently - return false on failure
     return false;
   }
 };
@@ -51,7 +48,6 @@ export const createUserDocument = async (authUser) => {
  */
 export const getUserDocument = async (uid) => {
   if (!uid) {
-    console.error('No UID provided to getUserDocument');
     return null;
   }
 
@@ -62,11 +58,10 @@ export const getUserDocument = async (uid) => {
     if (userDoc.exists()) {
       return userDoc.data();
     } else {
-      console.log('No user document found for UID:', uid);
       return null;
     }
   } catch (error) {
-    console.error('Error getting user document:', error);
+    // Error handled silently - return null on failure
     return null;
   }
 };
@@ -79,7 +74,6 @@ export const getUserDocument = async (uid) => {
  */
 export const updateUserDocument = async (uid, updateData) => {
   if (!uid) {
-    console.error('No UID provided to updateUserDocument');
     return false;
   }
 
@@ -90,10 +84,9 @@ export const updateUserDocument = async (uid, updateData) => {
       updatedAt: serverTimestamp()
     }, { merge: true });
     
-    console.log('User document updated successfully:', uid);
     return true;
   } catch (error) {
-    console.error('Error updating user document:', error);
+    // Error handled silently - return false on failure
     return false;
   }
 };

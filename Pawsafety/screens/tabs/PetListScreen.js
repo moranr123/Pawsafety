@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -466,15 +466,21 @@ const PetListScreen = ({ navigation }) => {
 
   useEffect(() => {
     // Query all pets without requiring createdAt field for ordering
-    const unsubscribe = onSnapshot(
+    // Optimized: Add query with orderBy and limit
+    const q = query(
       collection(db, 'pets'),
+      orderBy('createdAt', 'desc'),
+      limit(100) // Limit to most recent 100 pets
+    );
+    const unsubscribe = onSnapshot(
+      q,
       (snapshot) => {
          const petsData = snapshot.docs.map(doc => ({
            id: doc.id,
            ...doc.data()
          }));
          
-         console.log('All pets from database:', petsData);
+         // Process pets data
          
          // Filter out pets that are not properly registered and only show approved pets
          const registeredPets = petsData.filter(pet => {
@@ -486,7 +492,7 @@ const PetListScreen = ({ navigation }) => {
                   pet.registrationStatus === 'registered'; // Only show approved pets
            
            if (!isValid) {
-             console.log('Filtered out pet:', pet);
+             // Pet filtered out
            }
            
            return isValid;
@@ -503,14 +509,14 @@ const PetListScreen = ({ navigation }) => {
            return getTimestamp(b) - getTimestamp(a); // Descending order (newest first)
          });
          
-         console.log('Registered pets after filtering and sorting:', sortedPets);
+         // Pets processed
          
          setPets(sortedPets);
          setLastUpdated(new Date());
          setLoading(false);
        },
       (error) => {
-        console.error('Error fetching pets:', error);
+        // Error handled silently
         setLoading(false);
       }
     );

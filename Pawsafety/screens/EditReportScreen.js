@@ -14,7 +14,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { db, storage, auth } from '../services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -110,7 +110,7 @@ const EditReportScreen = ({ navigation, route }) => {
         setLocationName(addressString);
       }
     } catch (error) {
-      console.error('Reverse geocoding error:', error);
+      // Error handled silently
     }
   };
 
@@ -132,7 +132,7 @@ const EditReportScreen = ({ navigation, route }) => {
         setLocationName(addressString);
       }
     } catch (error) {
-      console.error('Reverse geocoding error:', error);
+      // Error handled silently
     }
   };
 
@@ -168,7 +168,7 @@ const EditReportScreen = ({ navigation, route }) => {
             const oldImageRef = ref(storage, report.imageUrl);
             await deleteObject(oldImageRef);
           } catch (error) {
-            console.error('Error deleting old image:', error);
+            // Error handled silently - continue with update
           }
         }
         
@@ -189,7 +189,7 @@ const EditReportScreen = ({ navigation, route }) => {
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
-      console.error('Update error:', error);
+      // Error handled - Alert already shown
       Alert.alert('Error', 'Failed to update report. Please try again.');
     } finally {
       setLoading(false);
@@ -642,6 +642,7 @@ const EditReportScreen = ({ navigation, route }) => {
           </View>
           {location && (
             <MapView
+              provider={PROVIDER_GOOGLE}
               style={styles.map}
               initialRegion={{
                 latitude: location.latitude,

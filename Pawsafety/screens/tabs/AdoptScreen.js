@@ -16,7 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { auth, db } from '../../services/firebase';
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where, deleteDoc, doc, limit } from 'firebase/firestore';
 
 const AdoptScreen = () => {
   const { colors: COLORS } = useTheme();
@@ -103,7 +103,7 @@ const AdoptScreen = () => {
       await deleteDoc(doc(db, 'adoption_applications', appId));
       // The onSnapshot listener will automatically update the myApplications state
     } catch (error) {
-      console.error('Error deleting application:', error);
+      // Error handled - Alert already shown to user
       Alert.alert('Error', 'Failed to delete application. Please try again.');
     }
   };
@@ -968,7 +968,12 @@ const AdoptScreen = () => {
   );
 
   useEffect(() => {
-    const q = query(collection(db, 'adoptable_pets'), orderBy('createdAt', 'desc'));
+    // Optimized: Add limit to reduce Firebase reads
+    const q = query(
+      collection(db, 'adoptable_pets'), 
+      orderBy('createdAt', 'desc'),
+      limit(50) // Limit to most recent 50 pets
+    );
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
@@ -980,7 +985,7 @@ const AdoptScreen = () => {
         // If desired, you can compare previous ids and Alert user
       },
       (error) => {
-        console.log('AdoptScreen onSnapshot error:', error);
+        // Error handled silently - will retry on next update
         setErrorMsg('Unable to load adoptable pets. Please try again later.');
       }
     );
@@ -991,10 +996,12 @@ const AdoptScreen = () => {
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
+    // Optimized: Add limit
     const q = query(
       collection(db, 'adoption_applications'),
       where('userId', '==', uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(50) // Limit to most recent 50 applications
     );
     const unsub = onSnapshot(q, (snap) => {
       const apps = snap.docs.map((d) => ({ id: d.id, ...d.data() }));

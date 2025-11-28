@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { db, auth } from '../services/firebase';
-import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -27,18 +28,15 @@ const MyReportsScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (auth.currentUser) {
+      // Optimized: Add orderBy server-side and limit to reduce reads
       const q = query(
         collection(db, 'stray_reports'),
-        where('userId', '==', auth.currentUser.uid)
+        where('userId', '==', auth.currentUser.uid),
+        orderBy('reportTime', 'desc'), // Sort server-side instead of client-side
+        limit(100) // Add reasonable limit
       );
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort by newest first
-        reports.sort((a, b) => {
-          const timeA = a.reportTime?.toDate ? a.reportTime.toDate() : new Date(a.reportTime);
-          const timeB = b.reportTime?.toDate ? b.reportTime.toDate() : new Date(b.reportTime);
-          return timeB - timeA;
-        });
         setUserReports(reports);
       });
       return unsubscribe;
@@ -65,7 +63,6 @@ const MyReportsScreen = ({ navigation }) => {
               Alert.alert('Success', 'Report deleted successfully');
             } catch (error) {
               Alert.alert('Error', 'Failed to delete report');
-              console.error('Delete error:', error);
             }
           }
         }
@@ -473,6 +470,18 @@ const MyReportsScreen = ({ navigation }) => {
       color: '#475569',
       lineHeight: 20,
     },
+    modalMapContainer: {
+      width: '100%',
+      height: 200,
+      borderRadius: 15,
+      overflow: 'hidden',
+      marginTop: SPACING.md,
+      ...SHADOWS.light,
+    },
+    modalMap: {
+      width: '100%',
+      height: '100%',
+    },
   }), [COLORS]);
 
   const ReportCard = ({ report }) => {
@@ -693,6 +702,32 @@ const MyReportsScreen = ({ navigation }) => {
                 <Text style={styles.modalText}>
                   {selectedReport?.locationName || 'Unknown Location'}
                 </Text>
+                {selectedReport?.location && selectedReport.location.latitude && selectedReport.location.longitude && (
+                  <View style={styles.modalMapContainer}>
+                    <MapView
+                      provider={PROVIDER_GOOGLE}
+                      style={styles.modalMap}
+                      initialRegion={{
+                        latitude: selectedReport.location.latitude,
+                        longitude: selectedReport.location.longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      scrollEnabled={true}
+                      zoomEnabled={true}
+                    >
+                      <Marker
+                        coordinate={{
+                          latitude: selectedReport.location.latitude,
+                          longitude: selectedReport.location.longitude,
+                        }}
+                        title="Last Seen Location"
+                        description={selectedReport.locationName || 'Unknown Location'}
+                        pinColor={getStatusColor(selectedReport?.status)}
+                      />
+                    </MapView>
+                  </View>
+                )}
               </View>
 
               <View style={styles.modalSection}>

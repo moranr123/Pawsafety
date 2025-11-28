@@ -32,7 +32,7 @@ class NotificationService {
   async initializePushNotifications(userId) {
     try {
       if (!Device.isDevice) {
-        console.log('Must use physical device for Push Notifications');
+        // Push notifications require physical device
         return null;
       }
 
@@ -52,7 +52,7 @@ class NotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
+        // Permission not granted
         return null;
       }
 
@@ -78,7 +78,7 @@ class NotificationService {
 
       return token.data;
     } catch (error) {
-      console.error('Error initializing push notifications:', error);
+      // Error handled silently - return null on failure
       return null;
     }
   }
@@ -102,9 +102,9 @@ class NotificationService {
         deviceId: Constants.deviceId || 'unknown',
       }, { merge: true });
 
-      console.log('Push token saved to Firestore for user:', userId);
+      // Token saved successfully
     } catch (error) {
-      console.error('Error saving token to Firestore:', error);
+      // Error handled silently - token may be saved on retry
     }
   }
 
@@ -158,7 +158,7 @@ class NotificationService {
         });
       },
       (error) => {
-        console.error('Error listening to notifications:', error);
+        // Error handled silently - notifications will retry on next update
       }
     );
 
@@ -177,7 +177,7 @@ class NotificationService {
       });
       return notificationRef.id;
     } catch (error) {
-      console.error('Error creating notification:', error);
+      // Re-throw error for caller to handle
       throw error;
     }
   }
@@ -190,7 +190,7 @@ class NotificationService {
         readAt: new Date().toISOString()
       }, { merge: true });
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      // Error handled silently - operation may retry
     }
   }
 

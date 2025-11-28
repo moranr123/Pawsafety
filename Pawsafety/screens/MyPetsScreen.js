@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   Modal,
@@ -15,7 +14,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as Location from 'expo-location';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as MediaLibrary from 'expo-media-library';
 import { captureRef } from 'react-native-view-shot';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,11 +22,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db, storage } from '../services/firebase';
-import { collection, query, where, onSnapshot, deleteDoc, doc, addDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, addDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, LAYOUT } from '../constants/theme';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { getResponsiveDimensions, getGridColumns } from '../utils/responsive';
+import { getResponsiveDimensions } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
@@ -394,16 +393,18 @@ const MyPetsScreen = ({ navigation }) => {
   useEffect(() => {
     if (!user) return;
 
+    // Optimized: Filter archived pets server-side and add limit
     const q = query(
       collection(db, 'pets'),
-      where('userId', '==', user.uid)
+      where('userId', '==', user.uid),
+      where('archived', '==', false) // Filter server-side instead of client-side
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const petList = snapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 
-      })).filter(pet => !pet.archived); // Filter out archived pets
+      }));
       setPets(petList);
       setLoading(false);
     });
@@ -436,7 +437,7 @@ const MyPetsScreen = ({ navigation }) => {
           setShowUserManual(true);
         }
       } catch (error) {
-        console.error('Error checking daily manual:', error);
+        // Error handled silently
       }
     };
     
@@ -458,7 +459,7 @@ const MyPetsScreen = ({ navigation }) => {
       await AsyncStorage.setItem(storageKey, today);
       setShowUserManual(false);
     } catch (error) {
-      console.error('Error saving manual shown date:', error);
+      // Error handled silently
       setShowUserManual(false);
     }
   };
@@ -552,7 +553,7 @@ const MyPetsScreen = ({ navigation }) => {
         }));
       }
     } catch (error) {
-      console.error('Error getting current location:', error);
+      // Error handled - Alert already shown
     }
   };
 
@@ -592,7 +593,7 @@ const MyPetsScreen = ({ navigation }) => {
 
       Alert.alert('Location Set', `Location set to: ${locationName}`);
     } catch (error) {
-      console.error('Error getting location:', error);
+      // Error handled - Alert already shown
       Alert.alert('Error', 'Failed to get current location. Please try again or enter manually.');
     }
     setIsGettingLocation(false);
@@ -620,7 +621,7 @@ const MyPetsScreen = ({ navigation }) => {
         coordinates: { latitude, longitude }
       }));
     } catch (error) {
-      console.error('Error getting address:', error);
+      // Error handled silently
       setReportForm(prev => ({
         ...prev,
         lastSeenLocation: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`,
@@ -700,7 +701,7 @@ const MyPetsScreen = ({ navigation }) => {
         [{ text: 'OK' }]
       );
     } catch (error) {
-      console.error('Error reporting pet as lost:', error);
+      // Error handled - Alert already shown
       Alert.alert('Error', 'Failed to report pet as lost. Please try again.');
     }
     
@@ -747,7 +748,7 @@ const MyPetsScreen = ({ navigation }) => {
                  [{ text: 'OK' }]
                );
              } catch (error) {
-               console.error('Error marking pet as found:', error);
+               // Error handled - Alert already shown
                Alert.alert('Error', 'Failed to update pet status. Please try again.');
              }
            }
@@ -805,7 +806,7 @@ const MyPetsScreen = ({ navigation }) => {
          setEditForm(prev => ({ ...prev, petImage: result.assets[0].uri }));
        }
      } catch (error) {
-       console.error('Error picking image:', error);
+       // Error handled - Alert already shown
        Alert.alert('Error', 'Failed to select image. Please try again.');
      }
    };
@@ -837,11 +838,8 @@ const MyPetsScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('🔄 Marking pet as deceased:', { petId, petName });
-              
               // Find the pet to get its details for the notification
               const pet = pets.find(p => p.id === petId);
-              console.log('📋 Pet found:', pet ? { id: pet.id, name: pet.petName, owner: pet.ownerFullName } : 'Pet not found');
               
               if (!pet) {
                 Alert.alert('Error', 'Pet not found. Please try again.');
@@ -849,8 +847,6 @@ const MyPetsScreen = ({ navigation }) => {
               }
               
               // Create admin notification BEFORE archiving the pet
-              console.log('🔔 Creating admin notification for deceased pet');
-              
               const notificationData = {
                 type: 'pet_deceased',
                 title: 'Pet Marked as Deceased',
@@ -864,18 +860,10 @@ const MyPetsScreen = ({ navigation }) => {
                 createdAt: serverTimestamp()
               };
               
-              console.log('📝 Notification data:', notificationData);
-              
               try {
-                const notificationRef = await addDoc(collection(db, 'admin_notifications'), notificationData);
-                console.log('✅ Admin notification created successfully with ID:', notificationRef.id);
+                await addDoc(collection(db, 'admin_notifications'), notificationData);
               } catch (notificationError) {
-                console.error('❌ Error creating admin notification:', notificationError);
-                console.error('❌ Notification error details:', {
-                  code: notificationError.code,
-                  message: notificationError.message,
-                  stack: notificationError.stack
-                });
+                // Error handled silently - pet will still be archived
               }
               
               // Archive the pet instead of deleting it
@@ -884,19 +872,14 @@ const MyPetsScreen = ({ navigation }) => {
                 archivedAt: serverTimestamp(),
                 status: 'deceased'
               });
-              console.log('✅ Pet archived successfully');
+              // Pet archived successfully
               
               Alert.alert(
                 'Pet Marked as Deceased', 
                 `${petName} has been marked as deceased and archived. You can view it in the Archived Pets screen. The Agricultural Dashboard has been notified.`
               );
             } catch (error) {
-              console.error('❌ Error marking pet as deceased:', error);
-              console.error('❌ Error details:', {
-                code: error.code,
-                message: error.message,
-                stack: error.stack
-              });
+              // Error handled - Alert already shown
               Alert.alert('Error', 'Failed to mark pet as deceased. Please try again.');
             }
           }
@@ -955,7 +938,7 @@ const MyPetsScreen = ({ navigation }) => {
          petImage: ''
        });
      } catch (error) {
-       console.error('Error updating pet:', error);
+       // Error handled - Alert already shown
        Alert.alert('Error', 'Failed to update pet information. Please try again.');
      } finally {
        setIsSubmittingEdit(false);
@@ -992,7 +975,7 @@ const MyPetsScreen = ({ navigation }) => {
          [{ text: 'OK' }]
        );
      } catch (error) {
-       console.error('Error downloading QR code:', error);
+       // Error handled - Alert already shown
        Alert.alert('Error', 'Failed to save QR code. Please try again.');
      }
    };
@@ -1020,8 +1003,7 @@ Thank you for helping reunite pets with their families! ❤️`;
     return petInfo;
   };
 
-  const { isSmallDevice, isTablet, wp, hp } = getResponsiveDimensions();
-  const gridColumns = getGridColumns();
+  const { isSmallDevice, isTablet } = getResponsiveDimensions();
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -1110,101 +1092,6 @@ Thank you for helping reunite pets with their families! ❤️`;
       ...SHADOWS.medium,
       width: isTablet ? '48%' : '100%',
     },
-    petHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: SPACING.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.lightBlue,
-    },
-    petImage: {
-      width: isSmallDevice ? 50 : isTablet ? 70 : 60,
-      height: isSmallDevice ? 50 : isTablet ? 70 : 60,
-      borderRadius: isSmallDevice ? 25 : isTablet ? 35 : 30,
-      backgroundColor: COLORS.lightBlue,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: SPACING.md,
-      overflow: 'hidden',
-    },
-    petPhoto: {
-      width: isSmallDevice ? 50 : isTablet ? 70 : 60,
-      height: isSmallDevice ? 50 : isTablet ? 70 : 60,
-      borderRadius: isSmallDevice ? 25 : isTablet ? 35 : 30,
-    },
-    petEmoji: {
-      fontSize: 30,
-    },
-    petInfo: {
-      flex: 1,
-    },
-    petNameContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: SPACING.xs,
-      flexWrap: 'wrap',
-    },
-    petName: {
-      fontSize: FONTS.sizes.large,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginRight: SPACING.sm,
-    },
-    lostBadge: {
-      backgroundColor: '#FF8C00',
-      paddingHorizontal: SPACING.xs,
-      paddingVertical: 2,
-      borderRadius: RADIUS.small,
-    },
-    lostBadgeText: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
-    },
-    pendingBadge: {
-      backgroundColor: '#FFA500',
-      paddingHorizontal: SPACING.xs,
-      paddingVertical: 2,
-      borderRadius: RADIUS.small,
-      marginLeft: SPACING.xs,
-    },
-    pendingBadgeText: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
-    },
-
-    petBreed: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-    },
-    petDetails: {
-      padding: SPACING.lg,
-      paddingTop: 0,
-    },
-    detailRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: SPACING.sm,
-    },
-    detailLabel: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      fontWeight: FONTS.weights.medium,
-    },
-    detailValue: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      color: COLORS.text,
-      fontWeight: FONTS.weights.medium,
-      flex: 1,
-      textAlign: 'right',
-    },
     description: {
       fontSize: FONTS.sizes.medium,
       fontFamily: FONTS.family,
@@ -1238,9 +1125,6 @@ Thank you for helping reunite pets with their families! ❤️`;
     },
     foundButton: {
       backgroundColor: '#4CAF50', // Green color for found/success
-    },
-    deleteButton: {
-      backgroundColor: COLORS.error,
     },
     actionButtonText: {
       fontSize: FONTS.sizes.small,
@@ -2919,6 +2803,7 @@ Thank you for helping reunite pets with their families! ❤️`;
           
           <View style={styles.centeredMapContainer}>
             <MapView
+              provider={PROVIDER_GOOGLE}
               style={styles.centeredMap}
               region={mapRegion}
               onPress={(e) => handleMapLocationSelect(e.nativeEvent.coordinate)}

@@ -108,16 +108,12 @@ const AppNavigator = () => {
         }
       } else {
         // User doesn't exist in Firestore but is verified, create user record
-        console.log('Creating user record for verified user:', authUser.uid);
-        const created = await createUserDocument(authUser);
-        if (!created) {
-          console.error('Failed to create user document');
-        }
+        await createUserDocument(authUser);
       }
       
       return authUser;
     } catch (error) {
-      console.error('Error checking/creating user status:', error);
+      // Error handled - allow login to proceed
       return authUser; // Allow login if there's an error checking status
     }
   };
@@ -134,15 +130,11 @@ const AppNavigator = () => {
         // Initialize push notifications when user logs in
         if (validUser) {
           const token = await notificationService.initializePushNotifications(validUser.uid);
-          if (token) {
-            console.log('Push notifications initialized:', token);
-          }
           
           // Set up notification listeners
           notificationUnsubscribe = notificationService.setupNotificationListeners(
             validUser.uid,
             (newNotification) => {
-              console.log('New notification received:', newNotification);
               // Notification will be shown automatically via sendLocalNotification
             }
           );

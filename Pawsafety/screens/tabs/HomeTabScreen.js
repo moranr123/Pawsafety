@@ -85,7 +85,7 @@ const HomeTabScreen = ({ navigation }) => {
           setUserManualVisible(true);
         }
       } catch (error) {
-        console.error('Error checking daily user manual:', error);
+        // Error handled silently
       }
     };
     
@@ -105,7 +105,7 @@ const HomeTabScreen = ({ navigation }) => {
       await AsyncStorage.setItem(storageKey, today);
       setUserManualVisible(false);
     } catch (error) {
-      console.error('Error saving user manual shown date:', error);
+      // Error handled silently
       setUserManualVisible(false);
     }
   };
@@ -245,92 +245,96 @@ const HomeTabScreen = ({ navigation }) => {
     };
   }, [user?.uid]);
 
-  // Notifications sources
+  // Notifications sources - Optimized with limits and server-side filtering
   useEffect(() => {
-    // Adoption application updates for current user
-    let unsubApp = () => {};
-    if (user?.uid) {
-      const appsQ = query(
-        collection(db, 'adoption_applications'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-      unsubApp = onSnapshot(appsQ, (snap) => {
-        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setAppNotifs(items.slice(0, 20));
-      });
-    } else {
+    if (!user?.uid) {
       setAppNotifs([]);
+      setTransferNotifs([]);
+      setRegistrationNotifs([]);
+      setIncidentNotifs([]);
+      return;
     }
 
-    // New adoptable pets
+    const unsubscribers = [];
+
+    // Adoption application updates - ADD LIMIT to reduce reads
+    const appsQ = query(
+      collection(db, 'adoption_applications'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(20) // CRITICAL: Limit at query level, not after fetch
+    );
+    unsubscribers.push(
+      onSnapshot(appsQ, (snap) => {
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setAppNotifs(items);
+      })
+    );
+
+    // New adoptable pets - Filter server-side when possible
+    // Note: If readyForAdoption field doesn't exist for all docs, we still filter client-side
     const petsQ = query(
       collection(db, 'adoptable_pets'),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(20) // Limit at query level first
     );
-    const unsubPets = onSnapshot(petsQ, (snap) => {
-      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        .filter((p) => p.readyForAdoption !== false);
-      setPetNotifs(items.slice(0, 20));
-    });
+    unsubscribers.push(
+      onSnapshot(petsQ, (snap) => {
+        const items = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((p) => p.readyForAdoption !== false)
+          .slice(0, 20); // Additional slice for safety
+        setPetNotifs(items);
+      })
+    );
 
-    // Transfer notifications for current user
-    let unsubTransfer = () => {};
-    if (user?.uid) {
-      const transferQ = query(
-        collection(db, 'user_notifications'),
-        where('userId', '==', user.uid),
-        where('type', '==', 'pet_transfer'),
-        orderBy('createdAt', 'desc')
-      );
-      unsubTransfer = onSnapshot(transferQ, (snap) => {
+    // Transfer notifications - Combine with limit
+    const transferQ = query(
+      collection(db, 'user_notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'pet_transfer'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(transferQ, (snap) => {
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setTransferNotifs(items.slice(0, 20));
-      });
-    } else {
-      setTransferNotifs([]);
-    }
+        setTransferNotifs(items);
+      })
+    );
 
-    // Pet registration status notifications for current user
-    let unsubRegistration = () => {};
-    if (user?.uid) {
-      const registrationQ = query(
-        collection(db, 'notifications'),
-        where('userId', '==', user.uid),
-        where('type', 'in', ['pet_registration_approved', 'pet_registration_rejected']),
-        orderBy('createdAt', 'desc')
-      );
-      unsubRegistration = onSnapshot(registrationQ, (snap) => {
+    // Pet registration status notifications
+    const registrationQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', 'in', ['pet_registration_approved', 'pet_registration_rejected']),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(registrationQ, (snap) => {
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setRegistrationNotifs(items.slice(0, 20));
-      });
-    } else {
-      setRegistrationNotifs([]);
-    }
+        setRegistrationNotifs(items);
+      })
+    );
 
-    // Incident report notifications for current user
-    let unsubIncident = () => {};
-    if (user?.uid) {
-      const incidentQ = query(
-        collection(db, 'user_notifications'),
-        where('userId', '==', user.uid),
-        where('type', 'in', ['incident_resolved', 'incident_declined', 'stray_resolved', 'stray_declined']),
-        orderBy('createdAt', 'desc')
-      );
-      unsubIncident = onSnapshot(incidentQ, (snap) => {
+    // Incident report notifications
+    const incidentQ = query(
+      collection(db, 'user_notifications'),
+      where('userId', '==', user.uid),
+      where('type', 'in', ['incident_resolved', 'incident_declined', 'stray_resolved', 'stray_declined']),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(incidentQ, (snap) => {
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setIncidentNotifs(items.slice(0, 20));
-      });
-    } else {
-      setIncidentNotifs([]);
-    }
+        setIncidentNotifs(items);
+      })
+    );
 
     return () => {
-      unsubApp && unsubApp();
-      unsubPets && unsubPets();
-      unsubTransfer && unsubTransfer();
-      unsubRegistration && unsubRegistration();
-      unsubIncident && unsubIncident();
+      unsubscribers.forEach(unsub => unsub && unsub());
     };
   }, [user?.uid]);
 

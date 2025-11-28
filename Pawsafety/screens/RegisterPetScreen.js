@@ -79,8 +79,6 @@ const DOG_BREEDS = [
 ];
 
 const RegisterPetScreen = ({ navigation }) => {
-  console.log('🏁 RegisterPetScreen component loaded');
-  console.log('🧪 Testing console logging - this should appear in mobile console');
   const { colors: COLORS } = useTheme();
   const [petData, setPetData] = useState({
     petImage: null,
@@ -150,7 +148,7 @@ const RegisterPetScreen = ({ navigation }) => {
           setShowInstructionModal(true);
         }
       } catch (error) {
-        console.error('Error checking daily instruction:', error);
+        // Error handled silently
       }
     };
     
@@ -171,7 +169,7 @@ const RegisterPetScreen = ({ navigation }) => {
       await AsyncStorage.setItem(storageKey, today);
       setShowInstructionModal(false);
     } catch (error) {
-      console.error('Error saving instruction shown date:', error);
+      // Error handled silently
       setShowInstructionModal(false);
     }
   };
@@ -291,7 +289,7 @@ const RegisterPetScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      // Error handled - Alert already shown
       Alert.alert('Error', 'Failed to select image. Please try again.');
     }
   };
@@ -331,7 +329,7 @@ const RegisterPetScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error picking booklet image:', error);
+      // Error handled - Alert already shown
       Alert.alert('Error', 'Failed to select booklet image. Please try again.');
     }
   };
@@ -381,7 +379,6 @@ const RegisterPetScreen = ({ navigation }) => {
 
   const uploadImageToFirebase = async (imageUri, fileName) => {
     try {
-      console.log('Starting image upload:', imageUri);
       const response = await fetch(imageUri);
       
       if (!response.ok) {
@@ -389,56 +386,38 @@ const RegisterPetScreen = ({ navigation }) => {
       }
       
       const blob = await response.blob();
-      console.log('Image blob created, size:', blob.size);
-      
       const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${fileName}`;
       const storageRef = ref(storage, `pet_images/${uniqueFileName}`);
-      
-      console.log('Uploading to Firebase Storage...');
       await uploadBytes(storageRef, blob);
-      
-      console.log('Getting download URL...');
       const downloadURL = await getDownloadURL(storageRef);
-      console.log('Upload successful, URL:', downloadURL);
       
       return downloadURL;
     } catch (error) {
-      console.error('Error uploading image:', error);
+      // Error handled - will throw to caller
       Alert.alert('Upload Error', `Failed to upload image: ${error.message}`);
       throw error;
     }
   };
 
   const handleSubmit = async () => {
-    console.log('🚀 REGISTRATION STARTED - handleSubmit called');
     if (validateForm()) {
-      console.log('✅ Form validation passed');
       setIsSubmitting(true);
       try {
         const user = auth.currentUser;
-        console.log('👤 Current user:', user?.uid);
         
         // Upload images to Firebase Storage if they exist
         let petImageUrl = '';
         let petBookletUrl = '';
         
-        console.log('Pet data before upload:', { 
-          petImage: petData.petImage, 
-          petBooklet: petData.petBooklet 
-        });
-        
+        // Upload images if provided
         if (petData.petImage && !petData.petImage.startsWith('http')) {
-          console.log('Uploading pet image...');
           petImageUrl = await uploadImageToFirebase(petData.petImage, 'pet_photo.jpg');
-          console.log('Pet image uploaded:', petImageUrl);
         } else {
           petImageUrl = petData.petImage; // Keep existing URL
         }
         
         if (petData.petBooklet && !petData.petBooklet.startsWith('http')) {
-          console.log('Uploading pet booklet...');
           petBookletUrl = await uploadImageToFirebase(petData.petBooklet, 'pet_booklet.jpg');
-          console.log('Pet booklet uploaded:', petBookletUrl);
         } else {
           petBookletUrl = petData.petBooklet; // Keep existing URL
         }
@@ -453,15 +432,7 @@ const RegisterPetScreen = ({ navigation }) => {
           registrationStatus: 'pending' // Set as pending until agricultural admin approves
         };
         
-        console.log('Final pet data to save:', {
-          ...petDocData,
-          petImage: petDocData.petImage ? 'URL_SET' : 'NO_IMAGE',
-          petBooklet: petDocData.petBooklet ? 'URL_SET' : 'NO_BOOKLET'
-        });
-        
-        console.log('Adding pet to database...');
         const docRef = await addDoc(collection(db, 'pets'), petDocData);
-        console.log('Pet added to database with ID:', docRef.id);
         const completePetData = {
           ...petDocData,
           id: docRef.id
@@ -474,7 +445,7 @@ const RegisterPetScreen = ({ navigation }) => {
         setShowQRModal(true);
         setIsSubmitting(false);
       } catch (error) {
-        console.error('Error registering pet:', error);
+        // Error handled - Alert already shown
         Alert.alert('Error', 'Failed to register pet. Please try again.');
         setIsSubmitting(false);
       }
@@ -1332,7 +1303,6 @@ const RegisterPetScreen = ({ navigation }) => {
                           <TouchableOpacity 
               style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]} 
               onPress={() => {
-                console.log('🎯 Submit button pressed!');
                 handleSubmit();
               }}
               disabled={isSubmitting}
