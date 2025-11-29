@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Dimensions, Platform } from 'react-native';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, Dimensions, Platform, Animated } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTabBarVisibility } from '../contexts/TabBarVisibilityContext';
 
 // Import tab screens
 import HomeTabScreen from '../screens/tabs/HomeTabScreen';
@@ -17,7 +18,9 @@ const Tab = createBottomTabNavigator();
 // Custom Tab Bar Component
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { colors: COLORS } = useTheme();
+  const { isVisible } = useTabBarVisibility();
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
+  const translateY = useRef(new Animated.Value(0)).current;
 
   // Handle screen dimension changes
   useEffect(() => {
@@ -26,6 +29,20 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
     });
     return () => subscription?.remove();
   }, []);
+
+  // Animate tab bar visibility
+  useEffect(() => {
+    const currentWidth = screenData.width;
+    const currentHeight = screenData.height;
+    const isSmallDevice = currentWidth < 375 || currentHeight < 667;
+    const isTablet = currentWidth > 768;
+    const tabBarHeight = Platform.OS === 'ios' ? (isSmallDevice ? 60 : isTablet ? 80 : 70) : (isSmallDevice ? 70 : isTablet ? 90 : 80);
+    Animated.timing(translateY, {
+      toValue: isVisible ? 0 : tabBarHeight,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [isVisible, translateY, screenData]);
 
   // Dynamic responsive calculations
   const currentWidth = screenData.width;
@@ -41,19 +58,19 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
       backgroundColor: COLORS.cardBackground,
       borderTopWidth: 1,
       borderTopColor: COLORS.lightBlue,
-      paddingBottom: Platform.OS === 'ios' ? (isSmallDevice ? SPACING.sm : SPACING.md) : (isSmallDevice ? SPACING.md : SPACING.lg),
-      paddingTop: Platform.OS === 'ios' ? SPACING.xs : (isSmallDevice ? SPACING.sm : SPACING.md),
+      paddingBottom: Platform.OS === 'ios' ? (isSmallDevice ? SPACING.sm : SPACING.md) : 0,
+      paddingTop: Platform.OS === 'ios' ? SPACING.xs : (isSmallDevice ? SPACING.xs : SPACING.sm),
       paddingHorizontal: isSmallDevice ? SPACING.xs : SPACING.sm,
-      height: Platform.OS === 'ios' ? (isSmallDevice ? 60 : isTablet ? 80 : 70) : (isSmallDevice ? 70 : isTablet ? 90 : 80),
-      minHeight: Platform.OS === 'ios' ? 60 : 70,
+      height: Platform.OS === 'ios' ? (isSmallDevice ? 60 : isTablet ? 80 : 70) : (isSmallDevice ? 55 : isTablet ? 70 : 60),
+      minHeight: Platform.OS === 'ios' ? 60 : 55,
       ...SHADOWS.medium,
     },
     tabButton: {
       flex: 1,
       alignItems: 'center',
-      paddingVertical: Platform.OS === 'ios' ? (isSmallDevice ? SPACING.xs : SPACING.sm) : (isSmallDevice ? SPACING.sm : SPACING.md),
+      paddingVertical: Platform.OS === 'ios' ? (isSmallDevice ? SPACING.xs : SPACING.sm) : (isSmallDevice ? SPACING.xs : SPACING.sm),
       justifyContent: 'center',
-      minHeight: Platform.OS === 'ios' ? 50 : 60,
+      minHeight: Platform.OS === 'ios' ? 50 : 45,
     },
     tabIcon: {
       marginBottom: isSmallDevice ? 2 : 3,
@@ -76,12 +93,12 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
     centerButtonContainer: {
       flex: 1,
       alignItems: 'center',
-      marginTop: Platform.OS === 'ios' ? (isSmallDevice ? -20 : isTablet ? -30 : -25) : (isSmallDevice ? -25 : isTablet ? -35 : -30),
+      marginTop: Platform.OS === 'ios' ? (isSmallDevice ? -20 : isTablet ? -30 : -25) : (isSmallDevice ? -18 : isTablet ? -25 : -20),
     },
     centerButton: {
-      width: Platform.OS === 'ios' ? (isSmallDevice ? 52 : isTablet ? 72 : 62) : (isSmallDevice ? 56 : isTablet ? 76 : 66),
-      height: Platform.OS === 'ios' ? (isSmallDevice ? 52 : isTablet ? 72 : 62) : (isSmallDevice ? 56 : isTablet ? 76 : 66),
-      borderRadius: Platform.OS === 'ios' ? (isSmallDevice ? 26 : isTablet ? 36 : 31) : (isSmallDevice ? 28 : isTablet ? 38 : 33),
+      width: Platform.OS === 'ios' ? (isSmallDevice ? 52 : isTablet ? 72 : 62) : (isSmallDevice ? 48 : isTablet ? 64 : 54),
+      height: Platform.OS === 'ios' ? (isSmallDevice ? 52 : isTablet ? 72 : 62) : (isSmallDevice ? 48 : isTablet ? 64 : 54),
+      borderRadius: Platform.OS === 'ios' ? (isSmallDevice ? 26 : isTablet ? 36 : 31) : (isSmallDevice ? 24 : isTablet ? 32 : 27),
       backgroundColor: COLORS.darkPurple,
       justifyContent: 'center',
       alignItems: 'center',
@@ -103,7 +120,14 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   }), [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight]);
 
   return (
-    <View style={styles.tabBar}>
+    <Animated.View 
+      style={[
+        styles.tabBar,
+        {
+          transform: [{ translateY: translateY }],
+        }
+      ]}
+    >
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = options.tabBarLabel !== undefined 
@@ -140,7 +164,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
               >
                 <MaterialIcons 
                   name="qr-code-scanner" 
-                  size={Platform.OS === 'ios' ? (isSmallDevice ? 22 : isTablet ? 30 : 26) : (isSmallDevice ? 24 : isTablet ? 32 : 28)} 
+                  size={Platform.OS === 'ios' ? (isSmallDevice ? 22 : isTablet ? 30 : 26) : (isSmallDevice ? 20 : isTablet ? 26 : 22)} 
                   color={COLORS.white} 
                 />
                 <Text style={styles.centerButtonText}>Scan</Text>
@@ -163,7 +187,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             <View>
               <MaterialIcons 
                 name={iconName} 
-                size={Platform.OS === 'ios' ? (isSmallDevice ? 22 : isTablet ? 30 : 24) : (isSmallDevice ? 24 : isTablet ? 32 : 26)} 
+                size={Platform.OS === 'ios' ? (isSmallDevice ? 22 : isTablet ? 30 : 24) : (isSmallDevice ? 20 : isTablet ? 26 : 22)} 
                 color={focused ? COLORS.text : COLORS.secondaryText} 
               />
             </View>
@@ -188,7 +212,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           </TouchableOpacity>
         );
       })}
-    </View>
+    </Animated.View>
   );
 };
 

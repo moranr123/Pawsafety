@@ -7,8 +7,10 @@ import {
   ScrollView,
   StatusBar
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
-import { auth } from '../services/firebase';
+import { auth, db } from '../services/firebase';
+import { collection, query, onSnapshot, where } from 'firebase/firestore';
 import { FONTS, SPACING, RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -96,16 +98,33 @@ const FriendsListScreen = ({ navigation }) => {
     },
   }), [COLORS]);
 
+  // Fetch friends in real-time
   useEffect(() => {
-    // For now, create placeholder friends
-    const placeholderFriends = Array.from({ length: 20 }, (_, i) => ({
-      id: `friend_${i}`,
-      name: `Friend ${i + 1}`,
-      email: `friend${i + 1}@example.com`,
-      profileImage: null,
-    }));
-    setFriends(placeholderFriends);
-  }, []);
+    if (!user?.uid) return;
+
+    const friendsQuery = query(
+      collection(db, 'friends'),
+      where('userId', '==', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      friendsQuery,
+      (snapshot) => {
+        const friendsList = snapshot.docs.map(doc => ({
+          id: doc.data().friendId,
+          name: doc.data().friendName || 'Unknown',
+          email: doc.data().friendEmail || '',
+          profileImage: doc.data().friendProfileImage || null,
+        }));
+        setFriends(friendsList);
+      },
+      (error) => {
+        console.error('Error fetching friends:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   return (
     <View style={styles.container}>
@@ -136,9 +155,19 @@ const FriendsListScreen = ({ navigation }) => {
                     styles.friendItem,
                     index === friends.length - 1 && styles.friendItemLast
                   ]}
+                  onPress={() => navigation.navigate('Profile', { userId: friend.id })}
+                  activeOpacity={0.7}
                 >
                   <View style={styles.friendImage}>
-                    <MaterialIcons name="account-circle" size={60} color="#bcc0c4" />
+                    {friend.profileImage ? (
+                      <Image
+                        source={{ uri: friend.profileImage }}
+                        style={{ width: 60, height: 60, borderRadius: 30 }}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <MaterialIcons name="account-circle" size={60} color="#bcc0c4" />
+                    )}
                   </View>
                   <View style={styles.friendInfo}>
                     <Text style={styles.friendName}>{friend.name}</Text>

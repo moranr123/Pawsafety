@@ -13,7 +13,8 @@ import {
   Alert,
   Dimensions,
   Platform,
-  Animated
+  Animated,
+  StatusBar
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useProfileImage } from '../../contexts/ProfileImageContext';
+import { useTabBarVisibility } from '../../contexts/TabBarVisibilityContext';
 import UserManualModal from '../../components/UserManualModal';
 import PostCard from '../../components/PostCard';
 import NotificationService from '../../services/NotificationService';
@@ -31,6 +33,7 @@ import NotificationService from '../../services/NotificationService';
 const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS } = useTheme();
+  const { setIsVisible } = useTabBarVisibility();
   const { profileImage } = useProfileImage();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,7 +45,9 @@ const HomeTabScreen = ({ navigation }) => {
   const [incidentNotifs, setIncidentNotifs] = useState([]);
   const [foundPetNotifs, setFoundPetNotifs] = useState([]);
   const [socialNotifs, setSocialNotifs] = useState([]);
-  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets | Social
+  const [friendRequestNotifs, setFriendRequestNotifs] = useState([]);
+  const [friendRequestAcceptedNotifs, setFriendRequestAcceptedNotifs] = useState([]);
+  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets | Social | Friend Requests
   const [notifMenu, setNotifMenu] = useState(null); // { type: 'app'|'pet', id: string } | null
   const [showBanner, setShowBanner] = useState(false);
   const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0, strays: 0 });
@@ -55,6 +60,7 @@ const HomeTabScreen = ({ navigation }) => {
   const [hiddenRegistrationIds, setHiddenRegistrationIds] = useState(new Set());
   const [hiddenIncidentIds, setHiddenIncidentIds] = useState(new Set());
   const [hiddenFoundPetIds, setHiddenFoundPetIds] = useState(new Set());
+  const [hiddenFriendRequestIds, setHiddenFriendRequestIds] = useState(new Set());
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
   const [userManualVisible, setUserManualVisible] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
@@ -62,6 +68,41 @@ const HomeTabScreen = ({ navigation }) => {
   const slideAnim = useRef(new Animated.Value(-300)).current;
   const [posts, setPosts] = useState([]);
   const [hiddenPostIds, setHiddenPostIds] = useState(new Set());
+  const [scrollToPostId, setScrollToPostId] = useState(null);
+  const scrollViewRef = useRef(null);
+  const postRefs = useRef({});
+  const lastScrollY = useRef(0);
+  const scrollTimeout = useRef(null);
+  const [friends, setFriends] = useState([]); // Array of friend IDs
+
+  const handleScroll = (event) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const scrollDifference = currentScrollY - lastScrollY.current;
+    
+    // Clear existing timeout
+    if (scrollTimeout.current) {
+      clearTimeout(scrollTimeout.current);
+    }
+
+    // Hide tab bar when scrolling down, show when scrolling up or at top
+    if (currentScrollY <= 0) {
+      // At top, always show
+      setIsVisible(true);
+    } else if (scrollDifference > 5) {
+      // Scrolling down, hide
+      setIsVisible(false);
+    } else if (scrollDifference < -5) {
+      // Scrolling up, show
+      setIsVisible(true);
+    }
+
+    lastScrollY.current = currentScrollY;
+
+    // Show tab bar after scrolling stops
+    scrollTimeout.current = setTimeout(() => {
+      setIsVisible(true);
+    }, 150);
+  };
 
   // Handle screen dimension changes
   useEffect(() => {
@@ -124,13 +165,14 @@ const HomeTabScreen = ({ navigation }) => {
   useEffect(() => {
     (async () => {
       try {
-        const [appJson, petJson, transferJson, registrationJson, incidentJson, foundPetJson] = await Promise.all([
+        const [appJson, petJson, transferJson, registrationJson, incidentJson, foundPetJson, friendRequestJson] = await Promise.all([
           AsyncStorage.getItem('PAW_HIDDEN_APP_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_PET_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_TRANSFER_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_REGISTRATION_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_INCIDENT_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_FOUND_PET_NOTIFS'),
+          AsyncStorage.getItem('PAW_HIDDEN_FRIEND_REQUEST_NOTIFS'),
         ]);
         if (appJson) setHiddenAppIds(new Set(JSON.parse(appJson)));
         if (petJson) setHiddenPetIds(new Set(JSON.parse(petJson)));
@@ -138,11 +180,12 @@ const HomeTabScreen = ({ navigation }) => {
         if (registrationJson) setHiddenRegistrationIds(new Set(JSON.parse(registrationJson)));
         if (incidentJson) setHiddenIncidentIds(new Set(JSON.parse(incidentJson)));
         if (foundPetJson) setHiddenFoundPetIds(new Set(JSON.parse(foundPetJson)));
+        if (friendRequestJson) setHiddenFriendRequestIds(new Set(JSON.parse(friendRequestJson)));
       } catch (_) {}
     })();
   }, []);
 
-  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet, nextIncidentSet, nextFoundPetSet) => {
+  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet, nextIncidentSet, nextFoundPetSet, nextFriendRequestSet) => {
     try {
       await Promise.all([
         AsyncStorage.setItem('PAW_HIDDEN_APP_NOTIFS', JSON.stringify(Array.from(nextAppSet || hiddenAppIds))),
@@ -151,6 +194,7 @@ const HomeTabScreen = ({ navigation }) => {
         AsyncStorage.setItem('PAW_HIDDEN_REGISTRATION_NOTIFS', JSON.stringify(Array.from(nextRegistrationSet || hiddenRegistrationIds))),
         AsyncStorage.setItem('PAW_HIDDEN_INCIDENT_NOTIFS', JSON.stringify(Array.from(nextIncidentSet || hiddenIncidentIds))),
         AsyncStorage.setItem('PAW_HIDDEN_FOUND_PET_NOTIFS', JSON.stringify(Array.from(nextFoundPetSet || hiddenFoundPetIds))),
+        AsyncStorage.setItem('PAW_HIDDEN_FRIEND_REQUEST_NOTIFS', JSON.stringify(Array.from(nextFriendRequestSet || hiddenFriendRequestIds))),
       ]);
     } catch (_) {}
   };
@@ -193,7 +237,23 @@ const HomeTabScreen = ({ navigation }) => {
       setHiddenFoundPetIds((prev) => {
         const next = new Set(prev);
         next.add(id);
-        persistHiddenSets(null, null, null, null, null, next);
+        persistHiddenSets(null, null, null, null, null, next, null);
+        return next;
+      });
+    } else if (type === 'friend_request') {
+      setFriendRequestNotifs((prev) => prev.filter((fr) => fr.id !== id));
+      setHiddenFriendRequestIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        persistHiddenSets(null, null, null, null, null, null, next);
+        return next;
+      });
+    } else if (type === 'friend_request_accepted') {
+      setFriendRequestAcceptedNotifs((prev) => prev.filter((fra) => fra.id !== id));
+      setHiddenFriendRequestIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        persistHiddenSets(null, null, null, null, null, null, next);
         return next;
       });
     } else {
@@ -207,7 +267,7 @@ const HomeTabScreen = ({ navigation }) => {
     }
     setNotifMenu(null);
   };
-  const notifCount = Math.min(99, (appNotifs?.length || 0) + (petNotifs?.length || 0) + (transferNotifs?.length || 0) + (registrationNotifs?.length || 0) + (foundPetNotifs?.length || 0));
+  const notifCount = Math.min(99, (appNotifs?.length || 0) + (petNotifs?.length || 0) + (transferNotifs?.length || 0) + (registrationNotifs?.length || 0) + (foundPetNotifs?.length || 0) + (friendRequestNotifs?.length || 0) + (friendRequestAcceptedNotifs?.length || 0));
   
   const notifUnreadCount = useMemo(() => {
     try {
@@ -228,9 +288,15 @@ const HomeTabScreen = ({ navigation }) => {
         const createdAt = f.createdAt ? (typeof f.createdAt === 'string' ? new Date(f.createdAt).getTime() : f.createdAt.toDate ? f.createdAt.toDate().getTime() : 0) : 0;
         return createdAt > lastFoundPet;
       }).length;
+      const lastFriendRequest = (() => { try { return Number((globalThis.__PAW_LAST_FRIEND_REQUEST__) || 0); } catch (_) { return 0; } })();
+      const unreadFriendRequest = (friendRequestNotifs || []).filter((fr) => {
+        const createdAt = fr.createdAt ? (typeof fr.createdAt === 'string' ? new Date(fr.createdAt).getTime() : fr.createdAt.toDate ? fr.createdAt.toDate().getTime() : 0) : 0;
+        return createdAt > lastFriendRequest && !fr.read;
+      }).length;
+      const unreadFriendRequestAccepted = (friendRequestAcceptedNotifs || []).filter((fra) => !fra.read).length;
       const unreadSocial = (socialNotifs || []).filter((s) => !s.read).length;
       
-      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadFoundPet + unreadSocial);
+      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadFoundPet + unreadSocial + unreadFriendRequest + unreadFriendRequestAccepted);
     } catch (e) {
       return 0;
     }
@@ -256,8 +322,33 @@ const HomeTabScreen = ({ navigation }) => {
     loadHiddenPosts();
   }, []);
 
+  // Fetch friends list
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const friendsQuery = query(
+      collection(db, 'friends'),
+      where('userId', '==', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      friendsQuery,
+      (snapshot) => {
+        const friendsList = snapshot.docs.map(doc => doc.data().friendId);
+        setFriends(friendsList);
+      },
+      (error) => {
+        console.error('Error fetching friends:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
   // Fetch posts from Firestore
   useEffect(() => {
+    if (!user?.uid) return;
+
     const postsQuery = query(
       collection(db, 'posts'),
       orderBy('createdAt', 'desc'),
@@ -267,10 +358,21 @@ const HomeTabScreen = ({ navigation }) => {
     const unsubscribe = onSnapshot(
       postsQuery,
       (snapshot) => {
-        const postsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const postsData = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }))
+          .filter(post => {
+            // Filter out deleted posts
+            if (post.deleted) return false;
+            
+            // Only show posts from friends or own posts
+            const isOwnPost = post.userId === user.uid;
+            const isFriendPost = friends.includes(post.userId);
+            
+            return isOwnPost || isFriendPost;
+          });
         setPosts(postsData);
       },
       (error) => {
@@ -279,7 +381,36 @@ const HomeTabScreen = ({ navigation }) => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [user?.uid, friends]);
+
+  // Scroll to specific post when scrollToPostId is set
+  useEffect(() => {
+    if (scrollToPostId && scrollViewRef.current) {
+      // Wait for posts to render, then try to scroll
+      setTimeout(() => {
+        const postIndex = posts.findIndex(p => p.id === scrollToPostId && !hiddenPostIds.has(p.id) && !p.deleted);
+        if (postIndex !== -1 && postRefs.current[scrollToPostId]) {
+          postRefs.current[scrollToPostId]?.measureLayout(
+            scrollViewRef.current,
+            (x, y) => {
+              scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 100), animated: true });
+              setScrollToPostId(null);
+            },
+            () => {
+              // If measure fails, try alternative approach - scroll to approximate position
+              // Estimate position based on post index (rough estimate)
+              const estimatedY = postIndex * 400; // Rough estimate of post height
+              scrollViewRef.current?.scrollTo({ y: Math.max(0, estimatedY - 100), animated: true });
+              setScrollToPostId(null);
+            }
+          );
+        } else {
+          // Post not found or already scrolled past, clear the state
+          setScrollToPostId(null);
+        }
+      }, 500);
+    }
+  }, [scrollToPostId, posts, hiddenPostIds]);
 
   // Notifications sources - Optimized with limits and server-side filtering
   useEffect(() => {
@@ -409,6 +540,60 @@ const HomeTabScreen = ({ navigation }) => {
           };
         });
         setSocialNotifs(items);
+      })
+    );
+
+    // Friend request notifications
+    const friendRequestQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'friend_request'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(friendRequestQ, (snap) => {
+        const items = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            type: 'friend_request',
+            ts: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+            title: data.title || 'New Friend Request',
+            sub: data.body || '',
+            data: data.data || {},
+            read: data.read || false,
+          };
+        });
+        setFriendRequestNotifs(items);
+      })
+    );
+
+    // Friend request accepted notifications
+    const friendRequestAcceptedQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'friend_request_accepted'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(friendRequestAcceptedQ, (snap) => {
+        const items = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            type: 'friend_request_accepted',
+            ts: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+            title: data.title || 'Friend Request Accepted',
+            sub: data.body || '',
+            data: data.data || {},
+            read: data.read || false,
+          };
+        });
+        setFriendRequestAcceptedNotifs(items);
       })
     );
 
@@ -542,7 +727,21 @@ const HomeTabScreen = ({ navigation }) => {
               const allIds = new Set(hiddenFoundPetIds);
               for (const f of prev) allIds.add(f.id);
               setHiddenFoundPetIds(allIds);
-              persistHiddenSets(null, null, null, null, null, allIds);
+              persistHiddenSets(null, null, null, null, null, allIds, null);
+              return [];
+            });
+            setFriendRequestNotifs((prev) => {
+              const allIds = new Set(hiddenFriendRequestIds);
+              for (const fr of prev) allIds.add(fr.id);
+              setHiddenFriendRequestIds(allIds);
+              persistHiddenSets(null, null, null, null, null, null, allIds);
+              return [];
+            });
+            setFriendRequestAcceptedNotifs((prev) => {
+              const allIds = new Set(hiddenFriendRequestIds);
+              for (const fra of prev) allIds.add(fra.id);
+              setHiddenFriendRequestIds(allIds);
+              persistHiddenSets(null, null, null, null, null, null, allIds);
               return [];
             });
           },
@@ -553,14 +752,22 @@ const HomeTabScreen = ({ navigation }) => {
 
   const markNotificationAsRead = async (notif) => {
     try {
-      // Handle social notifications differently - mark as read in Firestore
-      if (notif.type === 'social') {
+      // Handle social and friend request notifications differently - mark as read in Firestore
+      if (notif.type === 'social' || notif.type === 'friend_request' || notif.type === 'friend_request_accepted') {
         try {
           const notificationService = NotificationService.getInstance();
           await notificationService.markNotificationAsRead(notif.id);
           setLastReadUpdate(Date.now());
         } catch (error) {
           // Error handled silently
+        }
+        if (notif.type === 'friend_request' || notif.type === 'friend_request_accepted') {
+          // Also update the last seen timestamp
+          const ts = Number(notif.ts || 0);
+          await AsyncStorage.setItem('PAW_LAST_SEEN_FRIEND_REQUEST_NOTIF', String(ts));
+          try {
+            globalThis.__PAW_LAST_FRIEND_REQUEST__ = ts;
+          } catch (_) {}
         }
         return;
       }
@@ -570,6 +777,7 @@ const HomeTabScreen = ({ navigation }) => {
                   notif.type === 'registration' ? 'PAW_LAST_SEEN_REGISTRATION_NOTIF' :
                   notif.type === 'incident' ? 'PAW_LAST_SEEN_INCIDENT_NOTIF' :
                   notif.type === 'found_pet' ? 'PAW_LAST_SEEN_FOUND_PET_NOTIF' :
+                  notif.type === 'friend_request' || notif.type === 'friend_request_accepted' ? 'PAW_LAST_SEEN_FRIEND_REQUEST_NOTIF' :
                   'PAW_LAST_SEEN_PET_NOTIF';
       const prevStr = await AsyncStorage.getItem(key);
       const prev = prevStr ? Number(prevStr) : 0;
@@ -581,6 +789,7 @@ const HomeTabScreen = ({ navigation }) => {
           else if (notif.type === 'transfer') globalThis.__PAW_LAST_TRANSFER__ = ts;
           else if (notif.type === 'registration') globalThis.__PAW_LAST_REGISTRATION__ = ts;
           else if (notif.type === 'found_pet') globalThis.__PAW_LAST_FOUND_PET__ = ts;
+          else if (notif.type === 'friend_request' || notif.type === 'friend_request_accepted') globalThis.__PAW_LAST_FRIEND_REQUEST__ = ts;
           else globalThis.__PAW_LAST_PET__ = ts;
         } catch (_) {}
         // Trigger UI update to refresh unread counts and indicators
@@ -631,35 +840,69 @@ const HomeTabScreen = ({ navigation }) => {
       paddingTop: SPACING.lg,
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: 50,
-      paddingBottom: SPACING.md,
+      backgroundColor: '#ffffff',
+      paddingHorizontal: SPACING.md,
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+      borderBottomColor: '#e4e6eb',
       ...SHADOWS.light,
     },
     headerContent: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      height: 40,
+    },
+    headerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
     },
     headerTitle: {
-      fontSize: 20,
+      fontSize: 24,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
+      fontWeight: '700',
+      color: '#050505',
+      marginLeft: 8,
+    },
+    headerCenter: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 8,
+    },
+    searchBar: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#f0f2f5',
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      height: 36,
+    },
+    searchIcon: {
+      marginRight: 6,
+    },
+    searchText: {
+      fontSize: 15,
+      color: '#65676b',
       flex: 1,
     },
     headerIcons: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: SPACING.sm,
+      gap: 4,
     },
     iconButton: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 12,
-      padding: SPACING.sm,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#e4e6eb',
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
     },
     profileImage: {
       width: 24,
@@ -983,8 +1226,10 @@ const HomeTabScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" translucent={false} />
       <View style={styles.header}>
         <View style={styles.headerContent}>
+          {/* Left: Menu Icon */}
           <TouchableOpacity 
             style={styles.iconButton}
             onPress={() => {
@@ -996,14 +1241,16 @@ const HomeTabScreen = ({ navigation }) => {
               }).start();
             }}
           >
-            <MaterialIcons name="menu" size={24} color={COLORS.white} />
+            <MaterialIcons name="menu" size={24} color="#050505" />
           </TouchableOpacity>
+          
+          {/* Right: Notification Icon */}
           <View style={styles.headerIcons}>
             <TouchableOpacity 
-              style={[styles.iconButton, { position: 'relative' }]}
+              style={styles.iconButton}
               onPress={updateLastSeenAndOpen}
             >
-              <MaterialIcons name="notifications" size={24} color={COLORS.white} />
+              <MaterialIcons name="notifications" size={20} color="#050505" />
               {!!notifUnreadCount && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{notifUnreadCount > 9 ? '9+' : notifUnreadCount}</Text>
@@ -1016,8 +1263,11 @@ const HomeTabScreen = ({ navigation }) => {
       {/* Banner removed for push notifications only */}
 
       <ScrollView 
+        ref={scrollViewRef}
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1084,18 +1334,28 @@ const HomeTabScreen = ({ navigation }) => {
 
         {/* Posts Feed */}
         {posts
-          .filter(post => !hiddenPostIds.has(post.id))
+          .filter(post => !hiddenPostIds.has(post.id) && !post.deleted)
           .map((post) => (
-            <PostCard
+            <View
               key={post.id}
-              post={post}
-              onPostDeleted={(postId) => {
-                setPosts(prev => prev.filter(p => p.id !== postId));
+              ref={(ref) => {
+                if (ref) {
+                  postRefs.current[post.id] = ref;
+                } else {
+                  delete postRefs.current[post.id];
+                }
               }}
-              onPostHidden={(postId) => {
-                setHiddenPostIds(prev => new Set([...prev, postId]));
-              }}
-            />
+            >
+              <PostCard
+                post={post}
+                onPostDeleted={(postId) => {
+                  setPosts(prev => prev.filter(p => p.id !== postId));
+                }}
+                onPostHidden={(postId) => {
+                  setHiddenPostIds(prev => new Set([...prev, postId]));
+                }}
+              />
+            </View>
           ))}
         
         {posts.filter(post => !hiddenPostIds.has(post.id)).length === 0 && (
@@ -1407,7 +1667,7 @@ const HomeTabScreen = ({ navigation }) => {
               contentContainerStyle={{ paddingRight: 16 }}
             >
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets', 'Social'].map((opt) => (
+                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets', 'Social', 'Friend Requests'].map((opt) => (
                   <TouchableOpacity
                     key={opt}
                     onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
@@ -1449,10 +1709,13 @@ const HomeTabScreen = ({ navigation }) => {
                   const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
                   const lastPet = (() => { try { return Number((globalThis.__PAW_LAST_PET__) || 0); } catch (_) { return 0; } })();
                   const lastIncident = (() => { try { return Number((globalThis.__PAW_LAST_INCIDENT__) || 0); } catch (_) { return 0; } })();
+                  const lastFriendRequest = (() => { try { return Number((globalThis.__PAW_LAST_FRIEND_REQUEST__) || 0); } catch (_) { return 0; } })();
                   const hasUnreadApp = (appNotifs || []).some((a) => (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0) > lastApp);
                   const hasUnreadPet = (petNotifs || []).some((p) => (p.createdAt?.toDate ? p.createdAt.toDate().getTime() : 0) > lastPet);
                   const hasUnreadIncident = (incidentNotifs || []).some((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident);
-                  return !(hasUnreadApp || hasUnreadPet || hasUnreadIncident);
+                  const hasUnreadFriendRequest = (friendRequestNotifs || []).some((fr) => !fr.read);
+                  const hasUnreadSocial = (socialNotifs || []).some((s) => !s.read);
+                  return !(hasUnreadApp || hasUnreadPet || hasUnreadIncident || hasUnreadFriendRequest || hasUnreadSocial);
                 })()}
                 style={{ 
                   paddingHorizontal: 12, 
@@ -1556,7 +1819,29 @@ const HomeTabScreen = ({ navigation }) => {
                   data: s.data || {},
                   read: s.read || false,
                 }));
-                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets, ...social].sort((a, b) => b.ts - a.ts);
+                const friendRequests = (friendRequestNotifs || [])
+                  .filter((fr) => !hiddenFriendRequestIds.has(fr.id))
+                  .map((fr) => ({
+                  id: fr.id,
+                  type: 'friend_request',
+                  ts: fr.ts,
+                  title: fr.title || 'New Friend Request',
+                  sub: fr.sub || fr.body || '',
+                  data: fr.data || {},
+                  read: fr.read || false,
+                }));
+                const friendRequestAccepted = (friendRequestAcceptedNotifs || [])
+                  .filter((fra) => !hiddenFriendRequestIds.has(fra.id))
+                  .map((fra) => ({
+                  id: fra.id,
+                  type: 'friend_request_accepted',
+                  ts: fra.ts,
+                  title: fra.title || 'Friend Request Accepted',
+                  sub: fra.sub || fra.body || '',
+                  data: fra.data || {},
+                  read: fra.read || false,
+                }));
+                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets, ...social, ...friendRequests, ...friendRequestAccepted].sort((a, b) => b.ts - a.ts);
                 if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
                 if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                 if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
@@ -1565,13 +1850,14 @@ const HomeTabScreen = ({ navigation }) => {
                 if (notifFilter === 'Strays') list = list.filter((n) => n.type === 'stray');
                 if (notifFilter === 'Found Pets') list = list.filter((n) => n.type === 'found_pet');
                 if (notifFilter === 'Social') list = list.filter((n) => n.type === 'social');
+                if (notifFilter === 'Friend Requests') list = list.filter((n) => n.type === 'friend_request' || n.type === 'friend_request_accepted');
                 if (list.length === 0) return (
                   <View style={{ padding: 40, alignItems: 'center' }}>
                     <Text style={{ color: '#65676b', fontSize: 15 }}>No notifications yet.</Text>
                   </View>
                 );
                 return list.map((n) => {
-                  const isUnread = n.type === 'social' 
+                  const isUnread = n.type === 'social' || n.type === 'friend_request' || n.type === 'friend_request_accepted'
                     ? !n.read 
                     : (n.type === 'app' ? (n.ts > (Number(lastSeenApp) || 0)) : n.type === 'transfer' ? (n.ts > (Number(lastSeenTransfer) || 0)) : n.type === 'registration' ? (n.ts > (Number(lastSeenRegistration) || 0)) : n.type === 'found_pet' ? (n.ts > (Number(globalThis.__PAW_LAST_FOUND_PET__) || 0)) : (n.ts > (Number(lastSeenPet) || 0)));
                   return (
@@ -1584,19 +1870,41 @@ const HomeTabScreen = ({ navigation }) => {
                     <TouchableOpacity 
                       onPress={async () => {
                         await markNotificationAsRead(n);
-                        if (n.type === 'found_pet' && n.data?.data?.reportId) {
-                          try {
-                            const reportDoc = await getDoc(doc(db, 'stray_reports', n.data.data.reportId));
-                            if (reportDoc.exists()) {
-                              const reportData = { id: reportDoc.id, ...reportDoc.data() };
-                              setSelectedReportDetails(reportData);
-                            }
-                          } catch (error) {
-                            // Error handled silently
+                        setNotifVisible(false);
+                        
+                        // Navigate based on notification type
+                        if (n.type === 'friend_request') {
+                          navigation.navigate('FriendRequests');
+                        } else if (n.type === 'friend_request_accepted') {
+                          navigation.navigate('FriendsList');
+                        } else if (n.type === 'app') {
+                          // Adoption application notification -> MyReports
+                          navigation.navigate('MyReports');
+                        } else if (n.type === 'pet') {
+                          // New adoptable pet -> Adopt tab
+                          navigation.navigate('Adopt');
+                        } else if (n.type === 'transfer') {
+                          // Pet transfer -> MyPets
+                          navigation.navigate('MyPets');
+                        } else if (n.type === 'registration') {
+                          // Pet registration -> MyPets
+                          navigation.navigate('MyPets');
+                        } else if (n.type === 'incident' || n.type === 'stray') {
+                          // Incident/Stray report -> MyReports
+                          navigation.navigate('MyReports');
+                        } else if (n.type === 'found_pet') {
+                          // Found pet -> MyReports
+                          navigation.navigate('MyReports');
+                        } else if (n.type === 'social') {
+                          // Social notification (like, comment, reply) -> Navigate to specific post
+                          const postId = n.data?.postId;
+                          if (postId) {
+                            // Set the post to scroll to
+                            setScrollToPostId(postId);
+                            // Ensure we're on the home tab (if not already)
+                            // The post will be scrolled to when it's rendered
                           }
                         }
-                        setSelectedNotif(n);
-                        setNotifVisible(false);
                       }} 
                       activeOpacity={0.7}
                       style={{ 
@@ -1621,7 +1929,11 @@ const HomeTabScreen = ({ navigation }) => {
                                 ? '#d1fae5' 
                                 : n.type === 'registration' 
                                   ? (n.data?.type === 'pet_registration_approved' ? '#d1fae5' : '#fee2e2') 
-                                  : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
+                                  : n.type === 'friend_request'
+                                    ? '#e3f2fd'
+                                    : n.type === 'friend_request_accepted'
+                                      ? '#d1fae5'
+                                      : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
                         justifyContent: 'center',
                         alignItems: 'center',
                         marginRight: 12,
@@ -1645,11 +1957,15 @@ const HomeTabScreen = ({ navigation }) => {
                                 ? (n.data?.type === 'pet_registration_approved' 
                                     ? 'check-circle' 
                                     : 'cancel')
-                                : (n.data?.status === 'Approved' 
-                                    ? 'check-circle' 
-                                    : (n.data?.status === 'Declined' 
-                                        ? 'cancel' 
-                                        : 'info'))}
+                                : n.type === 'friend_request'
+                                  ? 'person-add'
+                                  : n.type === 'friend_request_accepted'
+                                    ? 'check-circle'
+                                    : (n.data?.status === 'Approved' 
+                                        ? 'check-circle' 
+                                        : (n.data?.status === 'Declined' 
+                                            ? 'cancel' 
+                                            : 'info'))}
                           size={20}
                           color={n.type === 'social'
                             ? '#1877f2'
@@ -1663,11 +1979,15 @@ const HomeTabScreen = ({ navigation }) => {
                                 ? (n.data?.type === 'pet_registration_approved' 
                                     ? '#16a34a' 
                                     : '#dc2626')
-                                : (n.data?.status === 'Declined' 
-                                    ? '#dc2626' 
-                                    : (n.data?.status === 'Approved' 
-                                        ? '#16a34a' 
-                                        : '#65676b'))}
+                                : n.type === 'friend_request'
+                                  ? '#1877f2'
+                                  : n.type === 'friend_request_accepted'
+                                    ? '#16a34a'
+                                    : (n.data?.status === 'Declined' 
+                                        ? '#dc2626' 
+                                        : (n.data?.status === 'Approved' 
+                                            ? '#16a34a' 
+                                            : '#65676b'))}
                         />
                       </View>
                       
@@ -1764,9 +2084,10 @@ const HomeTabScreen = ({ navigation }) => {
         </View>
       </Modal>
     
-    {/* Notification Details Modal */}
+    {/* Notification Details Modal - Removed, notifications now navigate directly */}
+    {false && (
     <Modal
-      visible={!!selectedNotif}
+      visible={false}
       transparent
       animationType="slide"
       onRequestClose={() => {
@@ -2542,6 +2863,7 @@ const HomeTabScreen = ({ navigation }) => {
         </View>
       </View>
     </Modal>
+    )}
 
       {/* Pet Details Modal */}
       {selectedPetDetails && (

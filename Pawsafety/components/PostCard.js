@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   StatusBar
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { auth, db } from '../services/firebase';
 import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
 import { FONTS, SPACING, RADIUS } from '../constants/theme';
@@ -30,6 +31,7 @@ import NotificationService from '../services/NotificationService';
 const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const { width } = useWindowDimensions();
   const user = auth.currentUser;
+  const navigation = useNavigation();
   const { colors: COLORS } = useTheme();
   const { profileImage } = useProfileImage();
   const [isLiked, setIsLiked] = useState(false);
@@ -218,25 +220,20 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     },
     optionsMenuContainer: {
       position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 999,
+      zIndex: 1001,
+      pointerEvents: 'box-none',
+      elevation: 1001,
     },
     optionsMenu: {
-      position: 'absolute',
-      top: 40,
-      right: 12,
       backgroundColor: '#ffffff',
       borderRadius: 8,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.25,
       shadowRadius: 4,
-      elevation: 5,
+      elevation: 10,
       minWidth: 150,
-      zIndex: 1000,
+      overflow: 'hidden',
     },
     optionsMenuItem: {
       paddingVertical: 12,
@@ -1088,7 +1085,11 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, 'posts', post.id));
+              // Mark post as deleted instead of actually deleting it
+              await updateDoc(doc(db, 'posts', post.id), {
+                deleted: true,
+                deletedAt: serverTimestamp(),
+              });
               if (onPostDeleted) onPostDeleted(post.id);
               Alert.alert('Success', 'Post deleted successfully!');
             } catch (error) {
@@ -1215,24 +1216,93 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     );
   };
 
+  const optionsButtonRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 50, right: 12 });
+
   return (
     <>
-      {/* Options Menu Overlay Modal */}
+      {/* Options Menu Overlay Modal - Tap outside to close */}
       <Modal
         visible={showOptionsMenu}
         transparent={true}
-        animationType="none"
+        animationType="fade"
         onRequestClose={() => setShowOptionsMenu(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setShowOptionsMenu(false)}>
-          <View style={{ flex: 1, backgroundColor: 'transparent' }} />
-        </TouchableWithoutFeedback>
+        <View style={{ flex: 1 }}>
+          <TouchableWithoutFeedback onPress={() => setShowOptionsMenu(false)}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />
+          </TouchableWithoutFeedback>
+          {/* Options Menu - Rendered inside Modal to be above overlay */}
+          <View style={[styles.optionsMenuContainer, { top: menuPosition.top, right: menuPosition.right }]}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.optionsMenu}>
+                {isOwner ? (
+                  <>
+                    <TouchableOpacity
+                      style={styles.optionsMenuItem}
+                      onPress={() => {
+                        setShowOptionsMenu(false);
+                        setShowEditModal(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.optionsMenuText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
+                      onPress={() => {
+                        setShowOptionsMenu(false);
+                        handleDelete();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.optionsMenuItem}
+                      onPress={() => {
+                        setShowOptionsMenu(false);
+                        handleReport();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.optionsMenuText}>Report</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
+                      onPress={() => {
+                        setShowOptionsMenu(false);
+                        handleHide();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.optionsMenuText}>Hide</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </View>
       </Modal>
 
       <View style={styles.card}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.userInfo}>
+          <TouchableOpacity 
+            style={styles.userInfo}
+            onPress={() => {
+              if (post.userId && post.userId !== user?.uid) {
+                navigation.navigate('Profile', { userId: post.userId });
+              } else {
+                navigation.navigate('Profile');
+              }
+            }}
+            activeOpacity={0.7}
+          >
             {post.userProfileImage ? (
               <Image source={{ uri: post.userProfileImage }} style={styles.profileImage} />
             ) : (
@@ -1244,54 +1314,29 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
               <Text style={styles.userName}>{post.userName || 'Pet Lover'}</Text>
               <Text style={styles.postTime}>{formatTime(post.createdAt)}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity
+            ref={optionsButtonRef}
             style={styles.optionsButton}
-            onPress={() => setShowOptionsMenu(!showOptionsMenu)}
+            onPress={() => {
+              if (optionsButtonRef.current) {
+                optionsButtonRef.current.measureInWindow((x, y, width, height) => {
+                  const screenWidth = Dimensions.get('window').width;
+                  // Position menu below the button, aligned to the right edge of the button
+                  setMenuPosition({
+                    top: y + height + 4,
+                    right: screenWidth - x - width
+                  });
+                  setShowOptionsMenu(true);
+                });
+              } else {
+                setShowOptionsMenu(!showOptionsMenu);
+              }
+            }}
           >
             <MaterialIcons name="more-horiz" size={24} color="#65676b" />
           </TouchableOpacity>
         </View>
-
-        {/* Options Menu */}
-        {showOptionsMenu && (
-          <View style={styles.optionsMenu}>
-            {isOwner ? (
-              <>
-                <TouchableOpacity
-                  style={styles.optionsMenuItem}
-                  onPress={() => {
-                    setShowOptionsMenu(false);
-                    setShowEditModal(true);
-                  }}
-                >
-                  <Text style={styles.optionsMenuText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
-                  onPress={handleDelete}
-                >
-                  <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={styles.optionsMenuItem}
-                  onPress={handleReport}
-                >
-                  <Text style={styles.optionsMenuText}>Report</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
-                  onPress={handleHide}
-                >
-                  <Text style={styles.optionsMenuText}>Hide</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        )}
 
         {/* Content */}
         <View style={styles.content}>
@@ -1390,16 +1435,37 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
 
                 return (
                   <View key={comment.id} style={styles.commentItem}>
-                    {comment.userProfileImage ? (
-                      <Image source={{ uri: comment.userProfileImage }} style={styles.commentProfileImage} />
-                    ) : (
-                      <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center' }]}>
-                        <MaterialIcons name="account-circle" size={32} color="#65676b" />
-                      </View>
-                    )}
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (comment.userId && comment.userId !== user?.uid) {
+                          navigation.navigate('Profile', { userId: comment.userId });
+                        } else {
+                          navigation.navigate('Profile');
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      {comment.userProfileImage ? (
+                        <Image source={{ uri: comment.userProfileImage }} style={styles.commentProfileImage} />
+                      ) : (
+                        <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center' }]}>
+                          <MaterialIcons name="account-circle" size={32} color="#65676b" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
                     <View style={styles.commentContent}>
                       <View style={styles.commentHeader}>
-                        <View style={{ flex: 1 }}>
+                        <TouchableOpacity 
+                          style={{ flex: 1 }}
+                          onPress={() => {
+                            if (comment.userId && comment.userId !== user?.uid) {
+                              navigation.navigate('Profile', { userId: comment.userId });
+                            } else {
+                              navigation.navigate('Profile');
+                            }
+                          }}
+                          activeOpacity={0.7}
+                        >
                           <Text style={styles.commentUserName} numberOfLines={1} ellipsizeMode="tail">
                             {comment.userName || 'Pet Lover'}
                           </Text>
@@ -1408,7 +1474,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                               {formatTime(comment.createdAt)}
                             </Text>
                           )}
-                        </View>
+                        </TouchableOpacity>
                         {(canEdit || canDelete) && (
                           <TouchableOpacity
                             style={styles.commentMenuButton}
@@ -1570,34 +1636,55 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
 
                               return (
                                 <View key={replyItem.id} style={styles.replyItem}>
-                                  {replyItem.userProfileImage ? (
-                                    <Image source={{ uri: replyItem.userProfileImage }} style={[styles.commentProfileImage, { width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]} />
-                                  ) : (
-                                    <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center', width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]}>
-                                      <MaterialIcons name="account-circle" size={28} color="#65676b" />
-                                    </View>
-                                  )}
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      if (replyItem.userId && replyItem.userId !== user?.uid) {
+                                        navigation.navigate('Profile', { userId: replyItem.userId });
+                                      } else {
+                                        navigation.navigate('Profile');
+                                      }
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    {replyItem.userProfileImage ? (
+                                      <Image source={{ uri: replyItem.userProfileImage }} style={[styles.commentProfileImage, { width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]} />
+                                    ) : (
+                                      <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center', width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]}>
+                                        <MaterialIcons name="account-circle" size={28} color="#65676b" />
+                                      </View>
+                                    )}
+                                  </TouchableOpacity>
                                   <View style={[styles.commentContent, { flex: 1, minWidth: 0 }]}>
-                                  <View style={styles.commentHeader}>
-                                    <View style={{ flex: 1 }}>
-                                      <Text style={styles.commentUserName} numberOfLines={1} ellipsizeMode="tail">
-                                        {replyItem.userName || 'Pet Lover'}
-                                      </Text>
-                                      {replyItem.createdAt && (
-                                        <Text style={styles.commentTime}>
-                                          {formatTime(replyItem.createdAt)}
+                                    <View style={styles.commentHeader}>
+                                      <TouchableOpacity 
+                                        style={{ flex: 1 }}
+                                        onPress={() => {
+                                          if (replyItem.userId && replyItem.userId !== user?.uid) {
+                                            navigation.navigate('Profile', { userId: replyItem.userId });
+                                          } else {
+                                            navigation.navigate('Profile');
+                                          }
+                                        }}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Text style={styles.commentUserName} numberOfLines={1} ellipsizeMode="tail">
+                                          {replyItem.userName || 'Pet Lover'}
                                         </Text>
+                                        {replyItem.createdAt && (
+                                          <Text style={styles.commentTime}>
+                                            {formatTime(replyItem.createdAt)}
+                                          </Text>
+                                        )}
+                                      </TouchableOpacity>
+                                      {(canEditReply || canDeleteReply) && (
+                                        <TouchableOpacity
+                                          style={styles.commentMenuButton}
+                                          onPress={() => setCommentMenuId(commentMenuId === replyItem.id ? null : replyItem.id)}
+                                        >
+                                          <MaterialIcons name="more-vert" size={18} color="#65676b" />
+                                        </TouchableOpacity>
                                       )}
                                     </View>
-                                    {(canEditReply || canDeleteReply) && (
-                                      <TouchableOpacity
-                                        style={styles.commentMenuButton}
-                                        onPress={() => setCommentMenuId(commentMenuId === replyItem.id ? null : replyItem.id)}
-                                      >
-                                        <MaterialIcons name="more-vert" size={18} color="#65676b" />
-                                      </TouchableOpacity>
-                                    )}
-                                  </View>
                                     
                                     {commentMenuId === replyItem.id && (canEditReply || canDeleteReply) && (
                                       <>
