@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -9,17 +10,29 @@ import {
   RefreshControl,
   Modal,
   TextInput,
-  Alert
+  Alert,
+  Platform,
+  useWindowDimensions,
+  SafeAreaView,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTabBarVisibility } from '../../contexts/TabBarVisibilityContext';
 import { auth, db } from '../../services/firebase';
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where, deleteDoc, doc, limit } from 'firebase/firestore';
 
 const AdoptScreen = () => {
   const { colors: COLORS } = useTheme();
+  const { setIsVisible } = useTabBarVisibility();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { width: currentWidth, height: currentHeight } = useWindowDimensions();
+  const isSmallDevice = currentWidth < 375 || currentHeight < 667;
+  const isTablet = currentWidth > 768;
+  const lastScrollY = useRef(0);
+  const scrollTimeout = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pets, setPets] = useState([]);
   const [myApplications, setMyApplications] = useState([]);
@@ -27,7 +40,6 @@ const AdoptScreen = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All'); // All | Dogs | Cats
   const [selectedPet, setSelectedPet] = useState(null);
-  const [detailsVisible, setDetailsVisible] = useState(false);
   const [applyVisible, setApplyVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(null); // { petId: string } | null
   const [appForm, setAppForm] = useState({
@@ -49,6 +61,12 @@ const AdoptScreen = () => {
     agreeTerms: false,
     agreeData: false,
   });
+
+  // Helper function to capitalize first letter
+  const capitalizeFirstLetter = (str) => {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  };
 
   // Helper function to format dates
   const formatDate = (dateValue) => {
@@ -98,6 +116,32 @@ const AdoptScreen = () => {
     setTimeout(() => setRefreshing(false), 800);
   };
 
+  const handleScroll = React.useCallback((event) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const scrollDifference = currentScrollY - lastScrollY.current;
+
+    // Clear existing timeout
+    if (scrollTimeout.current) {
+      clearTimeout(scrollTimeout.current);
+    }
+
+    // Hide tab bar when scrolling down, show when scrolling up or at top
+    if (currentScrollY <= 0) {
+      setIsVisible(true);
+    } else if (scrollDifference > 5) {
+      setIsVisible(false);
+    } else if (scrollDifference < -5) {
+      setIsVisible(true);
+    }
+
+    lastScrollY.current = currentScrollY;
+
+    // Show tab bar after scrolling stops
+    scrollTimeout.current = setTimeout(() => {
+      setIsVisible(true);
+    }, 150);
+  }, [setIsVisible]);
+
   const handleDeleteApplication = async (appId) => {
     try {
       await deleteDoc(doc(db, 'adoption_applications', appId));
@@ -108,184 +152,208 @@ const AdoptScreen = () => {
     }
   };
 
-  // Create styles using current theme colors
+  // Create styles using current theme colors and responsive values
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: COLORS.background,
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: 50,
-      paddingBottom: SPACING.md,
+      backgroundColor: '#FFFFFF',
+      paddingTop: Platform.OS === 'ios' 
+        ? (isSmallDevice ? 45 : isTablet ? 60 : 50)
+        : (isSmallDevice ? 12 : isTablet ? 20 : 15),
+      paddingBottom: Platform.OS === 'android' 
+        ? (isSmallDevice ? 2 : isTablet ? 4 : 2)
+        : (isSmallDevice ? 10 : 12),
+      paddingHorizontal: isSmallDevice ? 12 : isTablet ? 20 : 16,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-      ...SHADOWS.light,
+      borderBottomColor: '#e4e6eb',
+    },
+    headerTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Platform.OS === 'android'
+        ? (isSmallDevice ? 2 : isTablet ? 4 : 2)
+        : (isSmallDevice ? 10 : 12),
+    },
+    headerTitle: {
+      fontSize: Platform.OS === 'ios'
+        ? (isSmallDevice ? 20 : isTablet ? 28 : 24)
+        : (isSmallDevice ? 20 : isTablet ? 26 : 24),
+      fontWeight: '700',
+      color: '#050505',
     },
     filtersContainer: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      gap: SPACING.xs,
+      paddingHorizontal: 0,
+      gap: isSmallDevice ? SPACING.xs : SPACING.sm,
     },
     filterChip: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      paddingHorizontal: SPACING.sm,
-      paddingVertical: SPACING.sm,
-      borderRadius: 15,
+      backgroundColor: '#e4e6eb',
+      paddingHorizontal: isSmallDevice ? SPACING.sm : SPACING.md,
+      paddingVertical: isSmallDevice ? SPACING.xs : SPACING.sm,
+      borderRadius: isSmallDevice ? 12 : 15,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.3)',
-      flex: 1,
+      borderColor: '#e4e6eb',
       alignItems: 'center',
-      minHeight: 36,
+      minHeight: isSmallDevice ? 32 : 36,
       justifyContent: 'center',
+      flex: 1,
     },
     filterChipActive: {
-      backgroundColor: COLORS.white,
-      borderColor: COLORS.white,
+      backgroundColor: '#1877f2',
+      borderColor: '#1877f2',
     },
     filterText: {
-      fontSize: 12,
+      fontSize: Platform.OS === 'android'
+        ? (isSmallDevice ? 10 : isTablet ? 13 : 11)
+        : (isSmallDevice ? 11 : isTablet ? 15 : 13),
       fontFamily: FONTS.family,
-      color: COLORS.white,
-      fontWeight: FONTS.weights.semiBold,
+      color: '#050505',
+      fontWeight: '600',
       textAlign: 'center',
     },
     filterTextActive: {
-      color: COLORS.darkPurple,
+      color: '#ffffff',
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: SPACING.lg,
+      paddingHorizontal: 0,
       paddingTop: SPACING.lg,
     },
+    scrollViewContent: {
+      paddingHorizontal: 0,
+      paddingBottom: SPACING.xl,
+    },
+    // Facebook-style pet card (similar to report card)
     petCard: {
-      borderRadius: RADIUS.medium,
-      marginBottom: SPACING.md,
-      minHeight: 200,
+      backgroundColor: '#ffffff',
+      marginHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+      borderRadius: 10,
       overflow: 'hidden',
-      justifyContent: 'flex-end',
-      ...SHADOWS.medium,
-    },
-    cardBackgroundImage: {
-      borderRadius: RADIUS.medium,
-    },
-    placeholderBackground: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: COLORS.lightBlue,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderRadius: RADIUS.medium,
-    },
-    petEmoji: {
-      fontSize: 60,
-    },
-    darkOverlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      borderRadius: RADIUS.medium,
-    },
-    petContent: {
-      position: 'absolute',
-      bottom: SPACING.md,
-      left: SPACING.md,
-      right: SPACING.md,
-      zIndex: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     petHeader: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: SPACING.xs,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 6,
+      justifyContent: 'space-between',
+    },
+    petHeaderInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    petHeaderDetails: {
+      flex: 1,
+    },
+    petNameLabel: {
+      fontSize: 12,
+      color: '#65676b',
+      marginBottom: 2,
+      fontFamily: FONTS.family,
     },
     petName: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      fontFamily: FONTS.family,
+    },
+    petType: {
+      fontSize: 12,
+      color: '#65676b',
+      fontFamily: FONTS.family,
+    },
+    genderBadge: {
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 4,
+      borderRadius: RADIUS.small,
+      backgroundColor: COLORS.mediumBlue || '#1877f2',
+    },
+    genderText: {
+      fontSize: Platform.OS === 'android' ? FONTS.sizes.small - 4 : FONTS.sizes.small - 2,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
       color: '#FFFFFF',
     },
-    petType: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: '#FFFFFF',
-      opacity: 0.95,
-      marginBottom: SPACING.xs,
+    petContent: {
+      paddingHorizontal: 12,
+      paddingBottom: 10,
     },
-    genderBadge: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 15,
-      width: 30,
-      height: 30,
+    detailsContainer: {
+      marginBottom: 12,
+    },
+    detailText: {
+      fontSize: 15,
+      color: '#050505',
+      lineHeight: 20,
+      marginBottom: 4,
+      fontFamily: FONTS.family,
+    },
+    descriptionSection: {
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    descriptionLabel: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      marginBottom: 4,
+      fontFamily: FONTS.family,
+    },
+    petDescription: {
+      fontSize: 15,
+      color: '#050505',
+      lineHeight: 20,
+      fontFamily: FONTS.family,
+    },
+    petImage: {
+      width: '100%',
+      height: 260,
+      borderRadius: 8,
+    },
+    imagePlaceholder: {
+      width: '100%',
+      height: 260,
+      borderRadius: 8,
+      backgroundColor: '#F3F4F6',
       justifyContent: 'center',
       alignItems: 'center',
     },
-    genderText: {
-      fontSize: FONTS.sizes.medium,
-      color: '#FFFFFF',
-    },
-    petBreed: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: '#FFFFFF',
-      marginBottom: 2,
-    },
-    petLocation: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: '#FFFFFF',
-      marginBottom: SPACING.xs,
-    },
-    petDescription: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: '#FFFFFF',
-      lineHeight: 18,
-      marginBottom: SPACING.md,
-    },
-    actionButtons: {
+    petActions: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
     },
     adoptButton: {
-      backgroundColor: '#8B5CF6',
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.small,
       flex: 1,
-      marginRight: SPACING.xs,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: isSmallDevice ? 12 : isTablet ? 16 : 14,
+      minHeight: isSmallDevice ? 44 : isTablet ? 52 : 48,
+      borderRadius: 8,
+      backgroundColor: '#8B5CF6',
     },
     adoptButtonText: {
+      fontSize: Platform.OS === 'ios'
+        ? (isSmallDevice ? 15 : isTablet ? 18 : 16)
+        : (isSmallDevice ? 15 : isTablet ? 17 : 16),
+      fontWeight: '600',
       color: '#FFFFFF',
-      fontSize: FONTS.sizes.small,
+      marginLeft: 8,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      textAlign: 'center',
-    },
-    detailsButton: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.small,
-      flex: 1,
-      marginLeft: SPACING.xs,
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.3)',
-    },
-    detailsButtonText: {
-      color: '#FFFFFF',
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      textAlign: 'center',
     },
     ctaCard: {
       backgroundColor: COLORS.cardBackground,
@@ -331,25 +399,6 @@ const AdoptScreen = () => {
       fontSize: FONTS.sizes.small,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.bold,
-    },
-    myAppsContainer: {
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-      alignItems: 'flex-end',
-    },
-    myAppsButton: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.small,
-      ...SHADOWS.light,
-    },
-    myAppsButtonText: {
-      color: COLORS.white,
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      textAlign: 'center',
     },
     bottomSpacing: {
       height: 100,
@@ -903,59 +952,96 @@ const AdoptScreen = () => {
       marginTop: 2,
       textAlign: 'center',
     },
-    upperLeftInfo: {
-      position: 'absolute',
-      top: SPACING.md,
-      left: SPACING.md,
-      zIndex: 2,
-    },
-    upperRightInfo: {
-      position: 'absolute',
-      top: SPACING.md,
-      right: SPACING.md,
-      zIndex: 2,
-    },
-  }), [COLORS]);
+  }), [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight]);
 
-  const AdoptionCard = ({ pet, onPressDetails, onPressAdopt }) => (
-    <ImageBackground 
-      source={pet.imageUrl ? { uri: pet.imageUrl } : null}
-      style={styles.petCard}
-      imageStyle={styles.cardBackgroundImage}
-    >
-      {!pet.imageUrl && (
-        <View style={styles.placeholderBackground}>
-          <Text style={styles.petEmoji}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
+  const AdoptionCard = ({ pet, onPressAdopt }) => (
+    <View style={styles.petCard}>
+      {/* Header with pet info and gender badge */}
+      <View style={styles.petHeader}>
+        <View style={styles.petHeaderInfo}>
+          <View style={styles.petHeaderDetails}>
+            <Text style={styles.petNameLabel}>Name:</Text>
+            <Text style={styles.petName} numberOfLines={1}>
+              {capitalizeFirstLetter(pet.petName) || 'Unnamed Pet'}
+            </Text>
+          </View>
         </View>
-      )}
-      
-      <View style={styles.darkOverlay} />
-      
-      {/* Pet name and type at upper left */}
-      <View style={styles.upperLeftInfo}>
-        <Text style={styles.petName}>{pet.petName}</Text>
-        <Text style={styles.petType}>{pet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}</Text>
-      </View>
-      
-      {/* Gender badge at upper right */}
-      <View style={styles.upperRightInfo}>
         <View style={styles.genderBadge}>
-          <Text style={styles.genderText}>{pet.gender === 'male' ? '♂' : '♀'}</Text>
+          <Text style={styles.genderText}>{pet.gender === 'male' ? '♂ Male' : '♀ Female'}</Text>
         </View>
       </View>
-      
-      {/* Action buttons at bottom */}
+
+      {/* Content with Details */}
       <View style={styles.petContent}>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.adoptButton} onPress={onPressAdopt}>
-            <Text style={styles.adoptButtonText}>❤️ Adopt</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.detailsButton} onPress={onPressDetails}>
-            <Text style={styles.detailsButtonText}>Details</Text>
-          </TouchableOpacity>
+        {/* Details Text */}
+        <View style={styles.detailsContainer}>
+          {pet.petType && (
+            <Text style={styles.detailText}>Type: {pet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}</Text>
+          )}
+          {pet.breed && (
+            <Text style={styles.detailText}>Breed: {pet.breed}</Text>
+          )}
+          {pet.gender && (
+            <Text style={styles.detailText}>Gender: {pet.gender === 'male' ? '♂ Male' : '♀ Female'}</Text>
+          )}
+          {pet.location && (
+            <Text style={styles.detailText}>Location: {pet.location}</Text>
+          )}
+          {pet.daysAtImpound !== undefined && pet.daysAtImpound !== null && pet.daysAtImpound !== '' && (
+            <Text style={styles.detailText}>
+              Days Sheltered: {pet.daysAtImpound} {Number(pet.daysAtImpound) === 1 ? 'day' : 'days'}
+            </Text>
+          )}
+          {pet.vaccinated && (pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate) && (
+            <Text style={styles.detailText}>
+              Vaccinated: {formatDate(pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate)}
+            </Text>
+          )}
+          {pet.dewormed && (pet.dewormedDate || pet.dewormDate) && (
+            <Text style={styles.detailText}>
+              Dewormed: {formatDate(pet.dewormedDate || pet.dewormDate)}
+            </Text>
+          )}
+          {pet.antiRabies && (pet.antiRabiesDate || pet.antiRabiesVaccineDate) && (
+            <Text style={styles.detailText}>
+              Anti-Rabies: {formatDate(pet.antiRabiesDate || pet.antiRabiesVaccineDate)}
+            </Text>
+          )}
         </View>
+
+        {pet.description ? (
+          <View style={styles.descriptionSection}>
+            <Text style={styles.descriptionLabel}>More Details:</Text>
+            <Text style={styles.petDescription} numberOfLines={3}>{pet.description}</Text>
+          </View>
+        ) : null}
+        
+        {/* Image */}
+        {pet.imageUrl ? (
+          <Image
+            source={{ uri: pet.imageUrl }}
+            style={styles.petImage}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <MaterialIcons name="pets" size={60} color="#9CA3AF" />
+          </View>
+        )}
       </View>
-    </ImageBackground>
+
+      {/* Actions */}
+      <View style={styles.petActions}>
+        <TouchableOpacity style={styles.adoptButton} onPress={onPressAdopt}>
+          <MaterialIcons 
+            name="favorite" 
+            size={isSmallDevice ? 20 : isTablet ? 24 : 22} 
+            color="#FFFFFF" 
+          />
+          <Text style={styles.adoptButtonText}>Adopt</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   const FilterChip = ({ title, active = false, onPress, style }) => (
@@ -1010,28 +1096,40 @@ const AdoptScreen = () => {
     return unsub;
   }, [auth.currentUser?.uid]);
 
+  // Listen for navigation params to open applications modal
+  useFocusEffect(
+    React.useCallback(() => {
+      if (route.params?.openApplications) {
+        setMyAppsVisible(true);
+        // Clear the param to prevent reopening on subsequent focuses
+        navigation.setParams({ openApplications: undefined });
+      }
+    }, [route.params?.openApplications, navigation])
+  );
+
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header - Facebook-style */}
       <View style={styles.header}>
-        <View style={styles.filtersContainer}>
-          <FilterChip title="All" active={selectedFilter === 'All'} onPress={() => setSelectedFilter('All')} />
-          <FilterChip title="Dogs" active={selectedFilter === 'Dogs'} onPress={() => setSelectedFilter('Dogs')} />
-          <FilterChip title="Cats" active={selectedFilter === 'Cats'} onPress={() => setSelectedFilter('Cats')} />
-        </View>
-      </View>
-
-      {/* My Applications Button */}
-      <View style={styles.myAppsContainer}>
-        <TouchableOpacity style={styles.myAppsButton} onPress={() => setMyAppsVisible(true)}>
-          <Text style={styles.myAppsButtonText}>My Applications</Text>
-        </TouchableOpacity>
+        <SafeAreaView>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.headerTitle}>Adopt</Text>
+          </View>
+          <View style={styles.filtersContainer}>
+            <FilterChip title="All" active={selectedFilter === 'All'} onPress={() => setSelectedFilter('All')} />
+            <FilterChip title="Dogs" active={selectedFilter === 'Dogs'} onPress={() => setSelectedFilter('Dogs')} />
+            <FilterChip title="Cats" active={selectedFilter === 'Cats'} onPress={() => setSelectedFilter('Cats')} />
+          </View>
+        </SafeAreaView>
       </View>
 
       {/* Adoption List */}
       <ScrollView 
-        style={styles.scrollView} 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1042,14 +1140,14 @@ const AdoptScreen = () => {
         }
       >
         {!!errorMsg && (
-          <View style={[styles.petCard, { padding: SPACING.md, minHeight: 120, backgroundColor: COLORS.cardBackground, justifyContent: 'center', alignItems: 'center' }]}>
-            <Text style={{ color: COLORS.text }}>{errorMsg}</Text>
+          <View style={[styles.petCard, { padding: SPACING.md, minHeight: 120, justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={{ color: COLORS.text, fontFamily: FONTS.family }}>{errorMsg}</Text>
           </View>
         )}
 
         {pets.length === 0 && !errorMsg && (
-          <View style={[styles.petCard, { padding: SPACING.md, minHeight: 120, backgroundColor: COLORS.cardBackground, justifyContent: 'center', alignItems: 'center' }]}>
-            <Text style={{ color: COLORS.text }}>No adoptable pets yet.</Text>
+          <View style={[styles.petCard, { padding: SPACING.md, minHeight: 120, justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={{ color: COLORS.text, fontFamily: FONTS.family }}>No adoptable pets yet.</Text>
           </View>
         )}
 
@@ -1065,7 +1163,6 @@ const AdoptScreen = () => {
             <AdoptionCard
               key={p.id}
               pet={p}
-              onPressDetails={() => { setSelectedPet(p); setDetailsVisible(true); }}
               onPressAdopt={() => {
                 setSelectedPet(p);
                 const user = auth.currentUser;
@@ -1094,248 +1191,6 @@ const AdoptScreen = () => {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Details Modal */}
-      <Modal
-        visible={detailsVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDetailsVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            {/* Modern Header */}
-            <View style={styles.modernHeader}>
-              <View style={styles.headerContent}>
-                <Text style={styles.modernTitle}>Pet Details</Text>
-                <Text style={styles.modernSubtitle}>Meet your new companion</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={() => setDetailsVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <MaterialIcons name="close" size={28} color="#111827" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
-              {/* Hero Image Section */}
-              <View style={styles.heroImageContainer}>
-                {selectedPet?.imageUrl ? (
-                  <Image 
-                    source={{ uri: selectedPet.imageUrl }} 
-                    style={styles.heroImage} 
-                    resizeMode="cover" 
-                  />
-                ) : (
-                  <View style={styles.heroPlaceholder}>
-                    <MaterialIcons name="pets" size={60} color="#9CA3AF" />
-                    <Text style={styles.heroPlaceholderText}>No Photo Available</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Pet Details Column */}
-              <View style={styles.petDetailsColumn}>
-                <View style={styles.petDetailItem}>
-                  <View style={styles.petDetailIcon}>
-                    <MaterialIcons name="pets" size={20} color="#8B5CF6" />
-                  </View>
-                  <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Name</Text>
-                    <Text style={styles.petDetailValue}>{selectedPet?.petName || 'Unnamed Pet'}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.petDetailItem}>
-                  <View style={styles.petDetailIcon}>
-                    <MaterialIcons name="category" size={20} color="#F59E0B" />
-                  </View>
-                  <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Type</Text>
-                    <Text style={styles.petDetailValue}>
-                      {selectedPet?.petType ? 
-                        (selectedPet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : 
-                        'Pet'
-                      }
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.petDetailItem}>
-                  <View style={styles.petDetailIcon}>
-                    <MaterialIcons name="category" size={20} color="#F59E0B" />
-                  </View>
-                  <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Breed</Text>
-                    <Text style={styles.petDetailValue}>{selectedPet?.breed || 'Unknown'}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.petDetailItem}>
-                  <View style={styles.petDetailIcon}>
-                    <MaterialIcons 
-                      name={selectedPet?.gender === 'male' ? 'male' : 'female'} 
-                      size={20} 
-                      color={selectedPet?.gender === 'male' ? '#3B82F6' : '#EC4899'} 
-                    />
-                  </View>
-                  <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Gender</Text>
-                    <Text style={styles.petDetailValue}>
-                      {selectedPet?.gender ? 
-                        (selectedPet.gender === 'male' ? 'Male' : 'Female') : 
-                        'Unknown'
-                      }
-                    </Text>
-                  </View>
-                </View>
-                
-                {selectedPet?.location && (
-                  <View style={[styles.petDetailItem, (!selectedPet?.daysAtImpound || selectedPet?.daysAtImpound === '') && styles.petDetailItemLast]}>
-                    <View style={styles.petDetailIcon}>
-                      <MaterialIcons name="location-on" size={20} color="#EF4444" />
-                    </View>
-                    <View style={styles.petDetailContent}>
-                      <Text style={styles.petDetailLabel}>Location</Text>
-                      <Text style={styles.petDetailValue}>{selectedPet.location}</Text>
-                    </View>
-                  </View>
-                )}
-                
-                  <View style={[styles.petDetailItem, styles.petDetailItemLast]}>
-                    <View style={styles.petDetailIcon}>
-                    <MaterialIcons name="schedule" size={20} color="#8B5CF6" />
-                    </View>
-                    <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Days Sheltered</Text>
-                    <Text style={styles.petDetailValue}>
-                      {selectedPet?.daysAtImpound && 
-                       selectedPet.daysAtImpound !== '' && 
-                       selectedPet.daysAtImpound !== null && 
-                       selectedPet.daysAtImpound !== undefined &&
-                       Number(selectedPet.daysAtImpound) >= 0 ? (
-                        `${selectedPet.daysAtImpound} ${Number(selectedPet.daysAtImpound) === 1 ? 'day' : 'days'}`
-                      ) : (
-                        'Not specified'
-                      )}
-                    </Text>
-                    </View>
-                  </View>
-              </View>
-
-
-              {/* Medical Status */}
-              <View style={styles.medicalCard}>
-                <Text style={styles.medicalTitle}>Health Status</Text>
-                <View style={styles.medicalGrid}>
-                  <View style={[styles.medicalItem, selectedPet?.vaccinated && styles.medicalItemActive]}>
-                    <MaterialIcons 
-                      name="vaccines" 
-                      size={20} 
-                      color={selectedPet?.vaccinated ? "#10B981" : "#9CA3AF"} 
-                    />
-                    <View style={styles.medicalItemContent}>
-                      <Text style={[styles.medicalLabel, selectedPet?.vaccinated && styles.medicalLabelActive]}>
-                        Vaccinated
-                      </Text>
-                      {selectedPet?.vaccinated && (
-                        <View style={styles.dateContainer}>
-                          <Text style={styles.dateText}>
-                            {formatDate(selectedPet.vaccinatedDate || selectedPet.vaccineDate || selectedPet.vaccinationDate)}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={[styles.medicalStatus, selectedPet?.vaccinated && styles.medicalStatusActive]}>
-                      {selectedPet?.vaccinated ? 'Yes' : 'No'}
-                    </Text>
-                  </View>
-                  <View style={[styles.medicalItem, selectedPet?.dewormed && styles.medicalItemActive]}>
-                    <MaterialIcons 
-                      name="healing" 
-                      size={20} 
-                      color={selectedPet?.dewormed ? "#10B981" : "#9CA3AF"} 
-                    />
-                    <View style={styles.medicalItemContent}>
-                      <Text style={[styles.medicalLabel, selectedPet?.dewormed && styles.medicalLabelActive]}>
-                        Dewormed
-                      </Text>
-                      {selectedPet?.dewormed && (
-                        <View style={styles.dateContainer}>
-                          <Text style={styles.dateText}>
-                            {formatDate(selectedPet.dewormedDate || selectedPet.dewormDate)}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={[styles.medicalStatus, selectedPet?.dewormed && styles.medicalStatusActive]}>
-                      {selectedPet?.dewormed ? 'Yes' : 'No'}
-                    </Text>
-                  </View>
-                  <View style={[styles.medicalItem, selectedPet?.antiRabies && styles.medicalItemActive]}>
-                    <MaterialIcons 
-                      name="local-hospital" 
-                      size={20} 
-                      color={selectedPet?.antiRabies ? "#10B981" : "#9CA3AF"} 
-                    />
-                    <View style={styles.medicalItemContent}>
-                      <Text style={[styles.medicalLabel, selectedPet?.antiRabies && styles.medicalLabelActive]}>
-                        Anti-rabies
-                      </Text>
-                      {selectedPet?.antiRabies && (
-                        <View style={styles.dateContainer}>
-                          <Text style={styles.dateText}>
-                            {formatDate(selectedPet.antiRabiesDate || selectedPet.antiRabiesVaccineDate)}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={[styles.medicalStatus, selectedPet?.antiRabies && styles.medicalStatusActive]}>
-                      {selectedPet?.antiRabies ? 'Yes' : 'No'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Temperament */}
-              {selectedPet?.temperament && (
-                <View style={styles.temperamentCard}>
-                  <View style={styles.temperamentHeader}>
-                    <MaterialIcons name="psychology" size={20} color="#8B5CF6" />
-                    <Text style={styles.temperamentTitle}>Temperament</Text>
-                  </View>
-                  <Text style={styles.temperamentText}>{selectedPet.temperament}</Text>
-                </View>
-              )}
-
-              {/* Description */}
-              {selectedPet?.description && (
-                <View style={styles.descriptionCard}>
-                  <View style={styles.descriptionHeader}>
-                    <MaterialIcons name="description" size={20} color="#6366F1" />
-                    <Text style={styles.descriptionTitle}>About</Text>
-                  </View>
-                  <Text style={styles.descriptionText}>{selectedPet.description}</Text>
-                </View>
-              )}
-            </ScrollView>
-
-            {/* Modern Action Buttons */}
-            <View style={styles.modernActionContainer}>
-              <TouchableOpacity
-                onPress={() => {
-                  setDetailsVisible(false);
-                  setApplyVisible(true);
-                }}
-                style={styles.modernAdoptBtn}
-              >
-                <MaterialIcons name="favorite" size={20} color="#FFFFFF" />
-                <Text style={styles.modernAdoptBtnText}>Adopt Me</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
       {/* My Applications Modal */}
       <Modal
         visible={myAppsVisible}

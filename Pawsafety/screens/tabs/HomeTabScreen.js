@@ -65,7 +65,11 @@ const HomeTabScreen = ({ navigation }) => {
   const [userManualVisible, setUserManualVisible] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [isProfilesExpanded, setIsProfilesExpanded] = useState(false);
   const slideAnim = useRef(new Animated.Value(-300)).current;
+  const historyDropdownAnim = useRef(new Animated.Value(0)).current;
+  const profilesDropdownAnim = useRef(new Animated.Value(0)).current;
   const [posts, setPosts] = useState([]);
   const [hiddenPostIds, setHiddenPostIds] = useState(new Set());
   const [scrollToPostId, setScrollToPostId] = useState(null);
@@ -360,8 +364,8 @@ const HomeTabScreen = ({ navigation }) => {
       (snapshot) => {
         const postsData = snapshot.docs
           .map(doc => ({
-            id: doc.id,
-            ...doc.data()
+          id: doc.id,
+          ...doc.data()
           }))
           .filter(post => {
             // Filter out deleted posts
@@ -1234,6 +1238,10 @@ const HomeTabScreen = ({ navigation }) => {
             style={styles.iconButton}
             onPress={() => {
               setSidebarVisible(true);
+              setIsHistoryExpanded(false);
+              setIsProfilesExpanded(false);
+              historyDropdownAnim.setValue(0);
+              profilesDropdownAnim.setValue(0);
               Animated.timing(slideAnim, {
                 toValue: 0,
                 duration: 300,
@@ -1347,14 +1355,14 @@ const HomeTabScreen = ({ navigation }) => {
               }}
             >
               <PostCard
-                post={post}
-                onPostDeleted={(postId) => {
-                  setPosts(prev => prev.filter(p => p.id !== postId));
-                }}
-                onPostHidden={(postId) => {
-                  setHiddenPostIds(prev => new Set([...prev, postId]));
-                }}
-              />
+              post={post}
+              onPostDeleted={(postId) => {
+                setPosts(prev => prev.filter(p => p.id !== postId));
+              }}
+              onPostHidden={(postId) => {
+                setHiddenPostIds(prev => new Set([...prev, postId]));
+              }}
+            />
             </View>
           ))}
         
@@ -1389,6 +1397,10 @@ const HomeTabScreen = ({ navigation }) => {
                 useNativeDriver: true,
               }).start(() => {
                 setSidebarVisible(false);
+                setIsHistoryExpanded(false);
+                setIsProfilesExpanded(false);
+                historyDropdownAnim.setValue(0);
+                profilesDropdownAnim.setValue(0);
               });
             }}
           />
@@ -1442,83 +1454,228 @@ const HomeTabScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: 16,
-                  paddingHorizontal: 12,
-                  borderRadius: 12,
-                  marginBottom: 8,
-                }}
-                onPress={() => {
-                  Animated.timing(slideAnim, {
-                    toValue: -300,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }).start(() => {
-                    setSidebarVisible(false);
-                  });
-                  navigation.navigate('MyPets');
-                }}
-              >
-                <MaterialIcons name="pets" size={24} color={COLORS.darkPurple} />
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
-                  My Pets Profile
-                </Text>
-              </TouchableOpacity>
+              {/* Profiles Dropdown */}
+              <View>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 16,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    marginBottom: 8,
+                  }}
+                  onPress={() => {
+                    setIsProfilesExpanded(!isProfilesExpanded);
+                    Animated.timing(profilesDropdownAnim, {
+                      toValue: isProfilesExpanded ? 0 : 1,
+                      duration: 200,
+                      useNativeDriver: false,
+                    }).start();
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <MaterialIcons name="account-circle" size={24} color={COLORS.darkPurple} />
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                      Profiles
+                    </Text>
+                  </View>
+                  <Animated.View
+                    style={{
+                      transform: [{
+                        rotate: profilesDropdownAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '180deg'],
+                        }),
+                      }],
+                    }}
+                  >
+                    <MaterialIcons name="keyboard-arrow-down" size={24} color="#6b7280" />
+                  </Animated.View>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: 16,
-                  paddingHorizontal: 12,
-                  borderRadius: 12,
-                  marginBottom: 8,
-                }}
-                onPress={() => {
-                  Animated.timing(slideAnim, {
-                    toValue: -300,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }).start(() => {
-                    setSidebarVisible(false);
-                  });
-                  navigation.navigate('Profile');
-                }}
-              >
-                <MaterialIcons name="account-circle" size={24} color={COLORS.darkPurple} />
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
-                  Profile
-                </Text>
-              </TouchableOpacity>
+                {/* Sub-items */}
+                <Animated.View
+                  style={{
+                    overflow: 'hidden',
+                    maxHeight: profilesDropdownAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 200],
+                    }),
+                    opacity: profilesDropdownAnim,
+                  }}
+                >
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      paddingLeft: 52,
+                      borderRadius: 8,
+                      marginBottom: 4,
+                      marginLeft: 8,
+                    }}
+                    onPress={() => {
+                      Animated.timing(slideAnim, {
+                        toValue: -300,
+                        duration: 300,
+                        useNativeDriver: true,
+                      }).start(() => {
+                        setSidebarVisible(false);
+                      });
+                      navigation.navigate('MyPets');
+                    }}
+                  >
+                    <MaterialIcons name="pets" size={20} color={COLORS.darkPurple} />
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: '#4b5563', marginLeft: 16 }}>
+                      My Pets Profile
+                    </Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: 16,
-                  paddingHorizontal: 12,
-                  borderRadius: 12,
-                  marginBottom: 8,
-                }}
-                onPress={() => {
-                  Animated.timing(slideAnim, {
-                    toValue: -300,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }).start(() => {
-                    setSidebarVisible(false);
-                  });
-                  navigation.navigate('MyReports');
-                }}
-              >
-                <MaterialIcons name="history" size={24} color={COLORS.darkPurple} />
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
-                  Reports History
-                </Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      paddingLeft: 52,
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      marginLeft: 8,
+                    }}
+                    onPress={() => {
+                      Animated.timing(slideAnim, {
+                        toValue: -300,
+                        duration: 300,
+                        useNativeDriver: true,
+                      }).start(() => {
+                        setSidebarVisible(false);
+                      });
+                      navigation.navigate('Profile');
+                    }}
+                  >
+                    <MaterialIcons name="account-circle" size={20} color={COLORS.darkPurple} />
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: '#4b5563', marginLeft: 16 }}>
+                      User Profile
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+
+              {/* History Dropdown */}
+              <View>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 16,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    marginBottom: 8,
+                  }}
+                  onPress={() => {
+                    setIsHistoryExpanded(!isHistoryExpanded);
+                    Animated.timing(historyDropdownAnim, {
+                      toValue: isHistoryExpanded ? 0 : 1,
+                      duration: 200,
+                      useNativeDriver: false,
+                    }).start();
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <MaterialIcons name="history" size={24} color={COLORS.darkPurple} />
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1f2937', marginLeft: 16 }}>
+                      History
+                    </Text>
+                  </View>
+                  <Animated.View
+                    style={{
+                      transform: [{
+                        rotate: historyDropdownAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '180deg'],
+                        }),
+                      }],
+                    }}
+                  >
+                    <MaterialIcons name="keyboard-arrow-down" size={24} color="#6b7280" />
+                  </Animated.View>
+                </TouchableOpacity>
+
+                {/* Sub-items */}
+                <Animated.View
+                  style={{
+                    overflow: 'hidden',
+                    maxHeight: historyDropdownAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 200],
+                    }),
+                    opacity: historyDropdownAnim,
+                  }}
+                >
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      paddingLeft: 52,
+                      borderRadius: 8,
+                      marginBottom: 4,
+                      marginLeft: 8,
+                    }}
+                    onPress={() => {
+                      Animated.timing(slideAnim, {
+                        toValue: -300,
+                        duration: 300,
+                        useNativeDriver: true,
+                      }).start(() => {
+                        setSidebarVisible(false);
+                      });
+                      navigation.navigate('MyReports');
+                    }}
+                  >
+                    <MaterialIcons name="description" size={20} color={COLORS.darkPurple} />
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: '#4b5563', marginLeft: 16 }}>
+                      Reports History
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      paddingLeft: 52,
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      marginLeft: 8,
+                    }}
+                    onPress={() => {
+                      Animated.timing(slideAnim, {
+                        toValue: -300,
+                        duration: 300,
+                        useNativeDriver: true,
+                      }).start(() => {
+                        setSidebarVisible(false);
+                      });
+                      navigation.navigate('Tabs', {
+                        screen: 'Adopt',
+                        params: { openApplications: true }
+                      });
+                    }}
+                  >
+                    <MaterialIcons name="assignment" size={20} color={COLORS.darkPurple} />
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: '#4b5563', marginLeft: 16 }}>
+                      Adoption Application
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
 
               <TouchableOpacity
                 style={{
@@ -1933,7 +2090,7 @@ const HomeTabScreen = ({ navigation }) => {
                                     ? '#e3f2fd'
                                     : n.type === 'friend_request_accepted'
                                       ? '#d1fae5'
-                                      : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
+                                  : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
                         justifyContent: 'center',
                         alignItems: 'center',
                         marginRight: 12,
@@ -1961,11 +2118,11 @@ const HomeTabScreen = ({ navigation }) => {
                                   ? 'person-add'
                                   : n.type === 'friend_request_accepted'
                                     ? 'check-circle'
-                                    : (n.data?.status === 'Approved' 
-                                        ? 'check-circle' 
-                                        : (n.data?.status === 'Declined' 
-                                            ? 'cancel' 
-                                            : 'info'))}
+                                : (n.data?.status === 'Approved' 
+                                    ? 'check-circle' 
+                                    : (n.data?.status === 'Declined' 
+                                        ? 'cancel' 
+                                        : 'info'))}
                           size={20}
                           color={n.type === 'social'
                             ? '#1877f2'
@@ -1983,11 +2140,11 @@ const HomeTabScreen = ({ navigation }) => {
                                   ? '#1877f2'
                                   : n.type === 'friend_request_accepted'
                                     ? '#16a34a'
-                                    : (n.data?.status === 'Declined' 
-                                        ? '#dc2626' 
-                                        : (n.data?.status === 'Approved' 
-                                            ? '#16a34a' 
-                                            : '#65676b'))}
+                                : (n.data?.status === 'Declined' 
+                                    ? '#dc2626' 
+                                    : (n.data?.status === 'Approved' 
+                                        ? '#16a34a' 
+                                        : '#65676b'))}
                         />
                       </View>
                       

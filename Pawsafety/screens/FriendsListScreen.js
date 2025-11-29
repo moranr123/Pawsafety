@@ -115,7 +115,7 @@ const FriendsListScreen = ({ navigation }) => {
           name: doc.data().friendName || 'Unknown',
           email: doc.data().friendEmail || '',
           profileImage: doc.data().friendProfileImage || null,
-        }));
+    }));
         setFriends(friendsList);
       },
       (error) => {
@@ -166,12 +166,11 @@ const FriendsListScreen = ({ navigation }) => {
                         contentFit="cover"
                       />
                     ) : (
-                      <MaterialIcons name="account-circle" size={60} color="#bcc0c4" />
+                    <MaterialIcons name="account-circle" size={60} color="#bcc0c4" />
                     )}
                   </View>
                   <View style={styles.friendInfo}>
                     <Text style={styles.friendName}>{friend.name}</Text>
-                    <Text style={styles.friendEmail}>{friend.email}</Text>
                   </View>
                 </TouchableOpacity>
               ))}

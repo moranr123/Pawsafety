@@ -196,9 +196,6 @@ const BlockedUsersScreen = ({ navigation }) => {
               </View>
               <View style={styles.userInfo}>
                 <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-                {!!item.email && (
-                  <Text style={styles.email} numberOfLines={1}>{item.email}</Text>
-                )}
               </View>
               <TouchableOpacity
                 style={styles.unblockButton}

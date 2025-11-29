@@ -683,27 +683,24 @@ const AddFriendsScreen = ({ navigation }) => {
                     style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
                     onPress={() => navigation.navigate('Profile', { userId: userItem.id })}
                     activeOpacity={0.7}
-                  >
-                    <View style={styles.userImageContainer}>
-                      {userItem.profileImage ? (
-                        <Image
-                          source={{ uri: userItem.profileImage }}
-                          style={styles.userImage}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <MaterialIcons name="account-circle" size={60} color="#bcc0c4" />
-                      )}
-                    </View>
-                    
-                    <View style={styles.userInfo}>
-                      <Text style={styles.userName}>
-                        {userItem.name || userItem.displayName || 'Unknown User'}
-                      </Text>
-                      <Text style={styles.userEmail}>
-                        {userItem.email || 'No email'}
-                      </Text>
-                    </View>
+                >
+                  <View style={styles.userImageContainer}>
+                    {userItem.profileImage ? (
+                      <Image
+                        source={{ uri: userItem.profileImage }}
+                        style={styles.userImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <MaterialIcons name="account-circle" size={60} color="#bcc0c4" />
+                    )}
+                  </View>
+                  
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>
+                      {userItem.name || userItem.displayName || 'Unknown User'}
+                    </Text>
+                  </View>
                   </TouchableOpacity>
                   
                   <TouchableOpacity

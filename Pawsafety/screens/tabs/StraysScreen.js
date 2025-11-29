@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,29 +6,158 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  ImageBackground,
-  Modal,
   RefreshControl,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
+  FlatList,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTabBarVisibility } from '../../contexts/TabBarVisibilityContext';
 import { db } from '../../services/firebase';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import ReportChatModal from '../../components/ReportChatModal';
+import { auth } from '../../services/firebase';
+
+const FilterButton = React.memo(({ title, active = false, onPress, styles }) => (
+  <TouchableOpacity 
+    style={[styles.filterButton, active && styles.filterButtonActive]} 
+    onPress={onPress}
+  >
+    <Text style={[styles.filterText, active && styles.filterTextActive]}>{title}</Text>
+  </TouchableOpacity>
+));
+
+const StrayPetCard = React.memo(({
+  report,
+  reporter,
+  navigation,
+  onOpenChat,
+  styles,
+  COLORS,
+}) => {
+  const imageUri = report?.imageUrl;
+  const location = report?.locationName || 'Unknown location';
+  const reportTime = report?.reportTime?.toDate ? report.reportTime.toDate() : null;
+  const date = reportTime ? reportTime.toLocaleDateString() : 'Unknown';
+  const time = reportTime ? reportTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown';
+  const petType = report?.petType ? (report.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : null;
+  const status = report?.status || 'Stray';
+  const description = report?.description || '';
+  
+  const onPressReporter = report.userId ? () => navigation.navigate('Profile', { userId: report.userId }) : undefined;
+  const onPressMessage = report.userId && report.userId !== auth.currentUser?.uid && onOpenChat
+    ? () => onOpenChat(report) 
+    : undefined;
+
+  return (
+  <View style={styles.reportCard}>
+    {/* Header with reporter info and status badge */}
+    <View style={styles.reportHeader}>
+      <TouchableOpacity
+        style={styles.reportUserInfo}
+        onPress={onPressReporter}
+        activeOpacity={0.8}
+        disabled={!onPressReporter}
+      >
+        {reporter?.profileImage ? (
+          <Image
+            source={{ uri: reporter.profileImage }}
+            style={styles.reportProfileImage}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={styles.reportProfilePlaceholder}>
+            <MaterialIcons name="person" size={22} color="#65676b" />
+          </View>
+        )}
+        <View style={styles.reportUserDetails}>
+          <Text style={styles.reportUserName} numberOfLines={1}>
+            {reporter?.name || 'Pet Lover'}
+          </Text>
+          {reportTime && (
+            <Text style={styles.reportTime} numberOfLines={1}>
+              {reportTime.toLocaleString()}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+      <View
+        style={[
+        styles.statusBadge,
+          status === 'Lost'
+            ? { backgroundColor: COLORS.error }
+            : status === 'Stray'
+            ? { backgroundColor: COLORS.mediumBlue }
+            : { backgroundColor: COLORS.warning },
+        ]}
+      >
+        <Text style={styles.statusText}>{status}</Text>
+      </View>
+    </View>
+
+    {/* Content with Details */}
+    <View style={styles.reportContent}>
+      {/* Details Text */}
+      <View style={styles.detailsContainer}>
+        {petType && (
+          <Text style={styles.detailText}>Type: {petType}</Text>
+        )}
+        <Text style={styles.detailText}>Location: {location}</Text>
+        <Text style={styles.detailText}>Date: {date}</Text>
+        <Text style={styles.detailText}>Time: {time}</Text>
+      </View>
+
+      {description ? (
+        <Text style={styles.reportDescription}>{description}</Text>
+      ) : null}
+      
+      {/* Image */}
+      {imageUri ? (
+        <Image
+          source={{ uri: imageUri }}
+          style={styles.reportImage}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <MaterialIcons name="image" size={60} color="#9CA3AF" />
+        </View>
+      )}
+    </View>
+
+    {/* Actions */}
+    {onPressMessage && (
+      <View style={styles.reportActions}>
+        <TouchableOpacity
+          style={styles.reportActionButton}
+          onPress={onPressMessage}
+        >
+          <MaterialIcons name="message" size={18} color="#65676b" />
+          <Text style={styles.reportActionText}>Message</Text>
+        </TouchableOpacity>
+      </View>
+    )}
+  </View>
+  );
+});
 
 const StraysScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
+  const { setIsVisible } = useTabBarVisibility();
   const [reports, setReports] = useState([]);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [reportUsers, setReportUsers] = useState({});
+  const reportUsersRef = useRef({});
   const [filter, setFilter] = useState('All');
   const [userLocation, setUserLocation] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [closedBanners, setClosedBanners] = useState({});
+  const [chatModalVisible, setChatModalVisible] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const lastScrollY = useRef(0);
+  const scrollTimeout = useRef(null);
 
   // Optimized: Use built-in hook instead of Dimensions listener
   const { width: currentWidth, height: currentHeight } = useWindowDimensions();
@@ -36,6 +165,32 @@ const StraysScreen = ({ navigation }) => {
   const isTablet = currentWidth > 768;
   const wp = (percentage) => (currentWidth * percentage) / 100;
   const hp = (percentage) => (currentHeight * percentage) / 100;
+
+  const handleScroll = React.useCallback((event) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const scrollDifference = currentScrollY - lastScrollY.current;
+
+    // Clear existing timeout
+    if (scrollTimeout.current) {
+      clearTimeout(scrollTimeout.current);
+    }
+
+    // Hide tab bar when scrolling down, show when scrolling up or at top
+    if (currentScrollY <= 0) {
+      setIsVisible(true);
+    } else if (scrollDifference > 5) {
+      setIsVisible(false);
+    } else if (scrollDifference < -5) {
+      setIsVisible(true);
+    }
+
+    lastScrollY.current = currentScrollY;
+
+    // Show tab bar after scrolling stops
+    scrollTimeout.current = setTimeout(() => {
+      setIsVisible(true);
+    }, 150);
+  }, [setIsVisible]);
 
   useEffect(() => {
     // Optimized: Add limit to reduce Firebase reads
@@ -49,6 +204,68 @@ const StraysScreen = ({ navigation }) => {
     });
     return unsubscribe;
   }, []);
+
+  // Load reporter user info for each report so we can show who posted it
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const userIds = Array.from(
+          new Set(
+            reports
+              .map((r) => r.userId)
+              .filter((uid) => typeof uid === 'string' && uid.length > 0)
+          )
+        );
+        if (userIds.length === 0) {
+          // No reports with userIds
+          reportUsersRef.current = {};
+          setReportUsers({});
+          return;
+        }
+
+        const usersMap = { ...reportUsersRef.current };
+
+        // Only fetch users we haven't loaded yet
+        const missingIds = userIds.filter((uid) => !usersMap[uid]);
+        if (missingIds.length === 0) {
+          // All users already loaded
+          return;
+        }
+
+        await Promise.all(
+          missingIds.map(async (uid) => {
+            try {
+              const userDoc = await getDoc(doc(db, 'users', uid));
+              if (userDoc.exists()) {
+                const data = userDoc.data();
+                usersMap[uid] = {
+                  name: data.displayName || data.name || 'Pet Lover',
+                  profileImage: data.profileImage || data.photoURL || null,
+                };
+              } else {
+                usersMap[uid] = {
+                  name: 'Pet Lover',
+                  profileImage: null,
+                };
+              }
+            } catch (e) {
+              usersMap[uid] = {
+                name: 'Pet Lover',
+                profileImage: null,
+              };
+            }
+          })
+        );
+
+        reportUsersRef.current = usersMap;
+        setReportUsers(usersMap);
+      } catch (e) {
+        // Silent fail; reports will still show without user info
+      }
+    };
+
+    loadUsers();
+  }, [reports]);
 
   useEffect(() => {
     if (filter === 'Near Me') {
@@ -64,10 +281,6 @@ const StraysScreen = ({ navigation }) => {
     }
   }, [filter]);
 
-  // Reset closed banners when filter changes
-  useEffect(() => {
-    setClosedBanners({});
-  }, [filter]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -76,6 +289,16 @@ const StraysScreen = ({ navigation }) => {
     setTimeout(() => {
       setRefreshing(false);
     }, 1000);
+  };
+
+  const onOpenChat = (report) => {
+    setSelectedReport(report);
+    setChatModalVisible(true);
+  };
+
+  const onCloseChat = () => {
+    setChatModalVisible(false);
+    setSelectedReport(null);
   };
 
   function isRecent(report) {
@@ -99,10 +322,12 @@ const StraysScreen = ({ navigation }) => {
     return d <= 5; // within 5km
   }
 
-  let filteredReports = reports;
+  const filteredReports = useMemo(() => {
+    let result = reports;
+
   if (filter === 'All') {
     // Exclude reports marked as "Found" (from MyPetsScreen), "Resolved", "Declined", or "Invalid" from the "All" filter
-    filteredReports = reports.filter(r => {
+      result = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
       // Exclude found reports that came from MyPetsScreen (foundBy: 'owner')
       if (status === 'found' && r.foundBy === 'owner') {
@@ -112,13 +337,13 @@ const StraysScreen = ({ navigation }) => {
     });
   } else if (filter === 'Found') {
     // Only show "Found" reports that came from the File a Report form (not from MyPetsScreen)
-    filteredReports = reports.filter(r => {
+      result = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
       return status === 'found' && r.foundBy !== 'owner';
     });
   } else if (['Stray', 'Lost', 'Incident'].includes(filter)) {
     // Only show reports with the specific status, but exclude found reports from MyPetsScreen, declined, and invalid
-    filteredReports = reports.filter(r => {
+      result = reports.filter(r => {
       const status = (r.status || 'Stray').toLowerCase();
       // Exclude found reports that came from MyPetsScreen
       if (status === 'found' && r.foundBy === 'owner') {
@@ -128,6 +353,9 @@ const StraysScreen = ({ navigation }) => {
     });
   }
 
+    return result;
+  }, [reports, filter]);
+
   // Create styles using current theme colors and responsive values
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -135,26 +363,44 @@ const StraysScreen = ({ navigation }) => {
       backgroundColor: COLORS.background,
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
-      paddingTop: isSmallDevice ? 45 : 50,
-      paddingBottom: isSmallDevice ? SPACING.sm : SPACING.md,
+      backgroundColor: '#ffffff',
+      paddingTop: Platform.OS === 'ios' 
+        ? (isSmallDevice ? 45 : isTablet ? 60 : 50)
+        : (isSmallDevice ? 12 : isTablet ? 20 : 15),
+      paddingBottom: Platform.OS === 'android' 
+        ? (isSmallDevice ? 2 : isTablet ? 4 : 2)
+        : (isSmallDevice ? 10 : 12),
+      paddingHorizontal: isSmallDevice ? 12 : isTablet ? 20 : 16,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-      ...SHADOWS.light,
+      borderBottomColor: '#e4e6eb',
+    },
+    headerTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Platform.OS === 'android'
+        ? (isSmallDevice ? 2 : isTablet ? 4 : 2)
+        : (isSmallDevice ? 10 : 12),
+    },
+    headerTitle: {
+      fontSize: Platform.OS === 'ios'
+        ? (isSmallDevice ? 20 : isTablet ? 28 : 24)
+        : (isSmallDevice ? 20 : isTablet ? 26 : 24),
+      fontWeight: '700',
+      color: '#050505',
     },
     filtersContainer: {
       flexDirection: 'row',
-      paddingHorizontal: SPACING.xs,
-      paddingRight: SPACING.lg,
+      paddingHorizontal: 0,
+      paddingRight: 16,
     },
     filterButton: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      backgroundColor: '#e4e6eb',
       paddingHorizontal: isSmallDevice ? SPACING.sm : SPACING.md,
       paddingVertical: isSmallDevice ? SPACING.xs : SPACING.sm,
       borderRadius: isSmallDevice ? 12 : 15,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.3)',
+      borderColor: '#e4e6eb',
       alignItems: 'center',
       minHeight: isSmallDevice ? 32 : 36,
       justifyContent: 'center',
@@ -162,151 +408,81 @@ const StraysScreen = ({ navigation }) => {
       minWidth: isSmallDevice ? 70 : 80,
     },
     filterButtonActive: {
-      backgroundColor: COLORS.white,
-      borderColor: COLORS.white,
+      backgroundColor: '#1877f2',
+      borderColor: '#1877f2',
     },
     filterText: {
       fontSize: Platform.OS === 'android'
         ? (isSmallDevice ? 10 : isTablet ? 13 : 11)
         : (isSmallDevice ? 11 : isTablet ? 15 : 13),
-      fontFamily: 'SF Pro Display',
-      color: COLORS.white,
+      fontFamily: FONTS.family,
+      color: '#050505',
       fontWeight: '600',
       textAlign: 'center',
     },
     filterTextActive: {
-      color: COLORS.darkPurple,
+      color: '#ffffff',
     },
-    emergencyBanner: {
-      backgroundColor: COLORS.golden,
-      marginHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
-      marginTop: isSmallDevice ? SPACING.md : SPACING.lg,
-      borderRadius: isSmallDevice ? RADIUS.small : RADIUS.medium,
-      padding: isSmallDevice ? SPACING.md : SPACING.lg,
-      paddingRight: isSmallDevice ? 40 : 50, // Extra padding for close button on right
-      flexDirection: 'row',
-      alignItems: 'flex-start', // Changed from 'center' to 'flex-start' for better text alignment
-      marginBottom: isSmallDevice ? SPACING.md : SPACING.lg,
-      position: 'relative',
-      minHeight: isSmallDevice ? 80 : isTablet ? 110 : 95, // Increased height for 2-line text
-      maxHeight: isSmallDevice ? 100 : isTablet ? 130 : 115, // Increased max height
-      paddingTop: isSmallDevice ? SPACING.md + 5 : SPACING.lg + 5, // Extra top padding for better alignment
+    scrollViewContent: {
+      paddingHorizontal: 0,
+      paddingBottom: SPACING.xl,
     },
-    closeBannerButton: {
-      position: 'absolute',
-      top: isSmallDevice ? SPACING.xs : SPACING.sm,
-      right: isSmallDevice ? SPACING.xs : SPACING.sm,
-      zIndex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      borderRadius: isSmallDevice ? 12 : 15,
-      width: isSmallDevice ? 26 : 30,
-      height: isSmallDevice ? 26 : 30,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    emergencyIcon: {
-      fontSize: isSmallDevice ? FONTS.sizes.large : isTablet ? FONTS.sizes.xxxlarge : FONTS.sizes.xlarge,
-      marginRight: isSmallDevice ? SPACING.xs : SPACING.sm,
-    },
-    emergencyText: {
-      flex: 1,
-      flexShrink: 1,
-      marginRight: isSmallDevice ? SPACING.xs : SPACING.sm,
-      marginTop: isSmallDevice ? 2 : 4, // Small top margin for better alignment
-      justifyContent: 'center', // Center the text vertically within its container
-    },
-    emergencyTitle: {
-      fontSize: Platform.OS === 'android' 
-        ? (isSmallDevice ? FONTS.sizes.small - 2 : isTablet ? FONTS.sizes.medium : FONTS.sizes.small)
-        : (isSmallDevice ? FONTS.sizes.small : isTablet ? FONTS.sizes.large : FONTS.sizes.medium),
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      numberOfLines: 2,
-      ellipsizeMode: 'tail',
-      marginBottom: isSmallDevice ? 2 : 4, // Small spacing between title and subtitle
-    },
-    emergencySubtitle: {
-      fontSize: Platform.OS === 'android'
-        ? (isSmallDevice ? FONTS.sizes.small - 4 : isTablet ? FONTS.sizes.small : FONTS.sizes.small - 2)
-        : (isSmallDevice ? FONTS.sizes.small - 2 : isTablet ? FONTS.sizes.medium : FONTS.sizes.small),
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      numberOfLines: 2,
-      ellipsizeMode: 'tail',
-    },
-    reportButton: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: Platform.OS === 'android' ? (isSmallDevice ? SPACING.xs : SPACING.sm) : (isSmallDevice ? SPACING.sm : SPACING.md),
-      paddingVertical: isSmallDevice ? SPACING.xs : SPACING.sm,
-      borderRadius: isSmallDevice ? RADIUS.small - 2 : RADIUS.small,
-      minWidth: Platform.OS === 'android' ? (isSmallDevice ? 60 : 80) : (isSmallDevice ? 70 : 90),
-      maxWidth: Platform.OS === 'android' ? (isSmallDevice ? 80 : 100) : (isSmallDevice ? 90 : 110),
-      alignSelf: 'flex-start', // Align button to top of container
-      marginTop: isSmallDevice ? 2 : 4, // Small top margin to align with text
-    },
-    reportButtonText: {
-      color: COLORS.white,
-      fontSize: Platform.OS === 'android'
-        ? (isSmallDevice ? FONTS.sizes.small - 4 : isTablet ? FONTS.sizes.small : FONTS.sizes.small - 2)
-        : (isSmallDevice ? FONTS.sizes.small - 2 : isTablet ? FONTS.sizes.medium : FONTS.sizes.small),
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-    },
-    scrollView: {
-      flex: 1,
-      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
-    },
-    petCard: {
-      borderRadius: RADIUS.medium,
-      marginBottom: SPACING.md,
-      minHeight: 260,
+    // Facebook-style report card (similar to PostCard)
+    reportCard: {
+      backgroundColor: '#ffffff',
+      marginHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+      borderRadius: 10,
       overflow: 'hidden',
-      justifyContent: 'flex-end',
-      ...SHADOWS.medium,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
-    cardBackgroundImage: {
-      borderRadius: RADIUS.medium,
+    reportHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 6,
+      justifyContent: 'space-between',
     },
-    placeholderBackground: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: COLORS.lightBlue,
+    reportUserInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    reportProfileImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 10,
+      backgroundColor: '#e4e6eb',
+    },
+    reportProfilePlaceholder: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#e4e6eb',
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: RADIUS.medium,
+      marginRight: 10,
     },
-    petEmoji: {
-      fontSize: 60,
+    reportUserDetails: {
+      flex: 1,
     },
-    darkOverlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      borderRadius: RADIUS.medium,
-    },
-    petContent: {
-      padding: SPACING.md,
-      position: 'relative',
-      zIndex: 1,
-    },
-    petHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: SPACING.xs,
-    },
-    petName: {
-      fontSize: Platform.OS === 'android' ? FONTS.sizes.small : FONTS.sizes.medium,
+    reportUserName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      marginBottom: 2,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: '#FFFFFF',
+    },
+    reportTime: {
+      fontSize: 12,
+      color: '#65676b',
+      fontFamily: FONTS.family,
     },
     statusBadge: {
       paddingHorizontal: SPACING.sm,
@@ -319,60 +495,76 @@ const StraysScreen = ({ navigation }) => {
       fontWeight: FONTS.weights.bold,
       color: '#FFFFFF',
     },
-    petLocation: {
-      fontSize: Platform.OS === 'android' ? FONTS.sizes.small - 4 : FONTS.sizes.small - 2,
-      fontFamily: FONTS.family,
-      color: '#FFFFFF',
-      marginBottom: 2,
+    reportContent: {
+      paddingHorizontal: 12,
+      paddingBottom: 10,
     },
-    petDistance: {
-      fontSize: Platform.OS === 'android' ? FONTS.sizes.small - 4 : FONTS.sizes.small - 2,
-      fontFamily: FONTS.family,
-      color: 'rgba(255, 255, 255, 0.8)',
-      marginBottom: SPACING.xs,
-    },
-    petDescription: {
-      fontSize: Platform.OS === 'android' ? FONTS.sizes.small - 4 : FONTS.sizes.small - 2,
-      fontFamily: FONTS.family,
-      color: '#FFFFFF',
-      lineHeight: Platform.OS === 'android' ? 16 : 18,
-      marginBottom: SPACING.md,
-    },
-    actionButtons: {
+    reportLocationRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
     },
-    helpButton: {
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.small,
-      flex: 1,
-      marginRight: SPACING.xs,
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    helpButtonText: {
-      color: '#FFFFFF',
-      fontSize: Platform.OS === 'android' ? FONTS.sizes.small - 2 : FONTS.sizes.small,
+    reportLocation: {
+      fontSize: 13,
+      color: '#65676b',
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      textAlign: 'center',
     },
-    shareButton: {
-      backgroundColor: 'rgba(71, 65, 166, 0.8)',
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.small,
-      flex: 1,
-      marginLeft: SPACING.xs,
-    },
-    shareButtonText: {
-      color: '#FFFFFF',
-      fontSize: Platform.OS === 'android' ? FONTS.sizes.small - 2 : FONTS.sizes.small,
+    reportDescription: {
+      fontSize: 15,
+      color: '#050505',
+      lineHeight: 20,
+      marginTop: 4,
+      marginBottom: 8,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      textAlign: 'center',
+    },
+    reportContent: {
+      paddingHorizontal: 12,
+      paddingBottom: 10,
+    },
+    detailsContainer: {
+      marginBottom: 12,
+    },
+    detailText: {
+      fontSize: 15,
+      color: '#050505',
+      lineHeight: 20,
+      marginBottom: 4,
+      fontFamily: FONTS.family,
+    },
+    reportImage: {
+      width: '100%',
+      height: 260,
+      borderRadius: 8,
+    },
+    imagePlaceholder: {
+      width: '100%',
+      height: 260,
+      borderRadius: 8,
+      backgroundColor: '#F3F4F6',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    reportActions: {
+      flexDirection: 'row',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
+    },
+    reportActionButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    reportActionText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#65676b',
+      marginLeft: 6,
+      fontFamily: FONTS.family,
     },
     bottomSpacing: {
       height: 30,
@@ -611,169 +803,55 @@ const StraysScreen = ({ navigation }) => {
     },
   }), [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight]);
 
-  const handleViewDetails = (report) => {
-    setSelectedReport(report);
-    setModalVisible(true);
-  };
-
-  const StrayPetCard = ({ name, type, location, time, description, status = "Stray", imageUri, onViewDetails }) => (
-    <ImageBackground 
-      source={imageUri ? { uri: imageUri } : null}
-      style={styles.petCard}
-      imageStyle={styles.cardBackgroundImage}
-    >
-      {/* Status badge at top left */}
-      <View style={{ position: 'absolute', top: 10, left: 10, zIndex: 2 }}>
-        <View style={[
-          styles.statusBadge,
-          status === 'Lost' ? { backgroundColor: COLORS.error } : status === 'Stray' ? { backgroundColor: COLORS.mediumBlue } : { backgroundColor: COLORS.warning }
-        ]}>
-          <Text style={styles.statusText}>{status}</Text>
-        </View>
-      </View>
-      {!imageUri && (
-        <View style={styles.placeholderBackground}>
-          <Text style={styles.petEmoji}>{type === 'dog' ? '\ud83d\udc15' : '\ud83d\udc31'}</Text>
-        </View>
-      )}
-      <View style={styles.darkOverlay} />
-      <View style={styles.petContent}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-          <MaterialIcons name="location-pin" size={18} color="#E74C3C" style={{ marginRight: 2 }} />
-          <Text style={styles.petLocation}>{location}</Text>
-        </View>
-          <Text style={styles.petDistance}><Text style={{fontWeight:'bold'}}>Reported:</Text> {time}</Text>
-        <Text style={styles.petDescription}>{description}</Text>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.shareButton} onPress={onViewDetails}>
-            <Text style={styles.shareButtonText}>View Details</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ImageBackground>
-  );
-
-  const FilterButton = ({ title, active = false, onPress }) => (
-    <TouchableOpacity 
-      style={[styles.filterButton, active && styles.filterButtonActive]} 
-      onPress={onPress}
-    >
-      <Text style={[styles.filterText, active && styles.filterTextActive]}>{title}</Text>
-    </TouchableOpacity>
-  );
-
-  // Get dynamic banner text based on filter
-  const getBannerText = () => {
-    const isSmall = isSmallDevice;
-    
-    switch (filter) {
-      case 'Lost':
-        return {
-          title: isSmall ? 'Pet lost?' : 'Pet is lost?',
-          subtitle: isSmall ? 'Report as lost pet' : 'Report it as lost pet',
-          icon: '🔍',
-          buttonText: isSmall ? 'Report' : 'Report Lost'
-        };
-
-      case 'Incident':
-        return {
-          title: isSmall ? 'Pet incident?' : 'Pet incident?',
-          subtitle: isSmall ? 'Report the incident' : 'Report the incident',
-          icon: '🚨',
-          buttonText: isSmall ? 'Report' : 'Report Incident'
-        };
-
-      case 'Stray':
-        return {
-          title: isSmall ? 'Found stray?' : 'Found a stray?',
-          subtitle: isSmall ? 'Report immediately' : 'Report it immediately',
-          icon: '🚨',
-          buttonText: isSmall ? 'Report' : 'Report Stray'
-        };
-
-      case 'Found':
-        return {
-          title: isSmall ? 'Found pet?' : 'Found a pet?',
-          subtitle: isSmall ? 'Help reunite owner' : 'Report to help reunite',
-          icon: '🎉',
-          buttonText: isSmall ? 'Report' : 'Report Found'
-        };
-
-      default:
-        return {
-          title: isSmall ? 'Found stray?' : 'Found a stray?',
-          subtitle: isSmall ? 'Report immediately' : 'Report it immediately',
-          icon: '🚨',
-          buttonText: 'Report'
-        };
-    }
-  };
-
-  const bannerData = getBannerText();
 
   return (
     <View style={styles.container}>
-      {/* Header with Filters */}
+      {/* Header - Facebook-style */}
       <View style={styles.header}>
+        <SafeAreaView>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.headerTitle}>Reports</Text>
+          </View>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersContainer}
         >
-          <FilterButton title="All" active={filter === 'All'} onPress={() => setFilter('All')} />
-          <FilterButton title="Stray" active={filter === 'Stray'} onPress={() => setFilter('Stray')} />
-          <FilterButton title="Lost" active={filter === 'Lost'} onPress={() => setFilter('Lost')} />
-          <FilterButton title="Incident" active={filter === 'Incident'} onPress={() => setFilter('Incident')} />
-          <FilterButton title="Found" active={filter === 'Found'} onPress={() => setFilter('Found')} />
+          <FilterButton title="All" active={filter === 'All'} onPress={() => setFilter('All')} styles={styles} />
+          <FilterButton title="Stray" active={filter === 'Stray'} onPress={() => setFilter('Stray')} styles={styles} />
+          <FilterButton title="Lost" active={filter === 'Lost'} onPress={() => setFilter('Lost')} styles={styles} />
+          <FilterButton title="Incident" active={filter === 'Incident'} onPress={() => setFilter('Incident')} styles={styles} />
+          <FilterButton title="Found" active={filter === 'Found'} onPress={() => setFilter('Found')} styles={styles} />
         </ScrollView>
+        </SafeAreaView>
       </View>
 
-      {/* Dynamic Emergency Banner - Only show when not viewing All and not closed */}
-      {filter !== 'All' && !closedBanners[filter] && (
-        <View style={styles.emergencyBanner}>
-          <TouchableOpacity 
-            style={styles.closeBannerButton}
-            onPress={() => setClosedBanners(prev => ({ ...prev, [filter]: true }))}
-          >
-            <MaterialIcons name="close" size={22} color={COLORS.white} />
-          </TouchableOpacity>
-          <Text style={styles.emergencyIcon}>{bannerData.icon}</Text>
-          <View style={styles.emergencyText}>
-            <Text style={styles.emergencyTitle} numberOfLines={2} ellipsizeMode="tail">
-              {bannerData.title}
-            </Text>
-            <Text style={styles.emergencySubtitle} numberOfLines={2} ellipsizeMode="tail">
-              {bannerData.subtitle}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.reportButton}
-            onPress={() => {
-              if (filter === 'Lost') {
-                navigation.navigate('MyPets');
-              } else if (filter === 'Found') {
-                navigation.navigate('StrayReport', { initialType: 'Found' });
-              } else if (filter === 'Incident') {
-                navigation.navigate('StrayReport', { initialType: 'Incident' });
-              } else {
-                navigation.navigate('StrayReport');
-              }
-            }}
-          >
-            <Text style={styles.reportButtonText} numberOfLines={1} ellipsizeMode="tail">
-              {bannerData.buttonText}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Stray Pets List */}
-      <ScrollView 
-        style={[
-          styles.scrollView,
-          (filter === 'All' || closedBanners[filter]) && { paddingTop: SPACING.lg }
-        ]} 
-        showsVerticalScrollIndicator={false}
+      {/* Stray Pets List - virtualized for performance */}
+      <FlatList
+        data={filteredReports}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={[
+          styles.scrollViewContent,
+          { paddingTop: SPACING.lg },
+          filteredReports.length === 0 && { flexGrow: 1, justifyContent: 'center' },
+        ]}
+        ListEmptyComponent={
+          <Text style={{ color: COLORS.secondaryText, textAlign: 'center', marginTop: 40 }}>
+            No stray reports yet.
+          </Text>
+        }
+        renderItem={({ item }) => (
+          <StrayPetCard
+            report={item}
+            reporter={reportUsers[item.userId]}
+            navigation={navigation}
+            onOpenChat={onOpenChat}
+            styles={styles}
+            COLORS={COLORS}
+          />
+        )}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -782,160 +860,20 @@ const StraysScreen = ({ navigation }) => {
             tintColor={COLORS.darkPurple}
           />
         }
-      >
-        {filteredReports.length === 0 ? (
-          <Text style={{ color: COLORS.secondaryText, textAlign: 'center', marginTop: 40 }}>
-            No stray reports yet.
-          </Text>
-        ) : (
-          filteredReports.map((report) => (
-            <StrayPetCard
-              key={report.id}
-              name={report.locationName || 'Unknown'}
-              type={'dog'}
-              location={report.locationName || 'Unknown'}
-              time={report.reportTime?.toDate ? report.reportTime.toDate().toLocaleString() : ''}
-              description={report.description}
-              status={report.status || 'Stray'}
-              imageUri={report.imageUrl}
-              onViewDetails={() => handleViewDetails(report)}
-            />
-          ))
-        )}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-      {/* Details Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            {/* Modern Header */}
-            <View style={styles.modernHeader}>
-              <View style={styles.headerContent}>
-                <Text style={styles.modernTitle}>Report Details</Text>
-                <Text style={styles.modernSubtitle}>Stray pet information</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={() => setModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <MaterialIcons name="close" size={28} color="#111827" />
-              </TouchableOpacity>
-            </View>
+        removeClippedSubviews
+        windowSize={5}
+        initialNumToRender={6}
+        maxToRenderPerBatch={8}
+        updateCellsBatchingPeriod={50}
+      />
 
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
-              {/* Hero Image Section */}
-              <View style={styles.heroImageContainer}>
-                {selectedReport?.imageUrl ? (
-                  <Image 
-                    source={{ uri: selectedReport.imageUrl }} 
-                    style={styles.heroImage} 
-                    resizeMode="cover" 
-                  />
-                ) : (
-                  <View style={styles.heroPlaceholder}>
-                    <MaterialIcons name="pets" size={60} color="#9CA3AF" />
-                    <Text style={styles.heroPlaceholderText}>No Photo Available</Text>
-                  </View>
-                )}
-              </View>
-
-
-              {/* Pet Details Column */}
-              <View style={styles.petDetailsColumn}>
-                {selectedReport?.petName && (
-                  <View style={styles.petDetailItem}>
-                    <View style={styles.petDetailIcon}>
-                      <MaterialIcons name="pets" size={20} color="#8B5CF6" />
-                    </View>
-                    <View style={styles.petDetailContent}>
-                      <Text style={styles.petDetailLabel}>Name</Text>
-                      <Text style={styles.petDetailValue}>{selectedReport.petName}</Text>
-                    </View>
-                  </View>
-                )}
-                
-                {selectedReport?.petType && (
-                  <View style={styles.petDetailItem}>
-                    <View style={styles.petDetailIcon}>
-                      <MaterialIcons name="category" size={20} color="#F59E0B" />
-                    </View>
-                    <View style={styles.petDetailContent}>
-                      <Text style={styles.petDetailLabel}>Type</Text>
-                      <Text style={styles.petDetailValue}>
-                        {selectedReport.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-                
-                {selectedReport?.age && (
-                  <View style={styles.petDetailItem}>
-                    <View style={styles.petDetailIcon}>
-                      <MaterialIcons name="cake" size={20} color="#10B981" />
-                    </View>
-                    <View style={styles.petDetailContent}>
-                      <Text style={styles.petDetailLabel}>Age</Text>
-                      <Text style={styles.petDetailValue}>{selectedReport.age}</Text>
-                    </View>
-                  </View>
-                )}
-                
-                <View style={styles.petDetailItem}>
-                  <View style={styles.petDetailIcon}>
-                    <MaterialIcons name="location-on" size={20} color="#EF4444" />
-                  </View>
-                  <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Location</Text>
-                    <Text style={styles.petDetailValue}>{selectedReport?.locationName || 'Unknown'}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.petDetailItem}>
-                  <View style={styles.petDetailIcon}>
-                    <MaterialIcons name="schedule" size={20} color="#3B82F6" />
-                  </View>
-                  <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Reported</Text>
-                    <Text style={styles.petDetailValue}>
-                      {selectedReport?.reportTime?.toDate ? 
-                        selectedReport.reportTime.toDate().toLocaleDateString() : 
-                        'Unknown'
-                      }
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.petDetailItem}>
-                  <View style={styles.petDetailIcon}>
-                    <MaterialIcons name="report" size={20} color="#F59E0B" />
-                  </View>
-                  <View style={styles.petDetailContent}>
-                    <Text style={styles.petDetailLabel}>Status</Text>
-                    <Text style={styles.petDetailValue}>Stray Report</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Description Card */}
-              {selectedReport?.description && (
-                <View style={styles.descriptionCard}>
-                  <View style={styles.descriptionHeader}>
-                    <MaterialIcons name="description" size={20} color="#6366F1" />
-                    <Text style={styles.descriptionTitle}>Description</Text>
-                  </View>
-                  <Text style={styles.descriptionText}>{selectedReport.description}</Text>
-                </View>
-              )}
-
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      {/* Chat Modal */}
+      <ReportChatModal
+        visible={chatModalVisible}
+        onClose={onCloseChat}
+        report={selectedReport}
+        reporter={selectedReport ? reportUsers[selectedReport.userId] : null}
+      />
     </View>
   );
 };

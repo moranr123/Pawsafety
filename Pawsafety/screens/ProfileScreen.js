@@ -25,6 +25,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useProfileImage } from '../contexts/ProfileImageContext';
 import NotificationService from '../services/NotificationService';
 import PostCard from '../components/PostCard';
+import DirectChatModal from '../components/DirectChatModal';
 
 const { width } = Dimensions.get('window');
 
@@ -49,6 +50,7 @@ const ProfileScreen = ({ navigation, route }) => {
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [isBlockedByUser, setIsBlockedByUser] = useState(false);
   const [isBlockingUser, setIsBlockingUser] = useState(false);
+  const [directChatVisible, setDirectChatVisible] = useState(false);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -162,6 +164,23 @@ const ProfileScreen = ({ navigation, route }) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    messageButton: {
+      backgroundColor: '#e4e6eb',
+      borderRadius: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: SPACING.sm,
+    },
+    messageButtonText: {
+      color: '#050505',
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      marginLeft: SPACING.xs,
     },
     addFriendButtonText: {
       color: COLORS.white || '#ffffff',
@@ -804,8 +823,8 @@ const ProfileScreen = ({ navigation, route }) => {
       (snapshot) => {
         const postsData = snapshot.docs
           .map(doc => ({
-            id: doc.id,
-            ...doc.data()
+          id: doc.id,
+          ...doc.data()
           }))
           .filter(post => !post.deleted); // Filter out deleted posts
         setUserPosts(postsData);
@@ -1041,10 +1060,12 @@ const ProfileScreen = ({ navigation, route }) => {
             </Text>
           )}
 
-          {/* User Email */}
-          <Text style={styles.userEmail}>
-            {isOwnProfile ? (user?.email || '') : (viewedUserData?.email || '')}
-          </Text>
+          {/* User Email - Only show for own profile */}
+          {isOwnProfile && (
+            <Text style={styles.userEmail}>
+              {user?.email || ''}
+            </Text>
+          )}
 
           {/* If this user has blocked me, show limited view */}
           {!isOwnProfile && isBlockedByUser ? (
@@ -1081,80 +1102,95 @@ const ProfileScreen = ({ navigation, route }) => {
             ) : (
               <>
                 {isOwnProfile && (
-                  <TouchableOpacity 
-                    style={styles.editButton}
-                    onPress={handleEditProfile}
-                  >
-                    <MaterialIcons name="edit" size={18} color="#ffffff" />
-                    <Text style={styles.editButtonText}>Edit Profile</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.editButton}
+                  onPress={handleEditProfile}
+                >
+                  <MaterialIcons name="edit" size={18} color="#ffffff" />
+                  <Text style={styles.editButtonText}>Edit Profile</Text>
+                </TouchableOpacity>
                 )}
                 {!isOwnProfile && (
                   <>
-                    {isBlockingUser ? (
-                      <TouchableOpacity 
-                        style={styles.unfriendButton}
-                        onPress={handleUnblockUser}
-                        disabled={isSendingRequest}
-                      >
-                        {isSendingRequest ? (
-                          <ActivityIndicator color="#dc2626" size="small" />
-                        ) : (
-                          <>
-                            <MaterialIcons 
-                              name="block" 
-                              size={18} 
-                              color="#dc2626" 
-                            />
-                            <Text style={styles.unfriendButtonText}>
-                              Unblock
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    ) : isFriend ? (
-                      <TouchableOpacity 
-                        style={styles.unfriendButton}
-                        onPress={handleUnfriend}
-                        disabled={isSendingRequest}
-                      >
-                        {isSendingRequest ? (
-                          <ActivityIndicator color="#dc2626" size="small" />
-                        ) : (
-                          <>
-                            <MaterialIcons 
-                              name="person-remove" 
-                              size={18} 
-                              color="#dc2626" 
-                            />
-                            <Text style={styles.unfriendButtonText}>
-                              Unfriend
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity 
-                        style={styles.addFriendButton}
-                        onPress={hasPendingRequest ? handleCancelRequest : handleAddFriend}
-                        disabled={isSendingRequest}
-                      >
-                        {isSendingRequest ? (
-                          <ActivityIndicator color="#ffffff" size="small" />
-                        ) : (
-                          <>
-                            <MaterialIcons 
-                              name={hasPendingRequest ? "person-remove" : "person-add"} 
-                              size={18} 
-                              color="#ffffff" 
-                            />
-                            <Text style={styles.addFriendButtonText}>
-                              {hasPendingRequest ? 'Cancel Request' : 'Add Friend'}
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
+                    <View style={{ flex: 1, flexDirection: 'row', gap: SPACING.sm }}>
+                      {isBlockingUser ? (
+                        <TouchableOpacity 
+                          style={styles.unfriendButton}
+                          onPress={handleUnblockUser}
+                          disabled={isSendingRequest}
+                        >
+                          {isSendingRequest ? (
+                            <ActivityIndicator color="#dc2626" size="small" />
+                          ) : (
+                            <>
+                              <MaterialIcons 
+                                name="block" 
+                                size={18} 
+                                color="#dc2626" 
+                              />
+                              <Text style={styles.unfriendButtonText}>
+                                Unblock
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : isFriend ? (
+                        <TouchableOpacity 
+                          style={styles.unfriendButton}
+                          onPress={handleUnfriend}
+                          disabled={isSendingRequest}
+                        >
+                          {isSendingRequest ? (
+                            <ActivityIndicator color="#dc2626" size="small" />
+                          ) : (
+                            <>
+                              <MaterialIcons 
+                                name="person-remove" 
+                                size={18} 
+                                color="#dc2626" 
+                              />
+                              <Text style={styles.unfriendButtonText}>
+                                Unfriend
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity 
+                          style={styles.addFriendButton}
+                          onPress={hasPendingRequest ? handleCancelRequest : handleAddFriend}
+                          disabled={isSendingRequest}
+                        >
+                          {isSendingRequest ? (
+                            <ActivityIndicator color="#ffffff" size="small" />
+                          ) : (
+                            <>
+                              <MaterialIcons 
+                                name={hasPendingRequest ? "person-remove" : "person-add"} 
+                                size={18} 
+                                color="#ffffff" 
+                              />
+                              <Text style={styles.addFriendButtonText}>
+                                {hasPendingRequest ? 'Cancel Request' : 'Add Friend'}
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                      {!isBlockingUser && !isBlockedByUser && (
+                        <TouchableOpacity 
+                          style={styles.messageButton}
+                          onPress={() => {
+                            if (viewedUserData) {
+                              setDirectChatVisible(true);
+                            }
+                          }}
+                        >
+                          <MaterialIcons name="message" size={18} color="#050505" />
+                          <Text style={styles.messageButtonText}>Message</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </>
                 )}
                 {!isOwnProfile && !isBlockingUser && (
@@ -1205,9 +1241,9 @@ const ProfileScreen = ({ navigation, route }) => {
                   </View>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('FriendsList')}>
-                <Text style={styles.seeAllButton}>See All</Text>
-              </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('FriendsList')}>
+              <Text style={styles.seeAllButton}>See All</Text>
+            </TouchableOpacity>
             </View>
           </View>
           <View style={styles.friendsGrid}>
@@ -1223,7 +1259,7 @@ const ProfileScreen = ({ navigation, route }) => {
                   activeOpacity={0.8}
                   onPress={() => navigation.navigate('Profile', { userId: friend.id })}
                 >
-                  <View style={styles.friendImage}>
+                <View style={styles.friendImage}>
                     {friend.profileImage ? (
                       <Image
                         source={{ uri: friend.profileImage }}
@@ -1231,12 +1267,12 @@ const ProfileScreen = ({ navigation, route }) => {
                         contentFit="cover"
                       />
                     ) : (
-                      <MaterialIcons name="account-circle" size={100} color="#bcc0c4" />
+                  <MaterialIcons name="account-circle" size={100} color="#bcc0c4" />
                     )}
-                  </View>
-                  <Text style={styles.friendName} numberOfLines={1}>
-                    {friend.name}
-                  </Text>
+                </View>
+                <Text style={styles.friendName} numberOfLines={1}>
+                  {friend.name}
+                </Text>
                 </TouchableOpacity>
               ))
             )}
@@ -1271,6 +1307,18 @@ const ProfileScreen = ({ navigation, route }) => {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
+      {/* Direct Chat Modal */}
+      {viewedUserData && (
+        <DirectChatModal
+          visible={directChatVisible}
+          onClose={() => setDirectChatVisible(false)}
+          friend={{
+            id: viewUserId,
+            name: viewedUserData.displayName || viewedUserData.name || 'Pet Lover',
+            profileImage: viewedUserData.profileImage || null,
+          }}
+        />
+      )}
     </View>
   );
 };

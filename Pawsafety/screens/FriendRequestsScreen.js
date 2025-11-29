@@ -393,12 +393,6 @@ const FriendRequestsScreen = ({ navigation }) => {
                           return latestUserData?.displayName || latestUserData?.name || request.fromUserName || 'Unknown User';
                         })()}
                       </Text>
-                      <Text style={styles.userEmail}>
-                        {(() => {
-                          const latestUserData = userDataMap[request.fromUserId];
-                          return latestUserData?.email || request.fromUserEmail || 'No email';
-                        })()}
-                      </Text>
                     </View>
                   </TouchableOpacity>
                   

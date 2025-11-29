@@ -20,7 +20,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { auth, db } from '../services/firebase';
+import * as ImagePicker from 'expo-image-picker';
+import { auth, db, storage } from '../services/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
 import { FONTS, SPACING, RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -43,6 +45,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editText, setEditText] = useState(post.text || '');
+  const [editImages, setEditImages] = useState([]); // Array of { uri, isNew, oldUrl }
   const [isUpdating, setIsUpdating] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -138,34 +141,43 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     singleImage: {
       width: '100%',
       height: 400,
+      maxHeight: 600,
       borderRadius: 8,
     },
     twoImages: {
       width: (width - 48) / 2 - 1,
-      height: 200,
+      height: (width - 48) / 2,
       borderRadius: 8,
     },
-    threeImages: {
-      width: (width - 48) / 3 - 2,
-      height: 150,
+    gridImage: {
+      width: (width - 48) / 2 - 1,
+      height: (width - 48) / 2 - 1,
       borderRadius: 8,
     },
-    fourPlusImages: {
-      width: (width - 48) / 3 - 2,
-      height: 150,
-      borderRadius: 8,
+    gridImageRow: {
+      flexDirection: 'row',
+      gap: 2,
+      marginBottom: 2,
+    },
+    gridImageRowLast: {
+      flexDirection: 'row',
+      gap: 2,
     },
     imageOverlay: {
       position: 'absolute',
-      bottom: 8,
-      right: 8,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      borderRadius: 8,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     imageCountText: {
       color: '#ffffff',
+      fontSize: 28,
+      fontWeight: '700',
       fontSize: 12,
       fontWeight: '600',
     },
@@ -485,13 +497,54 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       minHeight: Platform.OS === 'ios' ? 60 : 56,
     },
     editTextInput: {
-      flex: 1,
       fontSize: 15,
       color: '#050505',
       padding: 16,
       textAlignVertical: 'top',
       minHeight: 200,
       fontFamily: FONTS.family,
+    },
+    editImageContainer: {
+      padding: 16,
+      paddingTop: 0,
+    },
+    editImageGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    editImageWrapper: {
+      position: 'relative',
+      width: (width - 64) / 3,
+      height: (width - 64) / 3,
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+    editSelectedImage: {
+      width: '100%',
+      height: '100%',
+    },
+    editRemoveImageButton: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      borderRadius: 12,
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    editAddImageButton: {
+      width: (width - 64) / 3,
+      height: (width - 64) / 3,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: '#e4e6eb',
+      borderStyle: 'dashed',
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#f0f2f5',
     },
     imageModal: {
       flex: 1,
@@ -1052,22 +1105,121 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     );
   };
 
+  // Initialize edit images when opening edit modal
+  const openEditModal = () => {
+    const initialImages = (post.images || []).map(url => ({
+      uri: url,
+      isNew: false,
+      oldUrl: url
+    }));
+    setEditImages(initialImages);
+    setEditText(post.text || '');
+    setShowEditModal(true);
+  };
+
+  // Select images for editing
+  const selectEditImages = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Permission to access camera roll is required!');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        allowsEditing: false,
+      });
+
+      if (!result.canceled && result.assets) {
+        const newImages = result.assets.map(asset => ({ 
+          uri: asset.uri,
+          isNew: true 
+        }));
+        setEditImages(prev => [...prev, ...newImages].slice(0, 10)); // Limit to 10 images
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to select images. Please try again.');
+    }
+  };
+
+  // Remove image from edit list
+  const removeEditImage = (index) => {
+    setEditImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleEdit = async () => {
-    if (!editText.trim()) {
-      Alert.alert('Error', 'Post text cannot be empty.');
+    // Both text and images are optional, but at least one must be present
+    if (!editText.trim() && editImages.length === 0) {
+      Alert.alert('Error', 'Post must have text or images.');
       return;
     }
 
     setIsUpdating(true);
     try {
       const postRef = doc(db, 'posts', post.id);
+      
+      // Upload new images and get URLs
+      const imageUrls = [];
+      const oldUrlsToDelete = [];
+      
+      for (const image of editImages) {
+        if (image.isNew) {
+          // Upload new image
+          try {
+            const response = await fetch(image.uri);
+            const blob = await response.blob();
+            const imageRef = ref(storage, `posts/${user.uid}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`);
+            await uploadBytes(imageRef, blob);
+            const downloadURL = await getDownloadURL(imageRef);
+            imageUrls.push(downloadURL);
+          } catch (error) {
+            console.error('Error uploading image:', error);
+          }
+        } else {
+          // Keep existing image
+          imageUrls.push(image.oldUrl);
+        }
+      }
+
+      // Find images that were removed (in original post but not in editImages)
+      const originalUrls = post.images || [];
+      const keptUrls = editImages.filter(img => !img.isNew).map(img => img.oldUrl);
+      const removedUrls = originalUrls.filter(url => !keptUrls.includes(url));
+      
+      // Try to delete removed images from storage (may fail if URL format doesn't match)
+      // This is optional - old images will remain in storage but won't be referenced
+      for (const url of removedUrls) {
+        try {
+          // Try to extract path from Firebase Storage URL
+          // URL format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token={token}
+          const urlMatch = url.match(/\/o\/([^?]+)/);
+          if (urlMatch) {
+            const encodedPath = urlMatch[1];
+            const decodedPath = decodeURIComponent(encodedPath);
+            const imageRef = ref(storage, decodedPath);
+            await deleteObject(imageRef);
+          }
+        } catch (error) {
+          // Error handled silently - image may not exist, already deleted, or URL format doesn't match
+          console.error('Error deleting image:', error);
+        }
+      }
+
+      // Update post with new text and images
       await updateDoc(postRef, {
-        text: editText.trim(),
+        text: editText.trim() || '',
+        images: imageUrls.length > 0 ? imageUrls : [],
         updatedAt: serverTimestamp(),
       });
+      
       setShowEditModal(false);
       Alert.alert('Success', 'Post updated successfully!');
     } catch (error) {
+      console.error('Error updating post:', error);
       Alert.alert('Error', 'Failed to update post. Please try again.');
     } finally {
       setIsUpdating(false);
@@ -1174,44 +1326,44 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       );
     }
 
-    if (imageCount === 2) {
-      return (
-        <View style={styles.imageGrid}>
-          {post.images.map((img, idx) => (
-            <TouchableOpacity key={idx} onPress={() => { setSelectedImageIndex(idx); setShowImageModal(true); }}>
-              <Image source={{ uri: img }} style={styles.twoImages} resizeMode="cover" />
-            </TouchableOpacity>
-          ))}
-        </View>
-      );
-    }
-
-    if (imageCount === 3) {
-      return (
-        <View style={styles.imageGrid}>
-          {post.images.map((img, idx) => (
-            <TouchableOpacity key={idx} onPress={() => { setSelectedImageIndex(idx); setShowImageModal(true); }}>
-              <Image source={{ uri: img }} style={styles.threeImages} resizeMode="cover" />
-            </TouchableOpacity>
-          ))}
-        </View>
-      );
-    }
+    // 2+ images: 2x2 grid layout
+    const imagesToShow = imageCount > 4 ? post.images.slice(0, 4) : post.images;
+    const remainingCount = imageCount > 4 ? imageCount - 4 : 0;
 
     return (
-      <View style={styles.imageGrid}>
-        {post.images.slice(0, 4).map((img, idx) => (
-          <TouchableOpacity key={idx} onPress={() => { setSelectedImageIndex(idx); setShowImageModal(true); }}>
-            <View style={{ position: 'relative' }}>
-              <Image source={{ uri: img }} style={styles.fourPlusImages} resizeMode="cover" />
-              {idx === 3 && imageCount > 4 && (
-                <View style={styles.imageOverlay}>
-                  <Text style={styles.imageCountText}>+{imageCount - 4}</Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-        ))}
+      <View>
+        {/* First row: 2 images */}
+        <View style={styles.gridImageRow}>
+          {imagesToShow.slice(0, 2).map((img, idx) => (
+            <TouchableOpacity key={idx} onPress={() => { setSelectedImageIndex(idx); setShowImageModal(true); }}>
+              <Image source={{ uri: img }} style={styles.gridImage} resizeMode="cover" />
+            </TouchableOpacity>
+          ))}
+        </View>
+        {/* Second row: 2 images (or 1 if 3 total) */}
+        {imagesToShow.length > 2 && (
+          <View style={styles.gridImageRowLast}>
+            {imagesToShow.slice(2, 4).map((img, idx) => {
+              const actualIndex = idx + 2;
+              const isLastImage = actualIndex === 3 && remainingCount > 0;
+              return (
+                <TouchableOpacity 
+                  key={actualIndex} 
+                  onPress={() => { setSelectedImageIndex(actualIndex); setShowImageModal(true); }}
+                >
+                  <View style={{ position: 'relative' }}>
+                    <Image source={{ uri: img }} style={styles.gridImage} resizeMode="cover" />
+                    {isLastImage && (
+                      <View style={styles.imageOverlay}>
+                        <Text style={styles.imageCountText}>+{remainingCount}</Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </View>
     );
   };
@@ -1229,61 +1381,61 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         onRequestClose={() => setShowOptionsMenu(false)}
       >
         <View style={{ flex: 1 }}>
-          <TouchableWithoutFeedback onPress={() => setShowOptionsMenu(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowOptionsMenu(false)}>
             <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />
-          </TouchableWithoutFeedback>
+        </TouchableWithoutFeedback>
           {/* Options Menu - Rendered inside Modal to be above overlay */}
           <View style={[styles.optionsMenuContainer, { top: menuPosition.top, right: menuPosition.right }]}>
             <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.optionsMenu}>
-                {isOwner ? (
-                  <>
-                    <TouchableOpacity
-                      style={styles.optionsMenuItem}
-                      onPress={() => {
-                        setShowOptionsMenu(false);
-                        setShowEditModal(true);
-                      }}
+          <View style={styles.optionsMenu}>
+            {isOwner ? (
+              <>
+                <TouchableOpacity
+                  style={styles.optionsMenuItem}
+                  onPress={() => {
+                    setShowOptionsMenu(false);
+                    openEditModal();
+                  }}
                       activeOpacity={0.7}
-                    >
-                      <Text style={styles.optionsMenuText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
+                >
+                  <Text style={styles.optionsMenuText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
                       onPress={() => {
                         setShowOptionsMenu(false);
                         handleDelete();
                       }}
                       activeOpacity={0.7}
-                    >
-                      <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={styles.optionsMenuItem}
+                >
+                  <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.optionsMenuItem}
                       onPress={() => {
                         setShowOptionsMenu(false);
                         handleReport();
                       }}
                       activeOpacity={0.7}
-                    >
-                      <Text style={styles.optionsMenuText}>Report</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
+                >
+                  <Text style={styles.optionsMenuText}>Report</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
                       onPress={() => {
                         setShowOptionsMenu(false);
                         handleHide();
                       }}
                       activeOpacity={0.7}
-                    >
-                      <Text style={styles.optionsMenuText}>Hide</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
+                >
+                  <Text style={styles.optionsMenuText}>Hide</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
             </TouchableWithoutFeedback>
           </View>
         </View>
@@ -1445,13 +1597,13 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                       }}
                       activeOpacity={0.7}
                     >
-                      {comment.userProfileImage ? (
-                        <Image source={{ uri: comment.userProfileImage }} style={styles.commentProfileImage} />
-                      ) : (
-                        <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center' }]}>
-                          <MaterialIcons name="account-circle" size={32} color="#65676b" />
-                        </View>
-                      )}
+                    {comment.userProfileImage ? (
+                      <Image source={{ uri: comment.userProfileImage }} style={styles.commentProfileImage} />
+                    ) : (
+                      <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center' }]}>
+                        <MaterialIcons name="account-circle" size={32} color="#65676b" />
+                      </View>
+                    )}
                     </TouchableOpacity>
                     <View style={styles.commentContent}>
                       <View style={styles.commentHeader}>
@@ -1646,16 +1798,16 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                                     }}
                                     activeOpacity={0.7}
                                   >
-                                    {replyItem.userProfileImage ? (
-                                      <Image source={{ uri: replyItem.userProfileImage }} style={[styles.commentProfileImage, { width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]} />
-                                    ) : (
-                                      <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center', width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]}>
-                                        <MaterialIcons name="account-circle" size={28} color="#65676b" />
-                                      </View>
-                                    )}
+                                  {replyItem.userProfileImage ? (
+                                    <Image source={{ uri: replyItem.userProfileImage }} style={[styles.commentProfileImage, { width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]} />
+                                  ) : (
+                                    <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center', width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]}>
+                                      <MaterialIcons name="account-circle" size={28} color="#65676b" />
+                                    </View>
+                                  )}
                                   </TouchableOpacity>
                                   <View style={[styles.commentContent, { flex: 1, minWidth: 0 }]}>
-                                    <View style={styles.commentHeader}>
+                                  <View style={styles.commentHeader}>
                                       <TouchableOpacity 
                                         style={{ flex: 1 }}
                                         onPress={() => {
@@ -1667,24 +1819,24 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                                         }}
                                         activeOpacity={0.7}
                                       >
-                                        <Text style={styles.commentUserName} numberOfLines={1} ellipsizeMode="tail">
-                                          {replyItem.userName || 'Pet Lover'}
+                                      <Text style={styles.commentUserName} numberOfLines={1} ellipsizeMode="tail">
+                                        {replyItem.userName || 'Pet Lover'}
+                                      </Text>
+                                      {replyItem.createdAt && (
+                                        <Text style={styles.commentTime}>
+                                          {formatTime(replyItem.createdAt)}
                                         </Text>
-                                        {replyItem.createdAt && (
-                                          <Text style={styles.commentTime}>
-                                            {formatTime(replyItem.createdAt)}
-                                          </Text>
-                                        )}
-                                      </TouchableOpacity>
-                                      {(canEditReply || canDeleteReply) && (
-                                        <TouchableOpacity
-                                          style={styles.commentMenuButton}
-                                          onPress={() => setCommentMenuId(commentMenuId === replyItem.id ? null : replyItem.id)}
-                                        >
-                                          <MaterialIcons name="more-vert" size={18} color="#65676b" />
-                                        </TouchableOpacity>
                                       )}
-                                    </View>
+                                      </TouchableOpacity>
+                                    {(canEditReply || canDeleteReply) && (
+                                      <TouchableOpacity
+                                        style={styles.commentMenuButton}
+                                        onPress={() => setCommentMenuId(commentMenuId === replyItem.id ? null : replyItem.id)}
+                                      >
+                                        <MaterialIcons name="more-vert" size={18} color="#65676b" />
+                                      </TouchableOpacity>
+                                    )}
+                                  </View>
                                     
                                     {commentMenuId === replyItem.id && (canEditReply || canDeleteReply) && (
                                       <>
@@ -1903,13 +2055,57 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                 )}
               </TouchableOpacity>
             </View>
-          <TextInput
-            style={styles.editTextInput}
-            value={editText}
-            onChangeText={setEditText}
-            multiline
-            placeholder="What's on your mind?"
-          />
+          <ScrollView style={{ flex: 1 }}>
+            <TextInput
+              style={styles.editTextInput}
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              placeholder="What's on your mind?"
+            />
+            
+            {/* Image Editing Section */}
+            {editImages.length > 0 && (
+              <View style={styles.editImageContainer}>
+                <View style={styles.editImageGrid}>
+                  {editImages.map((image, index) => (
+                    <View key={index} style={styles.editImageWrapper}>
+                      <Image 
+                        source={{ uri: image.uri }} 
+                        style={styles.editSelectedImage}
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity
+                        style={styles.editRemoveImageButton}
+                        onPress={() => removeEditImage(index)}
+                      >
+                        <MaterialIcons name="close" size={18} color="#ffffff" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {editImages.length < 10 && (
+                    <TouchableOpacity
+                      style={styles.editAddImageButton}
+                      onPress={selectEditImages}
+                    >
+                      <MaterialIcons name="add-photo-alternate" size={32} color="#65676b" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
+            
+            {/* Add Images Button (when no images) */}
+            {editImages.length === 0 && (
+              <TouchableOpacity
+                style={[styles.editAddImageButton, { marginTop: 16, marginHorizontal: 16, alignSelf: 'center' }]}
+                onPress={selectEditImages}
+              >
+                <MaterialIcons name="add-photo-alternate" size={32} color="#65676b" />
+                <Text style={{ marginTop: 8, fontSize: 13, color: '#65676b' }}>Add Photos</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </View>
         </SafeAreaView>
       </Modal>

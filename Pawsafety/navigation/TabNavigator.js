@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTabBarVisibility } from '../contexts/TabBarVisibilityContext';
+import { useMessage } from '../contexts/MessageContext';
 
 // Import tab screens
 import HomeTabScreen from '../screens/tabs/HomeTabScreen';
@@ -19,6 +20,7 @@ const Tab = createBottomTabNavigator();
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { colors: COLORS } = useTheme();
   const { isVisible } = useTabBarVisibility();
+  const { unreadCount } = useMessage();
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
   const translateY = useRef(new Animated.Value(0)).current;
 
@@ -190,6 +192,31 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
                 size={Platform.OS === 'ios' ? (isSmallDevice ? 22 : isTablet ? 30 : 24) : (isSmallDevice ? 20 : isTablet ? 26 : 22)} 
                 color={focused ? COLORS.text : COLORS.secondaryText} 
               />
+              {routeName === 'Messages' && unreadCount > 0 && (
+                <View style={{
+                  position: 'absolute',
+                  right: -6,
+                  top: -4,
+                  backgroundColor: COLORS.error || '#FF3B30',
+                  borderRadius: 10,
+                  minWidth: 16,
+                  height: 16,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  paddingHorizontal: 4,
+                  borderWidth: 1.5,
+                  borderColor: COLORS.cardBackground,
+                }}>
+                  <Text style={{
+                    color: '#FFFFFF',
+                    fontSize: 9,
+                    fontWeight: 'bold',
+                    fontFamily: FONTS.family,
+                  }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         };

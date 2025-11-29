@@ -217,13 +217,9 @@ const CreatePostScreen = ({ navigation }) => {
   };
 
   const handlePost = async () => {
+    // Both text and images are optional, but at least one must be present
     if (!postText.trim() && selectedImages.length === 0) {
       Alert.alert('Empty Post', 'Please add some text or images to your post.');
-      return;
-    }
-
-    if (!postText.trim()) {
-      Alert.alert('Missing Text', 'Please add some text about your pet-related post.');
       return;
     }
 
@@ -250,8 +246,8 @@ const CreatePostScreen = ({ navigation }) => {
         userName: user.displayName || 'Pet Lover',
         userEmail: user.email,
         userProfileImage: profileImage || null,
-        text: postText.trim(),
-        images: imageUrls,
+        text: postText.trim() || '',
+        images: imageUrls.length > 0 ? imageUrls : [],
         createdAt: serverTimestamp(),
         likes: [],
         shares: 0,
@@ -278,7 +274,7 @@ const CreatePostScreen = ({ navigation }) => {
     }
   };
 
-  const canPost = postText.trim().length > 0 && !isSubmitting;
+  const canPost = (postText.trim().length > 0 || selectedImages.length > 0) && !isSubmitting;
 
   return (
     <View style={styles.container}>
