@@ -27,6 +27,7 @@ import CreatePostScreen from '../screens/CreatePostScreen';
 import FriendsListScreen from '../screens/FriendsListScreen';
 import AddFriendsScreen from '../screens/AddFriendsScreen';
 import FriendRequestsScreen from '../screens/FriendRequestsScreen';
+import BlockedUsersScreen from '../screens/BlockedUsersScreen';
 
 const Stack = createStackNavigator();
 const MainStack = createStackNavigator();
@@ -95,6 +96,10 @@ const MainStackNavigator = () => {
       <MainStack.Screen 
         name="FriendRequests" 
         component={FriendRequestsScreen}
+      />
+      <MainStack.Screen 
+        name="BlockedUsers" 
+        component={BlockedUsersScreen}
       />
     </MainStack.Navigator>
   );

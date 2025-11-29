@@ -266,6 +266,18 @@ const SettingsScreen = ({ navigation }) => {
           />
         </SettingsSection>
 
+        {/* Privacy Section */}
+        <SettingsSection title="Privacy">
+          <SettingsItem
+            iconName="block"
+            title="Blocked"
+            subtitle="Manage users you have blocked"
+            showArrow={true}
+            onPress={() => navigation.navigate('BlockedUsers')}
+            isLast={true}
+          />
+        </SettingsSection>
+
         {/* About Section */}
         <SettingsSection title="About">
           <SettingsItem

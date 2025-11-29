@@ -30,6 +30,8 @@ const AddFriendsScreen = ({ navigation }) => {
   const [friends, setFriends] = useState([]);
   const [sendingRequest, setSendingRequest] = useState({});
   const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
+  const [blockedUserIds, setBlockedUserIds] = useState([]);      // users I blocked
+  const [blockedByUserIds, setBlockedByUserIds] = useState([]);  // users who blocked me
 
   // Fetch friend requests and friends
   useEffect(() => {
@@ -104,6 +106,49 @@ const AddFriendsScreen = ({ navigation }) => {
     };
   }, [user]);
 
+  // Fetch block relationships (who I blocked, who blocked me)
+  useEffect(() => {
+    if (!user) return;
+
+    // I blocked others
+    const blocksQuery = query(
+      collection(db, 'blocks'),
+      where('userId', '==', user.uid)
+    );
+
+    const blockedByOthersQuery = query(
+      collection(db, 'blocks'),
+      where('blockedUserId', '==', user.uid)
+    );
+
+    const unsubscribeBlocks = onSnapshot(
+      blocksQuery,
+      (snapshot) => {
+        const ids = snapshot.docs.map((docSnap) => docSnap.data().blockedUserId).filter(Boolean);
+        setBlockedUserIds(ids);
+      },
+      (error) => {
+        console.error('Error fetching blocks:', error);
+      }
+    );
+
+    const unsubscribeBlockedBy = onSnapshot(
+      blockedByOthersQuery,
+      (snapshot) => {
+        const ids = snapshot.docs.map((docSnap) => docSnap.data().userId).filter(Boolean);
+        setBlockedByUserIds(ids);
+      },
+      (error) => {
+        console.error('Error fetching blocked-by:', error);
+      }
+    );
+
+    return () => {
+      unsubscribeBlocks();
+      unsubscribeBlockedBy();
+    };
+  }, [user]);
+
   // Fetch all users from Firestore
   useEffect(() => {
     if (!user) return;
@@ -119,10 +164,13 @@ const AddFriendsScreen = ({ navigation }) => {
             ...doc.data(),
           }))
           .filter((u) => {
-            // Exclude current user, admins, and inactive users
-            return u.id !== user.uid && 
-                   (u.role === 'user' || !u.role) && 
-                   (u.status === 'active' || !u.status);
+            // Exclude current user, admins, inactive users, and any block relationships
+            const isSelf = u.id === user.uid;
+            const isAdmin = !(u.role === 'user' || !u.role);
+            const isInactive = !(u.status === 'active' || !u.status);
+            const isBlockedByMe = blockedUserIds.includes(u.id);
+            const hasBlockedMe = blockedByUserIds.includes(u.id);
+            return !isSelf && !isAdmin && !isInactive && !isBlockedByMe && !hasBlockedMe;
           })
           .sort((a, b) => {
             const nameA = (a.name || a.displayName || '').toLowerCase();
@@ -141,7 +189,7 @@ const AddFriendsScreen = ({ navigation }) => {
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, blockedUserIds, blockedByUserIds]);
 
   // Filter users based on search query
   useEffect(() => {
@@ -152,6 +200,10 @@ const AddFriendsScreen = ({ navigation }) => {
 
     const query = searchQuery.toLowerCase();
     const filtered = users.filter((u) => {
+      // Extra safety: still respect block relationships in search
+      if (blockedUserIds.includes(u.id) || blockedByUserIds.includes(u.id)) {
+        return false;
+      }
       const name = (u.name || u.displayName || '').toLowerCase();
       const email = (u.email || '').toLowerCase();
       return name.includes(query) || email.includes(query);

@@ -47,6 +47,8 @@ const ProfileScreen = ({ navigation, route }) => {
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [hasIncomingRequest, setHasIncomingRequest] = useState(false);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [isBlockedByUser, setIsBlockedByUser] = useState(false);
+  const [isBlockingUser, setIsBlockingUser] = useState(false);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -504,6 +506,76 @@ const ProfileScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleBlockUser = async () => {
+    if (!currentUser || !viewUserId || isOwnProfile) return;
+
+    Alert.alert(
+      'Block User',
+      `If you block this user, they won't be able to see your profile.\n\nYou will also stop being friends and any pending friend requests will be removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const blockId = `${currentUser.uid}_${viewUserId}`;
+
+              // Create block document
+              await setDoc(doc(db, 'blocks', blockId), {
+                userId: currentUser.uid,
+                blockedUserId: viewUserId,
+                createdAt: serverTimestamp(),
+              });
+
+              // Remove friendship (both directions) if exists
+              const friendId1 = `${currentUser.uid}_${viewUserId}`;
+              const friendId2 = `${viewUserId}_${currentUser.uid}`;
+              await deleteDoc(doc(db, 'friends', friendId1)).catch(() => {});
+              await deleteDoc(doc(db, 'friends', friendId2)).catch(() => {});
+
+              // Remove any friend requests between users
+              const requestId1 = `${currentUser.uid}_${viewUserId}`;
+              const requestId2 = `${viewUserId}_${currentUser.uid}`;
+              await deleteDoc(doc(db, 'friend_requests', requestId1)).catch(() => {});
+              await deleteDoc(doc(db, 'friend_requests', requestId2)).catch(() => {});
+
+              setIsFriend(false);
+              setHasPendingRequest(false);
+              setHasIncomingRequest(false);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to block user. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUnblockUser = async () => {
+    if (!currentUser || !viewUserId || isOwnProfile) return;
+
+    Alert.alert(
+      'Unblock User',
+      'Do you want to unblock this user?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unblock',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const blockId = `${currentUser.uid}_${viewUserId}`;
+              await deleteDoc(doc(db, 'blocks', blockId));
+            } catch (error) {
+              Alert.alert('Error', 'Failed to unblock user. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleAddFriend = async () => {
     if (!currentUser || !viewUserId || isOwnProfile) return;
 
@@ -874,6 +946,37 @@ const ProfileScreen = ({ navigation, route }) => {
     };
   }, [currentUser?.uid, viewUserId, isOwnProfile]);
 
+  // Check block status (have they blocked me / have I blocked them)
+  useEffect(() => {
+    if (!currentUser?.uid || !viewUserId || isOwnProfile) {
+      setIsBlockedByUser(false);
+      setIsBlockingUser(false);
+      return;
+    }
+
+    const blockedById = `${viewUserId}_${currentUser.uid}`; // they blocked me
+    const blockingId = `${currentUser.uid}_${viewUserId}`; // I blocked them
+
+    const unsubscribeBlockedBy = onSnapshot(
+      doc(db, 'blocks', blockedById),
+      (snap) => {
+        setIsBlockedByUser(snap.exists());
+      }
+    );
+
+    const unsubscribeBlocking = onSnapshot(
+      doc(db, 'blocks', blockingId),
+      (snap) => {
+        setIsBlockingUser(snap.exists());
+      }
+    );
+
+    return () => {
+      unsubscribeBlockedBy();
+      unsubscribeBlocking();
+    };
+  }, [currentUser?.uid, viewUserId, isOwnProfile]);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -943,6 +1046,15 @@ const ProfileScreen = ({ navigation, route }) => {
             {isOwnProfile ? (user?.email || '') : (viewedUserData?.email || '')}
           </Text>
 
+          {/* If this user has blocked me, show limited view */}
+          {!isOwnProfile && isBlockedByUser ? (
+            <View style={{ marginTop: SPACING.lg, paddingHorizontal: SPACING.lg, width: '100%' }}>
+              <Text style={{ color: COLORS.secondaryText || '#65676b', textAlign: 'center' }}>
+                You can't view this profile because this user has blocked you.
+              </Text>
+            </View>
+          ) : (
+          <>
           {/* Action Buttons */}
           <View style={styles.actionButtonsContainer}>
             {isOwnProfile && isEditing ? (
@@ -979,7 +1091,28 @@ const ProfileScreen = ({ navigation, route }) => {
                 )}
                 {!isOwnProfile && (
                   <>
-                    {isFriend ? (
+                    {isBlockingUser ? (
+                      <TouchableOpacity 
+                        style={styles.unfriendButton}
+                        onPress={handleUnblockUser}
+                        disabled={isSendingRequest}
+                      >
+                        {isSendingRequest ? (
+                          <ActivityIndicator color="#dc2626" size="small" />
+                        ) : (
+                          <>
+                            <MaterialIcons 
+                              name="block" 
+                              size={18} 
+                              color="#dc2626" 
+                            />
+                            <Text style={styles.unfriendButtonText}>
+                              Unblock
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    ) : isFriend ? (
                       <TouchableOpacity 
                         style={styles.unfriendButton}
                         onPress={handleUnfriend}
@@ -1024,12 +1157,19 @@ const ProfileScreen = ({ navigation, route }) => {
                     )}
                   </>
                 )}
-                <TouchableOpacity style={styles.moreButton}>
-                  <MaterialIcons name="more-horiz" size={24} color="#050505" />
-                </TouchableOpacity>
+                {!isOwnProfile && !isBlockingUser && (
+                  <TouchableOpacity 
+                    style={styles.moreButton}
+                    onPress={handleBlockUser}
+                  >
+                    <MaterialIcons name="block" size={24} color="#e41e3f" />
+                  </TouchableOpacity>
+                )}
               </>
             )}
           </View>
+          </>
+          )}
         </View>
 
         {/* Friends Section */}
