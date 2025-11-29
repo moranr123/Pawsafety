@@ -17,6 +17,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
 import { auth, db, storage } from '../services/firebase';
 import { 
   collection, 
@@ -28,8 +29,8 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  serverTimestamp,
   doc,
+  serverTimestamp,
   getDoc,
   arrayRemove,
 } from 'firebase/firestore';
@@ -51,7 +52,10 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
   const [editText, setEditText] = useState('');
   const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0 });
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [messageToReport, setMessageToReport] = useState(null);
   const messageLayouts = useRef({});
+  const messageRefs = useRef({});
   const scrollViewRef = useRef(null);
   const currentUser = auth.currentUser;
 
@@ -258,11 +262,6 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
   // Handle message menu
   const handleMessageMenu = (messageId) => {
     setSelectedMessageId(messageId);
-    // Use stored layout if available
-    const layout = messageLayouts.current[messageId];
-    if (layout) {
-      setMenuPosition({ top: layout.y + layout.height + 8 });
-    }
   };
 
   // Cancel menu
@@ -301,6 +300,14 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
     }
   };
 
+  // Copy message
+  const handleCopyMessage = async (text) => {
+    if (!text) return;
+    await Clipboard.setStringAsync(text);
+    cancelMenu();
+    Alert.alert('Copied', 'Message copied to clipboard');
+  };
+
   // Delete message
   const handleDeleteMessage = (messageId) => {
     Alert.alert(
@@ -323,6 +330,40 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
         },
       ]
     );
+  };
+
+  // Report message
+  const handleReportMessage = (message) => {
+    setMessageToReport(message);
+    setReportModalVisible(true);
+    cancelMenu();
+  };
+
+  const submitReport = async (reason) => {
+    if (!currentUser || !messageToReport) return;
+
+    try {
+      await addDoc(collection(db, 'message_reports'), {
+        messageId: messageToReport.id,
+        chatId: getChatId(),
+        chatType: 'direct',
+        reportedBy: currentUser.uid,
+        reportedByName: currentUser.displayName || 'Unknown',
+        reportedUser: messageToReport.senderId,
+        reportedUserName: messageToReport.senderName || 'Unknown',
+        messageText: messageToReport.text || '',
+        messageImages: messageToReport.images || [],
+        reason: reason,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      });
+      setReportModalVisible(false);
+      setMessageToReport(null);
+      Alert.alert('Report Submitted', 'Thank you for reporting this message. Our team will review it.');
+    } catch (error) {
+      console.error('Error reporting message:', error);
+      Alert.alert('Error', 'Failed to report message. Please try again.');
+    }
   };
 
   const sendMessage = async () => {
@@ -718,13 +759,17 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       right: 0,
       bottom: 0,
       zIndex: 1000,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     messageMenuBackdrop: {
-      flex: 1,
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
     },
     messageMenu: {
-      position: 'absolute',
-      right: SPACING.lg,
       backgroundColor: COLORS.background || '#FFFFFF',
       borderRadius: RADIUS.medium,
       paddingVertical: SPACING.xs,
@@ -797,6 +842,69 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
     },
     editMessageButtonSave: {
       backgroundColor: COLORS.success || '#34C759',
+    },
+    reportModalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+      zIndex: 2000,
+    },
+    reportModalContent: {
+      width: '100%',
+      backgroundColor: '#f0f2f5',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: SPACING.lg,
+      paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.lg,
+      elevation: 5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+    },
+    reportModalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: COLORS.text,
+      textAlign: 'center',
+      marginBottom: SPACING.xs,
+    },
+    reportModalSubtitle: {
+      fontSize: 14,
+      color: COLORS.secondaryText,
+      textAlign: 'center',
+      marginBottom: SPACING.lg,
+    },
+    reportOption: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f0f2f5',
+    },
+    reportOptionText: {
+      fontSize: 16,
+      color: COLORS.error || '#FF3B30',
+      fontWeight: '500',
+    },
+    reportCancelButton: {
+      marginTop: SPACING.lg,
+      alignItems: 'center',
+      padding: SPACING.md,
+      backgroundColor: COLORS.background || '#FFFFFF',
+      borderRadius: RADIUS.medium,
+      borderWidth: 1,
+      borderColor: '#e4e6eb',
+    },
+    reportCancelText: {
+      fontSize: 16,
+      color: COLORS.text,
+      fontWeight: '600',
     },
   });
 
@@ -880,21 +988,19 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
                     return (
                       <View
                         key={message.id}
+                        ref={(ref) => { if (ref) messageRefs.current[message.id] = ref; }}
                         onLayout={(event) => {
                           const { y, height } = event.nativeEvent.layout;
                           messageLayouts.current[message.id] = { y, height };
-                          // Update menu position if this is the selected message
-                          if (selectedMessageId === message.id) {
-                            setMenuPosition({ top: y + height + 8 });
-                          }
                         }}
                       >
                         <Pressable
                           style={[
                             styles.messageBubble,
                             isSent ? styles.messageBubbleSent : styles.messageBubbleReceived,
+                            selectedMessageId === message.id && { opacity: 0.7 }
                           ]}
-                          onLongPress={isSent ? () => handleMessageMenu(message.id) : undefined}
+                          onLongPress={() => handleMessageMenu(message.id)}
                         >
                         {isEditing ? (
                           <View style={styles.editMessageContainer}>
@@ -1049,11 +1155,21 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
             {selectedMessageId && (() => {
               const selectedMessage = messages.find(m => m.id === selectedMessageId);
               const hasImages = selectedMessage?.images && selectedMessage.images.length > 0;
+              const isOwnMessage = selectedMessage?.senderId === currentUser?.uid;
               return (
                 <View style={styles.messageMenuOverlay}>
                   <Pressable style={styles.messageMenuBackdrop} onPress={cancelMenu} />
-                  <View style={[styles.messageMenu, { top: menuPosition.top }]}>
+                  <View style={styles.messageMenu}>
                     {!hasImages && (
+                      <TouchableOpacity
+                        style={styles.messageMenuItem}
+                        onPress={() => handleCopyMessage(selectedMessage?.text)}
+                      >
+                        <MaterialIcons name="content-copy" size={20} color={COLORS.text} />
+                        <Text style={styles.messageMenuItemText}>Copy</Text>
+                      </TouchableOpacity>
+                    )}
+                    {isOwnMessage && !hasImages && (
                       <TouchableOpacity
                         style={styles.messageMenuItem}
                         onPress={() => {
@@ -1064,17 +1180,60 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
                         <Text style={styles.messageMenuItemText}>Edit</Text>
                       </TouchableOpacity>
                     )}
-                    <TouchableOpacity
-                      style={[styles.messageMenuItem, !hasImages && styles.messageMenuItemDelete]}
-                      onPress={() => handleDeleteMessage(selectedMessageId)}
-                    >
-                      <MaterialIcons name="delete" size={20} color={COLORS.error || '#FF3B30'} />
-                      <Text style={[styles.messageMenuItemText, styles.messageMenuItemTextDelete]}>Delete</Text>
-                    </TouchableOpacity>
+                    {isOwnMessage && (
+                      <TouchableOpacity
+                        style={[styles.messageMenuItem, !hasImages && styles.messageMenuItemDelete]}
+                        onPress={() => handleDeleteMessage(selectedMessageId)}
+                      >
+                        <MaterialIcons name="delete" size={20} color={COLORS.error || '#FF3B30'} />
+                        <Text style={[styles.messageMenuItemText, styles.messageMenuItemTextDelete]}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                    {!isOwnMessage && (
+                      <TouchableOpacity
+                        style={styles.messageMenuItem}
+                        onPress={() => {
+                          if (selectedMessage) handleReportMessage(selectedMessage);
+                        }}
+                      >
+                        <MaterialIcons name="flag" size={20} color={COLORS.error || '#FF3B30'} />
+                        <Text style={[styles.messageMenuItemText, { color: COLORS.error || '#FF3B30' }]}>Report</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               );
             })()}
+            {/* Report Reason Modal */}
+            {reportModalVisible && (
+              <View style={styles.reportModalOverlay}>
+                <View style={styles.reportModalContent}>
+                  <Text style={styles.reportModalTitle}>Report Message</Text>
+                  <Text style={styles.reportModalSubtitle}>Please select a reason:</Text>
+                  
+                  {['Inappropriate Content', 'Harassment', 'Spam', 'Scam', 'Other'].map((reason) => (
+                    <TouchableOpacity
+                      key={reason}
+                      style={styles.reportOption}
+                      onPress={() => submitReport(reason)}
+                    >
+                      <Text style={styles.reportOptionText}>{reason}</Text>
+                      <MaterialIcons name="chevron-right" size={24} color={COLORS.secondaryText} />
+                    </TouchableOpacity>
+                  ))}
+
+                  <TouchableOpacity
+                    style={styles.reportCancelButton}
+                    onPress={() => {
+                      setReportModalVisible(false);
+                      setMessageToReport(null);
+                    }}
+                  >
+                    <Text style={styles.reportCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </SafeAreaView>
         </View>
       </KeyboardAvoidingView>

@@ -21,6 +21,7 @@
     "expo": "~53.0.17",
     "expo-asset": "~11.1.7",
     "expo-camera": "^16.1.10",
+    "expo-clipboard": "~7.1.5",
     "expo-constants": "~17.1.7",
     "expo-device": "~7.1.4",
     "expo-image": "~2.4.0",

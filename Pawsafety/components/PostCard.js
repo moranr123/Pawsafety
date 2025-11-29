@@ -50,6 +50,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
@@ -484,6 +485,69 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     editModal: {
       flex: 1,
       backgroundColor: '#ffffff',
+    },
+    reportModalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+      zIndex: 2000,
+    },
+    reportModalContent: {
+      width: '100%',
+      backgroundColor: '#f0f2f5',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: SPACING.lg,
+      paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.lg,
+      elevation: 5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+    },
+    reportModalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#000000', // Using literal color since COLORS.text might be undefined in style block if not memoized with theme, but wait, styles is useMemo(() => StyleSheet.create(...), [COLORS]) so COLORS is available.
+      textAlign: 'center',
+      marginBottom: SPACING.xs,
+    },
+    reportModalSubtitle: {
+      fontSize: 14,
+      color: '#65676b', // COLORS.secondaryText
+      textAlign: 'center',
+      marginBottom: SPACING.lg,
+    },
+    reportOption: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+    },
+    reportOptionText: {
+      fontSize: 16,
+      color: '#FF3B30', // COLORS.error
+      fontWeight: '500',
+    },
+    reportCancelButton: {
+      marginTop: SPACING.lg,
+      alignItems: 'center',
+      padding: SPACING.md,
+      backgroundColor: '#FFFFFF',
+      borderRadius: RADIUS.medium,
+      borderWidth: 1,
+      borderColor: '#e4e6eb',
+    },
+    reportCancelText: {
+      fontSize: 16,
+      color: '#050505', // COLORS.text
+      fontWeight: '600',
     },
     editModalHeader: {
       flexDirection: 'row',
@@ -1254,31 +1318,34 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   };
 
   const handleReport = () => {
-    Alert.alert(
-      'Report Post',
-      'Are you sure you want to report this post?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Report',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await addDoc(collection(db, 'post_reports'), {
-                postId: post.id,
-                reportedBy: user.uid,
-                reportedAt: serverTimestamp(),
-                reason: 'Inappropriate content',
-              });
-              Alert.alert('Reported', 'Thank you for reporting. We will review this post.');
-              setShowOptionsMenu(false);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to report post. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+    setShowOptionsMenu(false);
+    setTimeout(() => {
+      setReportModalVisible(true);
+    }, 500);
+  };
+
+  const submitReport = async (reason) => {
+    if (!user) return;
+
+    try {
+      await addDoc(collection(db, 'post_reports'), {
+        postId: post.id,
+        postContent: post.text || '',
+        postImages: post.images || [],
+        postOwnerId: post.userId,
+        postOwnerName: post.userName || 'Unknown',
+        reportedBy: user.uid,
+        reportedByName: user.displayName || 'Unknown',
+        reportedAt: serverTimestamp(),
+        reason: reason,
+        status: 'pending'
+      });
+      setReportModalVisible(false);
+      Alert.alert('Reported', 'Thank you for reporting. We will review this post.');
+    } catch (error) {
+      console.error('Error reporting post:', error);
+      Alert.alert('Error', 'Failed to report post. Please try again.');
+    }
   };
 
   const handleHide = async () => {
@@ -2024,6 +2091,39 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
           </View>
         </KeyboardAvoidingView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Report Reason Modal */}
+      <Modal
+        visible={reportModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <View style={styles.reportModalOverlay}>
+          <View style={styles.reportModalContent}>
+            <Text style={styles.reportModalTitle}>Report Post</Text>
+            <Text style={styles.reportModalSubtitle}>Please select a reason:</Text>
+            
+            {['Inappropriate Content', 'Harassment', 'Spam', 'Scam', 'Other'].map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                style={styles.reportOption}
+                onPress={() => submitReport(reason)}
+              >
+                <Text style={styles.reportOptionText}>{reason}</Text>
+                <MaterialIcons name="chevron-right" size={24} color={COLORS.secondaryText} />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={styles.reportCancelButton}
+              onPress={() => setReportModalVisible(false)}
+            >
+              <Text style={styles.reportCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Edit Modal */}

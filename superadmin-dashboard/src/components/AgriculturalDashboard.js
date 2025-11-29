@@ -36,9 +36,11 @@ import {
   ShieldCheck,
   ShieldOff,
   Archive,
-  ArrowLeft
+  ArrowLeft,
+  Flag
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
+import UserReports from './UserReports';
 
 const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
   <button
@@ -1014,6 +1016,23 @@ const getOwnerProfileImage = (pet) => {
                   User Management
                 </div>
               </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('reports');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'reports'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <div className="flex items-center">
+                  <Flag className="h-5 w-5 mr-3" />
+                  User Reports
+                </div>
+              </button>
               
             </nav>
           </div>
@@ -1137,6 +1156,17 @@ const getOwnerProfileImage = (pet) => {
             >
               <Shield className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">User Management</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                activeTab === 'reports'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+              } flex items-center`}
+            >
+              <Flag className="h-5 w-5" />
+              {(sidebarOpen || sidebarHovered) && <span className="ml-3">User Reports</span>}
             </button>
 
             {/* Notifications quick button removed; now at top */}
@@ -1878,6 +1908,10 @@ const getOwnerProfileImage = (pet) => {
             </div>
             )}
           </div>
+        )}
+
+        {!isLoading && activeTab === 'reports' && (
+          <UserReports />
         )}
 
         {!isLoading && activeTab === 'users' && (

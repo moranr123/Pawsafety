@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { Alert } from 'react-native';
 import { COLORS, FONTS } from '../constants/theme';
 import NotificationService from '../services/NotificationService';
@@ -136,6 +136,18 @@ const AppNavigator = () => {
           );
           return null;
         }
+        
+        if (userData.status === 'banned') {
+          // User is banned, sign them out
+          await signOut(auth);
+          let message = 'Your account has been banned.';
+          if (userData.banExpiresAt) {
+            const expiryDate = userData.banExpiresAt.toDate();
+            message += `\n\nBan expires on: ${expiryDate.toLocaleDateString()} at ${expiryDate.toLocaleTimeString()}`;
+          }
+          Alert.alert('Account Banned', message, [{ text: 'OK' }]);
+          return null;
+        }
       } else {
         // User doesn't exist in Firestore but is verified, create user record
         await createUserDocument(authUser);
@@ -151,14 +163,44 @@ const AppNavigator = () => {
   useEffect(() => {
     const notificationService = NotificationService.getInstance();
     let notificationUnsubscribe = null;
+    let userStatusUnsubscribe = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      // Cleanup previous user listener if any
+      if (userStatusUnsubscribe) {
+        userStatusUnsubscribe();
+        userStatusUnsubscribe = null;
+      }
+
       if (authUser) {
         const validUser = await checkUserStatus(authUser);
         setUser(validUser);
         
         // Initialize push notifications when user logs in
         if (validUser) {
+          // Setup real-time user status listener
+          const userDocRef = doc(db, 'users', validUser.uid);
+          userStatusUnsubscribe = onSnapshot(userDocRef, async (docSnapshot) => {
+            if (docSnapshot.exists()) {
+              const userData = docSnapshot.data();
+              if (userData.status === 'banned' || userData.status === 'deactivated') {
+                await signOut(auth);
+                
+                let title = userData.status === 'banned' ? 'Account Banned' : 'Account Deactivated';
+                let message = userData.status === 'banned' 
+                  ? 'Your account has been banned.' 
+                  : 'Your account has been deactivated by an administrator.';
+                  
+                if (userData.status === 'banned' && userData.banExpiresAt) {
+                   const expiryDate = userData.banExpiresAt.toDate();
+                   message += `\n\nBan expires on: ${expiryDate.toLocaleDateString()} at ${expiryDate.toLocaleTimeString()}`;
+                }
+                
+                Alert.alert(title, message, [{ text: 'OK' }]);
+              }
+            }
+          });
+
           // Load user-specific push notification preference
           await notificationService.loadPushNotificationPreference(validUser.uid);
           
@@ -179,6 +221,10 @@ const AppNavigator = () => {
           notificationUnsubscribe();
           notificationUnsubscribe = null;
         }
+        if (userStatusUnsubscribe) {
+          userStatusUnsubscribe();
+          userStatusUnsubscribe = null;
+        }
         notificationService.cleanup();
       }
       setLoading(false);
@@ -188,6 +234,9 @@ const AppNavigator = () => {
       unsubscribe();
       if (notificationUnsubscribe) {
         notificationUnsubscribe();
+      }
+      if (userStatusUnsubscribe) {
+        userStatusUnsubscribe();
       }
       notificationService.cleanup();
     };
