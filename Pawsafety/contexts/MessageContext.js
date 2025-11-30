@@ -104,6 +104,10 @@ export const MessageProvider = ({ children }) => {
           const userDoc = await getDoc(doc(db, 'users', otherUserId));
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            // Skip if user is banned
+            if (userData.status === 'banned') {
+              continue;
+            }
             otherUser = {
               id: otherUserId,
               name: userData.displayName || userData.name || 'Pet Lover',
@@ -174,6 +178,10 @@ export const MessageProvider = ({ children }) => {
           const userDoc = await getDoc(doc(db, 'users', otherUserId));
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            // Skip if user is banned
+            if (userData.status === 'banned') {
+              continue;
+            }
             otherUser = {
               id: otherUserId,
               name: userData.displayName || userData.name || 'Pet Lover',

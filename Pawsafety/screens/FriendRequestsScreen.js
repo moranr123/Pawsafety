@@ -188,12 +188,24 @@ const FriendRequestsScreen = ({ navigation }) => {
         
         const userDataResults = await Promise.all(userDataPromises);
         const newUserDataMap = {};
+        const filteredRequests = [];
+        
         userDataResults.forEach(({ userId, data }) => {
           if (data) {
+            // Only include users who are not banned
+            if (data.status !== 'banned') {
             newUserDataMap[userId] = data;
+              // Find and add the corresponding request
+              const request = requests.find(r => r.fromUserId === userId);
+              if (request) {
+                filteredRequests.push(request);
+              }
+            }
           }
         });
+        
         setUserDataMap(newUserDataMap);
+        setIncomingRequests(filteredRequests);
         setLoading(false);
       },
       (error) => {

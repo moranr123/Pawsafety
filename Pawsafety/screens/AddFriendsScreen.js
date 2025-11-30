@@ -164,13 +164,14 @@ const AddFriendsScreen = ({ navigation }) => {
             ...doc.data(),
           }))
           .filter((u) => {
-            // Exclude current user, admins, inactive users, and any block relationships
+            // Exclude current user, admins, inactive users, banned users, and any block relationships
             const isSelf = u.id === user.uid;
             const isAdmin = !(u.role === 'user' || !u.role);
             const isInactive = !(u.status === 'active' || !u.status);
+            const isBanned = u.status === 'banned';
             const isBlockedByMe = blockedUserIds.includes(u.id);
             const hasBlockedMe = blockedByUserIds.includes(u.id);
-            return !isSelf && !isAdmin && !isInactive && !isBlockedByMe && !hasBlockedMe;
+            return !isSelf && !isAdmin && !isInactive && !isBanned && !isBlockedByMe && !hasBlockedMe;
           })
           .sort((a, b) => {
             const nameA = (a.name || a.displayName || '').toLowerCase();

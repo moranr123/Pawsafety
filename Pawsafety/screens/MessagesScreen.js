@@ -241,13 +241,46 @@ const MessagesScreen = ({ navigation }) => {
       where('userId', '==', currentUser.uid)
     );
 
-    const unsubscribe = onSnapshot(friendsQuery, (snapshot) => {
-      const friendsList = snapshot.docs.map(doc => ({
-        id: doc.data().friendId,
-        name: doc.data().friendName || 'Pet Lover',
-        email: doc.data().friendEmail || '',
-        profileImage: doc.data().friendProfileImage || null,
-      }));
+    const unsubscribe = onSnapshot(friendsQuery, async (snapshot) => {
+      const friendsList = [];
+      
+      // Check each friend's status to filter out banned users
+      for (const docSnapshot of snapshot.docs) {
+        const friendId = docSnapshot.data().friendId;
+        try {
+          const friendUserDoc = await getDoc(doc(db, 'users', friendId));
+          if (friendUserDoc.exists()) {
+            const friendUserData = friendUserDoc.data();
+            // Only include friends who are not banned
+            if (friendUserData.status !== 'banned') {
+              friendsList.push({
+                id: friendId,
+                name: docSnapshot.data().friendName || 'Pet Lover',
+                email: docSnapshot.data().friendEmail || '',
+                profileImage: docSnapshot.data().friendProfileImage || null,
+              });
+            }
+          } else {
+            // If user doc doesn't exist, still add friend (might be deleted user)
+            friendsList.push({
+              id: friendId,
+              name: docSnapshot.data().friendName || 'Pet Lover',
+              email: docSnapshot.data().friendEmail || '',
+              profileImage: docSnapshot.data().friendProfileImage || null,
+            });
+          }
+        } catch (error) {
+          console.error(`Error checking friend status for ${friendId}:`, error);
+          // On error, still include the friend
+          friendsList.push({
+            id: friendId,
+            name: docSnapshot.data().friendName || 'Pet Lover',
+            email: docSnapshot.data().friendEmail || '',
+            profileImage: docSnapshot.data().friendProfileImage || null,
+          });
+        }
+      }
+      
       setFriends(friendsList);
       setFriendsLoading(false);
     }, (error) => {

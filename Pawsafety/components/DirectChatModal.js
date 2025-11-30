@@ -46,6 +46,8 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
   const [sending, setSending] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [hasBlocked, setHasBlocked] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
+  const [chatRestricted, setChatRestricted] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -66,16 +68,60 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
     return `direct_${userIds[0]}_${userIds[1]}`;
   };
 
-  // Check block status
+  // Check block status and ban status
   useEffect(() => {
     if (!visible || !currentUser || !friend?.id) {
       setIsBlocked(false);
       setHasBlocked(false);
+      setIsBanned(false);
       return;
     }
 
     const checkBlockStatus = async () => {
       try {
+        // Check if current user's chat is restricted
+        if (currentUser) {
+          const currentUserDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (currentUserDoc.exists()) {
+            const currentUserData = currentUserDoc.data();
+            if (currentUserData.chatRestricted) {
+              // Check if restriction has expired
+              if (currentUserData.chatRestrictionExpiresAt) {
+                const expiryDate = currentUserData.chatRestrictionExpiresAt.toDate ? currentUserData.chatRestrictionExpiresAt.toDate() : new Date(currentUserData.chatRestrictionExpiresAt);
+                if (new Date() < expiryDate) {
+                  setChatRestricted(true);
+                } else {
+                  // Restriction expired, update user document
+                  await updateDoc(doc(db, 'users', currentUser.uid), {
+                    chatRestricted: false,
+                    chatRestrictionExpiresAt: null
+                  });
+                  setChatRestricted(false);
+                }
+              } else {
+                setChatRestricted(true);
+              }
+            } else {
+              setChatRestricted(false);
+            }
+          }
+        }
+
+        // Check if friend is banned
+        const userDoc = await getDoc(doc(db, 'users', friend.id));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.status === 'banned') {
+            setIsBanned(true);
+            Alert.alert(
+              'User Banned',
+              'This user has been banned and you cannot chat with them.',
+              [{ text: 'OK', onPress: onClose }]
+            );
+            return;
+          }
+        }
+        
         const blockedByOtherId = `${friend.id}_${currentUser.uid}`;
         const blockedByOtherDoc = await getDoc(doc(db, 'blocks', blockedByOtherId));
         setIsBlocked(blockedByOtherDoc.exists());
@@ -87,6 +133,8 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
         console.error('Error checking block status:', error);
         setIsBlocked(false);
         setHasBlocked(false);
+        setIsBanned(false);
+        setChatRestricted(false);
       }
     };
 
@@ -181,7 +229,7 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
 
   // Open camera
   const openCamera = async () => {
-    if (isBlocked || hasBlocked) {
+    if (isBlocked || hasBlocked || isBanned) {
       return;
     }
 
@@ -240,7 +288,7 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
 
   // Show image picker options
   const showImagePickerOptions = () => {
-    if (isBlocked || hasBlocked) {
+    if (isBlocked || hasBlocked || isBanned) {
       return;
     }
 
@@ -368,6 +416,16 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
 
   const sendMessage = async () => {
     if ((!messageText.trim() && selectedImages.length === 0) || !currentUser || !friend?.id || sending || uploadingImages) return;
+    
+    if (chatRestricted) {
+      Alert.alert('Chat Restricted', 'Your ability to send messages has been restricted by an administrator.');
+      return;
+    }
+    
+    if (isBanned) {
+      Alert.alert('Cannot Send Message', 'This user has been banned and you cannot chat with them.');
+      return;
+    }
     
     if (isBlocked) {
       Alert.alert('Cannot Send Message', 'You cannot message this person.');
@@ -909,6 +967,11 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
   });
 
   if (!friend || !currentUser) return null;
+  
+  // Don't render if user is banned
+  if (isBanned) {
+    return null;
+  }
 
   return (
     <Modal
@@ -1085,11 +1148,11 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
 
             {/* Input Area */}
             <View style={styles.inputArea}>
-              {(isBlocked || hasBlocked) ? (
+              {(isBlocked || hasBlocked || isBanned || chatRestricted) ? (
                 <View style={styles.blockedBanner}>
                   <MaterialIcons name="block" size={20} color={COLORS.error || '#FF3B30'} />
                   <Text style={styles.blockedText}>
-                    {isBlocked ? 'You cannot message this person' : 'You have blocked this user'}
+                    {chatRestricted ? 'Your chat has been restricted by an administrator' : isBlocked ? 'You cannot message this person' : 'You have blocked this user'}
                   </Text>
                 </View>
               ) : (
@@ -1115,22 +1178,23 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
                      <TouchableOpacity
                        style={styles.attachButton}
                        onPress={showImagePickerOptions}
-                       disabled={isBlocked || hasBlocked}
+                       disabled={isBlocked || hasBlocked || isBanned || chatRestricted}
                      >
                        <MaterialIcons 
                          name="add-photo-alternate" 
                          size={24} 
-                         color={isBlocked || hasBlocked ? COLORS.secondaryText : COLORS.darkPurple} 
+                         color={isBlocked || hasBlocked || isBanned || chatRestricted ? COLORS.secondaryText : COLORS.darkPurple} 
                        />
                      </TouchableOpacity>
                     <TextInput
-                      style={styles.textInput}
+                      style={[styles.textInput, (isBlocked || hasBlocked || isBanned || chatRestricted) && styles.textInputDisabled]}
                       placeholder="Type a message..."
                       placeholderTextColor={COLORS.secondaryText}
                       value={messageText}
                       onChangeText={setMessageText}
                       multiline
                       maxLength={500}
+                      editable={!isBlocked && !hasBlocked && !isBanned && !chatRestricted}
                     />
                     <TouchableOpacity
                       style={[

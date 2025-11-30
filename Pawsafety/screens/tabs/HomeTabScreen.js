@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   SafeAreaView,
   ScrollView,
@@ -14,27 +15,751 @@ import {
   Dimensions,
   Platform,
   Animated,
-  StatusBar
+  StatusBar,
+  KeyboardAvoidingView,
+  TextInput
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebase';
+import LogoBlue from '../../assets/LogoBlue.png';
 import { signOut } from 'firebase/auth';
-import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp } from 'firebase/firestore';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useProfileImage } from '../../contexts/ProfileImageContext';
 import { useTabBarVisibility } from '../../contexts/TabBarVisibilityContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import UserManualModal from '../../components/UserManualModal';
 import PostCard from '../../components/PostCard';
 import NotificationService from '../../services/NotificationService';
+
+// AnnouncementCard Component
+const AnnouncementCard = ({ announcement }) => {
+  const user = auth.currentUser;
+  const { colors: COLORS } = useTheme();
+  const { profileImage } = useProfileImage();
+  const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(announcement.likes?.length || 0);
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [commentsCount, setCommentsCount] = useState(0);
+  const [commentText, setCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [commentMenuId, setCommentMenuId] = useState(null);
+  const [commentLikes, setCommentLikes] = useState({});
+  const [isLikingComment, setIsLikingComment] = useState({});
+
+  useEffect(() => {
+    if (announcement.likes && user?.uid) {
+      setIsLiked(announcement.likes.includes(user.uid));
+      setLikesCount(announcement.likes.length);
+    }
+  }, [announcement.likes, user?.uid]);
+
+  useEffect(() => {
+    if (showComments) {
+      const commentsQuery = query(
+        collection(db, 'announcement_comments'),
+        where('announcementId', '==', announcement.id)
+      );
+      
+      const unsubscribe = onSnapshot(commentsQuery, async (snapshot) => {
+        const commentsData = await Promise.all(
+          snapshot.docs.map(async (doc) => {
+            const commentData = { id: doc.id, ...doc.data() };
+            if (!commentData.likes) {
+              commentData.likes = [];
+            }
+            if (commentData.userId) {
+              try {
+                const userDoc = await getDoc(doc(db, 'users', commentData.userId));
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  commentData.userName = userData.displayName || userData.name || commentData.userName || 'Pet Lover';
+                  commentData.userProfileImage = userData.profileImage || null;
+                }
+              } catch (error) {
+                // Error handled silently
+              }
+            }
+            return commentData;
+          })
+        );
+        
+        const topLevelComments = commentsData.filter(c => !c.parentCommentId);
+        const replies = commentsData.filter(c => c.parentCommentId);
+        
+        const sortedComments = topLevelComments.sort((a, b) => {
+          const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+          const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+          return aTime - bTime;
+        });
+        
+        const countAllReplies = (commentId) => {
+          const directReplies = replies.filter(r => r.parentCommentId === commentId);
+          let total = directReplies.length;
+          directReplies.forEach(reply => {
+            total += countAllReplies(reply.id);
+          });
+          return total;
+        };
+
+        const buildReplyTree = (parentId) => {
+          return replies
+            .filter(r => r.parentCommentId === parentId)
+            .sort((a, b) => {
+              const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+              const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+              return aTime - bTime;
+            })
+            .map(reply => ({
+              ...reply,
+              replies: buildReplyTree(reply.id)
+            }));
+        };
+
+        const commentsWithReplies = sortedComments.map(comment => ({
+          ...comment,
+          replies: buildReplyTree(comment.id),
+          totalRepliesCount: countAllReplies(comment.id)
+        }));
+        
+        setComments(commentsWithReplies);
+        setCommentsCount(commentsData.length);
+        
+        const likesState = {};
+        commentsData.forEach(comment => {
+          if (comment.likes && Array.isArray(comment.likes)) {
+            const uniqueLikes = [...new Set(comment.likes)];
+            likesState[comment.id] = {
+              count: uniqueLikes.length,
+              isLiked: user?.uid ? uniqueLikes.includes(user.uid) : false
+            };
+          } else {
+            likesState[comment.id] = { count: 0, isLiked: false };
+          }
+        });
+        setCommentLikes(likesState);
+      });
+      
+      return () => unsubscribe();
+    }
+  }, [showComments, announcement.id, user?.uid]);
+
+  const handleLike = async () => {
+    if (!user?.uid || isLiking) return;
+    const currentLikes = announcement.likes || [];
+    const alreadyLiked = currentLikes.includes(user.uid);
+    setIsLiking(true);
+    try {
+      const announcementRef = doc(db, 'announcements', announcement.id);
+      if (alreadyLiked) {
+        await updateDoc(announcementRef, {
+          likes: arrayRemove(user.uid)
+        });
+      } else {
+        await updateDoc(announcementRef, {
+          likes: arrayUnion(user.uid)
+        });
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update like. Please try again.');
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleComment = async () => {
+    if (!commentText.trim() || !user?.uid) return;
+    setIsSubmittingComment(true);
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      let userName = user.displayName || 'Pet Lover';
+      let userProfileImage = profileImage || null;
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        userName = userData.displayName || userData.name || userName;
+        userProfileImage = userData.profileImage || userProfileImage;
+      }
+      await addDoc(collection(db, 'announcement_comments'), {
+        announcementId: announcement.id,
+        userId: user.uid,
+        userName,
+        userProfileImage,
+        text: commentText.trim(),
+        createdAt: serverTimestamp(),
+        likes: [],
+      });
+      setCommentText('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add comment. Please try again.');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const handleEditComment = async (commentId) => {
+    if (!editCommentText.trim()) {
+      Alert.alert('Error', 'Comment text cannot be empty.');
+      return;
+    }
+
+    try {
+      const commentRef = doc(db, 'announcement_comments', commentId);
+      await updateDoc(commentRef, {
+        text: editCommentText.trim(),
+        updatedAt: serverTimestamp(),
+      });
+      setEditingCommentId(null);
+      setEditCommentText('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update comment. Please try again.');
+    }
+  };
+
+  const handleLikeComment = async (commentId) => {
+    if (!user?.uid || isLikingComment[commentId]) return;
+
+    setIsLikingComment(prev => ({ ...prev, [commentId]: true }));
+    try {
+      const commentRef = doc(db, 'announcement_comments', commentId);
+      const commentDoc = await getDoc(commentRef);
+      
+      if (commentDoc.exists()) {
+        const commentData = commentDoc.data();
+        const currentLikes = commentData.likes || [];
+        const isLiked = currentLikes.includes(user.uid);
+        
+        if (isLiked) {
+          await updateDoc(commentRef, {
+            likes: arrayRemove(user.uid)
+          });
+        } else {
+          await updateDoc(commentRef, {
+            likes: arrayUnion(user.uid)
+          });
+        }
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update like. Please try again.');
+    } finally {
+      setIsLikingComment(prev => ({ ...prev, [commentId]: false }));
+    }
+  };
+
+
+  const handleDeleteComment = (commentId) => {
+    Alert.alert(
+      'Delete Comment',
+      'Are you sure you want to delete this comment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'announcement_comments', commentId));
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete comment. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return 'Just now';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    return date.toLocaleDateString();
+  };
+
+  const styles = useMemo(() => StyleSheet.create({
+    card: {
+      backgroundColor: '#ffffff',
+      marginHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+      borderRadius: 10,
+      padding: SPACING.md,
+      ...SHADOWS.light,
+      borderLeftWidth: 4,
+      borderLeftColor: '#6366f1',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: SPACING.sm,
+    },
+    headerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    profileImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: SPACING.sm,
+    },
+    author: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      marginBottom: 2,
+      fontFamily: FONTS.family,
+    },
+    time: {
+      fontSize: 12,
+      color: '#8a8d91',
+      fontFamily: FONTS.family,
+    },
+    content: {
+      fontSize: 15,
+      color: '#050505',
+      lineHeight: 22,
+      marginBottom: SPACING.sm,
+      fontFamily: FONTS.family,
+    },
+    image: {
+      width: '100%',
+      height: 200,
+      borderRadius: 8,
+      marginBottom: SPACING.sm,
+      backgroundColor: '#f3f4f6',
+    },
+    likesComments: {
+      paddingTop: SPACING.xs,
+      paddingBottom: SPACING.xs,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    likesText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+    },
+    commentsText: {
+      fontSize: 15,
+      color: '#65676b',
+    },
+    actions: {
+      flexDirection: 'row',
+      paddingTop: SPACING.xs,
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
+    },
+    actionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+      paddingVertical: 8,
+    },
+    actionText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#65676b',
+      marginLeft: 6,
+    },
+    actionTextLiked: {
+      color: '#1877f2',
+    },
+  }), [COLORS]);
+
+  return (
+    <>
+      <View style={styles.card}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Image
+              source={LogoBlue}
+              style={styles.profileImage}
+              contentFit="cover"
+            />
+            <View>
+              <Text style={styles.author}>Pawsafety</Text>
+              {announcement.createdAt && (
+                <Text style={styles.time}>
+                  {formatTime(announcement.createdAt)}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+        {announcement.content && (
+          <Text style={styles.content}>{announcement.content}</Text>
+        )}
+        {announcement.imageUrl && (
+          <Image
+            source={{ uri: announcement.imageUrl }}
+            style={styles.image}
+            contentFit="cover"
+          />
+        )}
+        {(likesCount > 0 || commentsCount > 0) && (
+          <View style={styles.likesComments}>
+            {likesCount > 0 && (
+              <Text style={styles.likesText}>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</Text>
+            )}
+            {commentsCount > 0 && (
+              <TouchableOpacity onPress={() => setShowComments(true)}>
+                <Text style={styles.commentsText}>{commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        <View style={styles.actions}>
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={handleLike}
+            disabled={isLiking}
+          >
+            <MaterialIcons
+              name="thumb-up"
+              size={20}
+              color={isLiked ? '#1877f2' : '#65676b'}
+              style={{ opacity: isLiked ? 1 : 0.5 }}
+            />
+            <Text style={[styles.actionText, isLiked && styles.actionTextLiked]}>Like</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowComments(true)}>
+            <MaterialIcons name="comment" size={20} color="#65676b" />
+            <Text style={styles.actionText}>Comment</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Comments Modal */}
+      <Modal
+        visible={showComments}
+        animationType="slide"
+        onRequestClose={() => setShowComments(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
+          <StatusBar barStyle="dark-content" />
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e4e6eb' }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#050505', flex: 1 }}>Comments</Text>
+                <TouchableOpacity onPress={() => setShowComments(false)}>
+                  <MaterialIcons name="close" size={24} color="#050505" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ flex: 1, padding: 12 }}>
+                {comments.map((comment) => {
+                  const isCommentOwner = user?.uid === comment.userId;
+                  const canEdit = isCommentOwner;
+                  const canDelete = isCommentOwner;
+
+                  const renderReply = (replyItem, depth = 0) => {
+                    const isReplyOwner = user?.uid === replyItem.userId;
+                    const canDeleteReply = isReplyOwner;
+                    const canEditReply = isReplyOwner;
+
+                    return (
+                      <View key={replyItem.id} style={{ flexDirection: 'row', marginBottom: 12, marginLeft: 40 }}>
+                        {replyItem.userProfileImage ? (
+                          <Image source={{ uri: replyItem.userProfileImage }} style={{ width: 28, height: 28, borderRadius: 14, marginRight: 8 }} />
+                        ) : (
+                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                            <MaterialIcons name="account-circle" size={28} color="#65676b" />
+                          </View>
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 13, fontWeight: '600', color: '#050505' }}>
+                                {replyItem.userName || 'Pet Lover'}
+                              </Text>
+                              {replyItem.createdAt && (
+                                <Text style={{ fontSize: 11, color: '#65676b' }}>
+                                  {formatTime(replyItem.createdAt)}
+                                </Text>
+                              )}
+                            </View>
+                            {(canEditReply || canDeleteReply) && (
+                              <TouchableOpacity
+                                onPress={() => setCommentMenuId(commentMenuId === replyItem.id ? null : replyItem.id)}
+                              >
+                                <MaterialIcons name="more-vert" size={18} color="#65676b" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          
+                          {commentMenuId === replyItem.id && (canEditReply || canDeleteReply) && (
+                            <>
+                              <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
+                                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} />
+                              </TouchableWithoutFeedback>
+                              <View style={{ position: 'absolute', top: 30, right: 0, backgroundColor: '#ffffff', borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5, minWidth: 120, zIndex: 1000 }}>
+                                {canEditReply && (
+                                  <TouchableOpacity
+                                    style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#e4e6eb' }}
+                                    onPress={() => {
+                                      setEditingCommentId(replyItem.id);
+                                      setEditCommentText(replyItem.text);
+                                      setCommentMenuId(null);
+                                    }}
+                                  >
+                                    <Text style={{ fontSize: 14, color: '#050505' }}>Edit</Text>
+                                  </TouchableOpacity>
+                                )}
+                                {canDeleteReply && (
+                                  <TouchableOpacity
+                                    style={{ paddingVertical: 12, paddingHorizontal: 16 }}
+                                    onPress={() => {
+                                      setCommentMenuId(null);
+                                      handleDeleteComment(replyItem.id);
+                                    }}
+                                  >
+                                    <Text style={{ fontSize: 14, color: '#dc2626' }}>Delete</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            </>
+                          )}
+
+                          {editingCommentId === replyItem.id ? (
+                            <View>
+                              <TextInput
+                                style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: 10, fontSize: 14, color: '#050505', borderWidth: 1, borderColor: '#e4e6eb', minHeight: 60, textAlignVertical: 'top' }}
+                                value={editCommentText}
+                                onChangeText={setEditCommentText}
+                                multiline
+                                autoFocus
+                              />
+                              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8, gap: 8 }}>
+                                <TouchableOpacity
+                                  style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 6 }}
+                                  onPress={() => {
+                                    setEditingCommentId(null);
+                                    setEditCommentText('');
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#65676b' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 6, backgroundColor: '#1877f2' }}
+                                  onPress={() => handleEditComment(replyItem.id)}
+                                >
+                                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#ffffff' }}>Save</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ) : (
+                            <Text style={{ fontSize: 14, color: '#050505' }}>{replyItem.text}</Text>
+                          )}
+
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 16 }}>
+                            <TouchableOpacity
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                              onPress={() => handleLikeComment(replyItem.id)}
+                              disabled={isLikingComment[replyItem.id]}
+                            >
+                              <MaterialIcons
+                                name="thumb-up"
+                                size={16}
+                                color={commentLikes[replyItem.id]?.isLiked ? '#1877f2' : '#65676b'}
+                                style={{ opacity: commentLikes[replyItem.id]?.isLiked ? 1 : 0.5 }}
+                              />
+                              {commentLikes[replyItem.id]?.count > 0 && (
+                                <Text style={{ fontSize: 13, color: commentLikes[replyItem.id]?.isLiked ? '#1877f2' : '#65676b' }}>
+                                  {commentLikes[replyItem.id].count}
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* Render nested replies recursively */}
+                          {replyItem.replies && replyItem.replies.length > 0 && (
+                            <View style={{ marginLeft: 20, marginTop: 8 }}>
+                              {replyItem.replies.map((nestedReply) => renderReply(nestedReply, depth + 1))}
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  };
+
+                  return (
+                    <View key={comment.id} style={{ flexDirection: 'row', marginBottom: 12 }}>
+                      {comment.userProfileImage ? (
+                        <Image source={{ uri: comment.userProfileImage }} style={{ width: 32, height: 32, borderRadius: 16, marginRight: 8 }} />
+                      ) : (
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                          <MaterialIcons name="account-circle" size={32} color="#65676b" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1, position: 'relative' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: '#050505' }}>
+                              {comment.userName || 'Pet Lover'}
+                            </Text>
+                            {comment.createdAt && (
+                              <Text style={{ fontSize: 11, color: '#65676b' }}>
+                                {formatTime(comment.createdAt)}
+                              </Text>
+                            )}
+                          </View>
+                          {(canEdit || canDelete) && (
+                            <TouchableOpacity
+                              onPress={() => setCommentMenuId(commentMenuId === comment.id ? null : comment.id)}
+                            >
+                              <MaterialIcons name="more-vert" size={18} color="#65676b" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                          {commentMenuId === comment.id && (canEdit || canDelete) && (
+                            <>
+                              <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
+                                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} />
+                              </TouchableWithoutFeedback>
+                              <View style={{ position: 'absolute', top: 30, right: 0, backgroundColor: '#ffffff', borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5, minWidth: 120, zIndex: 1000 }}>
+                                {canEdit && (
+                                  <TouchableOpacity
+                                    style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#e4e6eb' }}
+                                    onPress={() => {
+                                      setEditingCommentId(comment.id);
+                                      setEditCommentText(comment.text);
+                                      setCommentMenuId(null);
+                                    }}
+                                  >
+                                    <Text style={{ fontSize: 14, color: '#050505' }}>Edit</Text>
+                                  </TouchableOpacity>
+                                )}
+                                {canDelete && (
+                                  <TouchableOpacity
+                                    style={{ paddingVertical: 12, paddingHorizontal: 16 }}
+                                    onPress={() => {
+                                      setCommentMenuId(null);
+                                      handleDeleteComment(comment.id);
+                                    }}
+                                  >
+                                    <Text style={{ fontSize: 14, color: '#dc2626' }}>Delete</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            </>
+                          )}
+
+                        {editingCommentId === comment.id ? (
+                          <View>
+                            <TextInput
+                              style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: 10, fontSize: 14, color: '#050505', borderWidth: 1, borderColor: '#e4e6eb', minHeight: 60, textAlignVertical: 'top' }}
+                              value={editCommentText}
+                              onChangeText={setEditCommentText}
+                              multiline
+                              autoFocus
+                            />
+                            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8, gap: 8 }}>
+                              <TouchableOpacity
+                                style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 6 }}
+                                onPress={() => {
+                                  setEditingCommentId(null);
+                                  setEditCommentText('');
+                                }}
+                              >
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#65676b' }}>Cancel</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 6, backgroundColor: '#1877f2' }}
+                                onPress={() => handleEditComment(comment.id)}
+                              >
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#ffffff' }}>Save</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : (
+                          <Text style={{ fontSize: 14, color: '#050505', marginBottom: 8 }}>{comment.text}</Text>
+                        )}
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 16 }}>
+                          <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                            onPress={() => handleLikeComment(comment.id)}
+                            disabled={isLikingComment[comment.id]}
+                          >
+                            <MaterialIcons
+                              name="thumb-up"
+                              size={16}
+                              color={commentLikes[comment.id]?.isLiked ? '#1877f2' : '#65676b'}
+                              style={{ opacity: commentLikes[comment.id]?.isLiked ? 1 : 0.5 }}
+                            />
+                            {commentLikes[comment.id]?.count > 0 && (
+                              <Text style={{ fontSize: 13, color: commentLikes[comment.id]?.isLiked ? '#1877f2' : '#65676b' }}>
+                                {commentLikes[comment.id].count}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Render nested replies */}
+                        {comment.replies && comment.replies.length > 0 && (
+                          <View style={{ marginLeft: 20, marginTop: 8 }}>
+                            {comment.replies.map((reply) => renderReply(reply, 0))}
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+              <View style={{ flexDirection: 'row', padding: 12, borderTopWidth: 1, borderTopColor: '#e4e6eb', alignItems: 'center' }}>
+                <TextInput
+                  style={{ flex: 1, backgroundColor: '#f0f2f5', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8, fontSize: 14 }}
+                  placeholder="Write a comment..."
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  multiline
+                  editable={!isSubmittingComment}
+                />
+                <TouchableOpacity
+                  onPress={handleComment}
+                  disabled={!commentText.trim() || isSubmittingComment}
+                  style={{ opacity: isSubmittingComment ? 0.6 : 1 }}
+                >
+                  {isSubmittingComment ? (
+                    <ActivityIndicator color="#1877f2" size="small" />
+                  ) : (
+                    <MaterialIcons name="send" size={20} color={commentText.trim() ? '#1877f2' : '#bcc0c4'} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+    </>
+  );
+};
 
 const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const { colors: COLORS } = useTheme();
   const { setIsVisible } = useTabBarVisibility();
   const { profileImage } = useProfileImage();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
@@ -47,7 +772,9 @@ const HomeTabScreen = ({ navigation }) => {
   const [socialNotifs, setSocialNotifs] = useState([]);
   const [friendRequestNotifs, setFriendRequestNotifs] = useState([]);
   const [friendRequestAcceptedNotifs, setFriendRequestAcceptedNotifs] = useState([]);
-  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets | Social | Friend Requests
+  const [adminActionNotifs, setAdminActionNotifs] = useState([]);
+  const [announcementNotifs, setAnnouncementNotifs] = useState([]);
+  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets | Social | Friend Requests | Announcements
   const [notifMenu, setNotifMenu] = useState(null); // { type: 'app'|'pet', id: string } | null
   const [showBanner, setShowBanner] = useState(false);
   const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0, strays: 0 });
@@ -61,6 +788,7 @@ const HomeTabScreen = ({ navigation }) => {
   const [hiddenIncidentIds, setHiddenIncidentIds] = useState(new Set());
   const [hiddenFoundPetIds, setHiddenFoundPetIds] = useState(new Set());
   const [hiddenFriendRequestIds, setHiddenFriendRequestIds] = useState(new Set());
+  const [hiddenAnnouncementIds, setHiddenAnnouncementIds] = useState(new Set());
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
   const [userManualVisible, setUserManualVisible] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
@@ -78,6 +806,7 @@ const HomeTabScreen = ({ navigation }) => {
   const lastScrollY = useRef(0);
   const scrollTimeout = useRef(null);
   const [friends, setFriends] = useState([]); // Array of friend IDs
+  const [announcements, setAnnouncements] = useState([]);
 
   const handleScroll = (event) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
@@ -260,6 +989,15 @@ const HomeTabScreen = ({ navigation }) => {
         persistHiddenSets(null, null, null, null, null, null, next);
         return next;
       });
+    } else if (type === 'admin_action') {
+      // Delete admin action notification from Firestore
+      try {
+        const notificationService = NotificationService.getInstance();
+        notificationService.deleteNotification(id);
+      } catch (error) {
+        // Error handled silently
+      }
+      setAdminActionNotifs((prev) => prev.filter((aa) => aa.id !== id));
     } else {
       setPetNotifs((prev) => prev.filter((p) => p.id !== id));
       setHiddenPetIds((prev) => {
@@ -299,12 +1037,14 @@ const HomeTabScreen = ({ navigation }) => {
       }).length;
       const unreadFriendRequestAccepted = (friendRequestAcceptedNotifs || []).filter((fra) => !fra.read).length;
       const unreadSocial = (socialNotifs || []).filter((s) => !s.read).length;
+      const unreadAdminAction = (adminActionNotifs || []).filter((aa) => !aa.read).length;
+      const unreadAnnouncement = (announcementNotifs || []).filter((an) => !an.read).length;
       
-      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadFoundPet + unreadSocial + unreadFriendRequest + unreadFriendRequestAccepted);
+      return Math.min(99, unreadApp + unreadPet + unreadTransfer + unreadRegistration + unreadIncident + unreadFoundPet + unreadSocial + unreadFriendRequest + unreadFriendRequestAccepted + unreadAdminAction + unreadAnnouncement);
     } catch (e) {
       return 0;
     }
-  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, socialNotifs, lastReadUpdate]);
+  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, socialNotifs, adminActionNotifs, announcementNotifs, lastReadUpdate]);
 
   useEffect(() => {
     setLoading(false);
@@ -368,8 +1108,8 @@ const HomeTabScreen = ({ navigation }) => {
           ...doc.data()
           }))
           .filter(post => {
-            // Filter out deleted posts
-            if (post.deleted) return false;
+            // Filter out deleted or hidden (banned user) posts
+            if (post.deleted || post.isHidden) return false;
             
             // Only show posts from friends or own posts
             const isOwnPost = post.userId === user.uid;
@@ -601,6 +1341,90 @@ const HomeTabScreen = ({ navigation }) => {
       })
     );
 
+    // Admin action notifications
+    const adminActionQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'admin_action'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(adminActionQ, (snap) => {
+        const items = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            type: 'admin_action',
+            ts: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+            title: data.title || 'Admin Action',
+            sub: data.body || '',
+            data: data.data || {},
+            read: data.read || false,
+          };
+        });
+        setAdminActionNotifs(items);
+      })
+    );
+
+    // Announcement notifications
+    // Note: If you need ordering, create a Firestore index for (userId, type, createdAt)
+    // For now, we'll fetch without orderBy and sort client-side to avoid index requirement
+    const announcementQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'announcement'),
+      limit(50) // Increased limit since we'll sort client-side
+    );
+    unsubscribers.push(
+      onSnapshot(
+        announcementQ, 
+        (snap) => {
+          const items = snap.docs
+            .map((d) => {
+              const data = d.data();
+              return {
+                id: d.id,
+                ...data,
+                type: 'announcement',
+                ts: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+                title: data.title || 'New Announcement',
+                sub: data.body || '',
+                data: data.data || {},
+                read: data.read || false,
+              };
+            })
+            .sort((a, b) => b.ts - a.ts) // Sort by timestamp descending (newest first)
+            .slice(0, 20); // Limit to 20 most recent
+          setAnnouncementNotifs(items);
+        },
+        (error) => {
+          console.error('Error fetching announcement notifications:', error);
+          // If index is missing, Firestore will suggest creating it
+          if (error.code === 'failed-precondition') {
+            console.warn('Firestore index required. Please create an index for (userId, type, createdAt) in the notifications collection.');
+          }
+        }
+      )
+    );
+
+    // Fetch announcements
+    const announcementsQ = query(
+      collection(db, 'announcements'),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
+    unsubscribers.push(
+      onSnapshot(announcementsQ, (snap) => {
+        const items = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+        setAnnouncements(items);
+      })
+    );
+
     return () => {
       unsubscribers.forEach(unsub => unsub && unsub());
     };
@@ -748,6 +1572,11 @@ const HomeTabScreen = ({ navigation }) => {
               persistHiddenSets(null, null, null, null, null, null, allIds);
               return [];
             });
+            setAdminActionNotifs((prev) => {
+              const allIds = new Set();
+              for (const aa of prev) allIds.add(aa.id);
+              return [];
+            });
           },
         },
       ]
@@ -756,8 +1585,8 @@ const HomeTabScreen = ({ navigation }) => {
 
   const markNotificationAsRead = async (notif) => {
     try {
-      // Handle social and friend request notifications differently - mark as read in Firestore
-      if (notif.type === 'social' || notif.type === 'friend_request' || notif.type === 'friend_request_accepted') {
+      // Handle social, friend request, and admin action notifications differently - mark as read in Firestore
+      if (notif.type === 'social' || notif.type === 'friend_request' || notif.type === 'friend_request_accepted' || notif.type === 'admin_action') {
         try {
           const notificationService = NotificationService.getInstance();
           await notificationService.markNotificationAsRead(notif.id);
@@ -846,7 +1675,7 @@ const HomeTabScreen = ({ navigation }) => {
     header: {
       backgroundColor: '#ffffff',
       paddingHorizontal: SPACING.md,
-      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingTop: Platform.OS === 'ios' ? Math.max(insets.top, 44) : Math.max(insets.top, StatusBar.currentHeight || 0),
       paddingBottom: 8,
       borderBottomWidth: 1,
       borderBottomColor: '#e4e6eb',
@@ -1224,13 +2053,74 @@ const HomeTabScreen = ({ navigation }) => {
       color: '#050505',
       fontFamily: FONTS.family,
     },
-  }), [COLORS]);
+    announcementCard: {
+      backgroundColor: '#ffffff',
+      marginHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+      borderRadius: 10,
+      padding: SPACING.md,
+      ...SHADOWS.light,
+      borderLeftWidth: 4,
+      borderLeftColor: '#6366f1',
+    },
+    announcementHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: SPACING.sm,
+    },
+    announcementHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    announcementIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#eef2ff',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: SPACING.sm,
+    },
+    announcementTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#050505',
+      marginBottom: 2,
+      fontFamily: FONTS.family,
+    },
+    announcementAuthor: {
+      fontSize: 13,
+      color: '#65676b',
+      fontFamily: FONTS.family,
+    },
+    announcementTime: {
+      fontSize: 12,
+      color: '#8a8d91',
+      fontFamily: FONTS.family,
+    },
+    announcementImage: {
+      width: '100%',
+      height: 200,
+      borderRadius: 8,
+      marginVertical: SPACING.sm,
+      backgroundColor: '#f3f4f6',
+    },
+    announcementContent: {
+      fontSize: 15,
+      color: '#050505',
+      lineHeight: 22,
+      marginTop: SPACING.xs,
+      fontFamily: FONTS.family,
+    },
+  }), [COLORS, insets.top]);
 
 
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" translucent={false} />
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" translucent={Platform.OS === 'android'} />
       <View style={styles.header}>
         <View style={styles.headerContent}>
           {/* Left: Menu Icon */}
@@ -1340,39 +2230,79 @@ const HomeTabScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Posts Feed */}
-        {posts
-          .filter(post => !hiddenPostIds.has(post.id) && !post.deleted)
-          .map((post) => (
-            <View
-              key={post.id}
-              ref={(ref) => {
-                if (ref) {
-                  postRefs.current[post.id] = ref;
-                } else {
-                  delete postRefs.current[post.id];
-                }
-              }}
-            >
-              <PostCard
-              post={post}
-              onPostDeleted={(postId) => {
-                setPosts(prev => prev.filter(p => p.id !== postId));
-              }}
-              onPostHidden={(postId) => {
-                setHiddenPostIds(prev => new Set([...prev, postId]));
-              }}
-            />
-            </View>
-          ))}
+        {/* Combined Feed: Announcements and Posts sorted by creation time */}
+        {(() => {
+          // Combine announcements and posts, then sort by createdAt (newest first)
+          const announcementsWithType = announcements.map(announcement => ({
+            ...announcement,
+            type: 'announcement',
+            sortTime: announcement.createdAt?.toDate 
+              ? announcement.createdAt.toDate().getTime() 
+              : (announcement.createdAt ? new Date(announcement.createdAt).getTime() : 0)
+          }));
+
+          const postsWithType = posts
+            .filter(post => !hiddenPostIds.has(post.id) && !post.deleted)
+            .map(post => ({
+              ...post,
+              type: 'post',
+              sortTime: post.createdAt?.toDate 
+                ? post.createdAt.toDate().getTime() 
+                : (post.createdAt ? new Date(post.createdAt).getTime() : 0)
+            }));
+
+          // Combine and sort by creation time (newest first)
+          const combinedFeed = [...announcementsWithType, ...postsWithType]
+            .sort((a, b) => b.sortTime - a.sortTime);
+
+          return combinedFeed.map((item) => {
+            if (item.type === 'announcement') {
+              return (
+                <AnnouncementCard key={`announcement-${item.id}`} announcement={item} />
+              );
+            } else {
+              return (
+                <View
+                  key={`post-${item.id}`}
+                  ref={(ref) => {
+                    if (ref) {
+                      postRefs.current[item.id] = ref;
+                    } else {
+                      delete postRefs.current[item.id];
+                    }
+                  }}
+                >
+                  <PostCard
+                    post={item}
+                    onPostDeleted={(postId) => {
+                      setPosts(prev => prev.filter(p => p.id !== postId));
+                    }}
+                    onPostHidden={(postId) => {
+                      setHiddenPostIds(prev => new Set([...prev, postId]));
+                    }}
+                  />
+                </View>
+              );
+            }
+          });
+        })()}
         
-        {posts.filter(post => !hiddenPostIds.has(post.id)).length === 0 && (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, color: '#65676b', textAlign: 'center' }}>
-              No posts yet. Be the first to share something!
-            </Text>
-          </View>
-        )}
+        {(() => {
+          const visiblePosts = posts.filter(post => !hiddenPostIds.has(post.id) && !post.deleted);
+          const hasAnnouncements = announcements.length > 0;
+          const hasPosts = visiblePosts.length > 0;
+          
+          if (!hasAnnouncements && !hasPosts) {
+            return (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: '#65676b', textAlign: 'center' }}>
+                  No posts yet. Be the first to share something!
+                </Text>
+              </View>
+            );
+          }
+          return null;
+        })()}
 
       </ScrollView>
 
@@ -1824,7 +2754,7 @@ const HomeTabScreen = ({ navigation }) => {
               contentContainerStyle={{ paddingRight: 16 }}
             >
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets', 'Social', 'Friend Requests'].map((opt) => (
+                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets', 'Social', 'Friend Requests', 'Admin Actions', 'Announcements'].map((opt) => (
                   <TouchableOpacity
                     key={opt}
                     onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
@@ -1872,7 +2802,9 @@ const HomeTabScreen = ({ navigation }) => {
                   const hasUnreadIncident = (incidentNotifs || []).some((i) => (i.createdAt?.toDate ? i.createdAt.toDate().getTime() : 0) > lastIncident);
                   const hasUnreadFriendRequest = (friendRequestNotifs || []).some((fr) => !fr.read);
                   const hasUnreadSocial = (socialNotifs || []).some((s) => !s.read);
-                  return !(hasUnreadApp || hasUnreadPet || hasUnreadIncident || hasUnreadFriendRequest || hasUnreadSocial);
+                  const hasUnreadAdminAction = (adminActionNotifs || []).some((aa) => !aa.read);
+                  const hasUnreadAnnouncement = (announcementNotifs || []).some((an) => !an.read);
+                  return !(hasUnreadApp || hasUnreadPet || hasUnreadIncident || hasUnreadFriendRequest || hasUnreadSocial || hasUnreadAdminAction || hasUnreadAnnouncement);
                 })()}
                 style={{ 
                   paddingHorizontal: 12, 
@@ -1998,7 +2930,28 @@ const HomeTabScreen = ({ navigation }) => {
                   data: fra.data || {},
                   read: fra.read || false,
                 }));
-                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets, ...social, ...friendRequests, ...friendRequestAccepted].sort((a, b) => b.ts - a.ts);
+                const adminActions = (adminActionNotifs || [])
+                  .map((aa) => ({
+                  id: aa.id,
+                  type: 'admin_action',
+                  ts: aa.ts,
+                  title: aa.title || 'Admin Action',
+                  sub: aa.sub || aa.body || '',
+                  data: aa.data || {},
+                  read: aa.read || false,
+                }));
+                const announcements = (announcementNotifs || [])
+                  .filter((an) => !hiddenAnnouncementIds.has(an.id))
+                  .map((an) => ({
+                  id: an.id,
+                  type: 'announcement',
+                  ts: an.ts,
+                  title: an.title || 'New Announcement',
+                  sub: an.sub || an.body || '',
+                  data: an.data || {},
+                  read: an.read || false,
+                }));
+                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets, ...social, ...friendRequests, ...friendRequestAccepted, ...adminActions, ...announcements].sort((a, b) => b.ts - a.ts);
                 if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
                 if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                 if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
@@ -2008,13 +2961,15 @@ const HomeTabScreen = ({ navigation }) => {
                 if (notifFilter === 'Found Pets') list = list.filter((n) => n.type === 'found_pet');
                 if (notifFilter === 'Social') list = list.filter((n) => n.type === 'social');
                 if (notifFilter === 'Friend Requests') list = list.filter((n) => n.type === 'friend_request' || n.type === 'friend_request_accepted');
+                if (notifFilter === 'Announcements') list = list.filter((n) => n.type === 'announcement');
+                if (notifFilter === 'Admin Actions') list = list.filter((n) => n.type === 'admin_action');
                 if (list.length === 0) return (
                   <View style={{ padding: 40, alignItems: 'center' }}>
                     <Text style={{ color: '#65676b', fontSize: 15 }}>No notifications yet.</Text>
                   </View>
                 );
                 return list.map((n) => {
-                  const isUnread = n.type === 'social' || n.type === 'friend_request' || n.type === 'friend_request_accepted'
+                  const isUnread = n.type === 'social' || n.type === 'friend_request' || n.type === 'friend_request_accepted' || n.type === 'admin_action'
                     ? !n.read 
                     : (n.type === 'app' ? (n.ts > (Number(lastSeenApp) || 0)) : n.type === 'transfer' ? (n.ts > (Number(lastSeenTransfer) || 0)) : n.type === 'registration' ? (n.ts > (Number(lastSeenRegistration) || 0)) : n.type === 'found_pet' ? (n.ts > (Number(globalThis.__PAW_LAST_FOUND_PET__) || 0)) : (n.ts > (Number(lastSeenPet) || 0)));
                   return (
@@ -2049,6 +3004,9 @@ const HomeTabScreen = ({ navigation }) => {
                         } else if (n.type === 'incident' || n.type === 'stray') {
                           // Incident/Stray report -> MyReports
                           navigation.navigate('MyReports');
+                        } else if (n.type === 'announcement') {
+                          // Announcement -> Stay on Home tab (announcements are shown here)
+                          // Just close the notification panel, user is already on Home tab
                         } else if (n.type === 'found_pet') {
                           // Found pet -> MyReports
                           navigation.navigate('MyReports');
@@ -2090,6 +3048,10 @@ const HomeTabScreen = ({ navigation }) => {
                                     ? '#e3f2fd'
                                     : n.type === 'friend_request_accepted'
                                       ? '#d1fae5'
+                                    : n.type === 'admin_action'
+                                      ? '#fee2e2'
+                                      : n.type === 'announcement'
+                                        ? '#eff6ff'
                                   : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
                         justifyContent: 'center',
                         alignItems: 'center',
@@ -2118,6 +3080,10 @@ const HomeTabScreen = ({ navigation }) => {
                                   ? 'person-add'
                                   : n.type === 'friend_request_accepted'
                                     ? 'check-circle'
+                                  : n.type === 'admin_action'
+                                    ? 'gavel'
+                                    : n.type === 'announcement'
+                                      ? 'campaign'
                                 : (n.data?.status === 'Approved' 
                                     ? 'check-circle' 
                                     : (n.data?.status === 'Declined' 
@@ -2140,6 +3106,10 @@ const HomeTabScreen = ({ navigation }) => {
                                   ? '#1877f2'
                                   : n.type === 'friend_request_accepted'
                                     ? '#16a34a'
+                                  : n.type === 'admin_action'
+                                    ? '#dc2626'
+                                    : n.type === 'announcement'
+                                      ? '#3b82f6'
                                 : (n.data?.status === 'Declined' 
                                     ? '#dc2626' 
                                     : (n.data?.status === 'Approved' 
@@ -2298,6 +3268,7 @@ const HomeTabScreen = ({ navigation }) => {
                  selectedNotif?.type === 'incident' ? 'Incident Report Update' :
                  selectedNotif?.type === 'stray' ? 'Stray Report Update' :
                  selectedNotif?.type === 'found_pet' ? 'Found Pet Alert' :
+                 selectedNotif?.type === 'announcement' ? 'New Announcement' :
                  'New Pet Available'}
               </Text>
             </View>
@@ -2882,6 +3853,60 @@ const HomeTabScreen = ({ navigation }) => {
                       </Text>
                     </View>
                   )}
+                </>
+              ) : selectedNotif?.type === 'announcement' ? (
+                <>
+                  {/* Announcement Card */}
+                  <View style={{
+                    backgroundColor: '#eff6ff',
+                    padding: 16,
+                    borderRadius: 12,
+                    marginBottom: 20,
+                    borderLeftWidth: 4,
+                    borderLeftColor: '#3b82f6'
+                  }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1e40af' }}>
+                      📢 New Announcement from Pawsafety
+                    </Text>
+                    <Text style={{ color: '#374151', fontSize: 14, lineHeight: 20 }}>
+                      {selectedNotif.sub || selectedNotif.body || 'A new announcement has been posted.'}
+                    </Text>
+                  </View>
+
+                  {selectedNotif.data?.imageUrl && (
+                    <View style={{ marginBottom: 20 }}>
+                      <Image
+                        source={{ uri: selectedNotif.data.imageUrl }}
+                        style={{
+                          width: '100%',
+                          height: 200,
+                          borderRadius: 12,
+                          marginBottom: 12
+                        }}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  )}
+
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#1f2937' }}>
+                      Posted
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#374151' }}>
+                      {selectedNotif.ts ? new Date(selectedNotif.ts).toLocaleDateString() + ' at ' + new Date(selectedNotif.ts).toLocaleTimeString() : 'Unknown'}
+                    </Text>
+                  </View>
+
+                  <View style={{
+                    backgroundColor: '#f0f9ff',
+                    padding: 16,
+                    borderRadius: 12,
+                    marginTop: 16
+                  }}>
+                    <Text style={{ fontSize: 14, color: '#374151', fontStyle: 'italic' }}>
+                      Check the home feed to see the full announcement and interact with it.
+                    </Text>
+                  </View>
                 </>
               ) : (
                 <>

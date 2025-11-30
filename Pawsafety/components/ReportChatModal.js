@@ -50,6 +50,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
   const [showReportDetails, setShowReportDetails] = useState(true);
   const [isBlocked, setIsBlocked] = useState(false); // Current user is blocked by other user
   const [hasBlocked, setHasBlocked] = useState(false); // Current user has blocked other user
+  const [chatRestricted, setChatRestricted] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -81,6 +82,34 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
 
     const checkBlockStatus = async () => {
       try {
+        // Check if current user's chat is restricted
+        if (currentUser) {
+          const currentUserDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (currentUserDoc.exists()) {
+            const currentUserData = currentUserDoc.data();
+            if (currentUserData.chatRestricted) {
+              // Check if restriction has expired
+              if (currentUserData.chatRestrictionExpiresAt) {
+                const expiryDate = currentUserData.chatRestrictionExpiresAt.toDate ? currentUserData.chatRestrictionExpiresAt.toDate() : new Date(currentUserData.chatRestrictionExpiresAt);
+                if (new Date() < expiryDate) {
+                  setChatRestricted(true);
+                } else {
+                  // Restriction expired, update user document
+                  await updateDoc(doc(db, 'users', currentUser.uid), {
+                    chatRestricted: false,
+                    chatRestrictionExpiresAt: null
+                  });
+                  setChatRestricted(false);
+                }
+              } else {
+                setChatRestricted(true);
+              }
+            } else {
+              setChatRestricted(false);
+            }
+          }
+        }
+
         // Check if current user is blocked by other user
         const blockedByOtherId = `${otherUser.id}_${currentUser.uid}`;
         const blockedByOtherDoc = await getDoc(doc(db, 'blocks', blockedByOtherId));
@@ -94,6 +123,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
         console.error('Error checking block status:', error);
         setIsBlocked(false);
         setHasBlocked(false);
+        setChatRestricted(false);
       }
     };
 
@@ -162,11 +192,39 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
     if (!visible) return;
 
     if (reporter) {
+      // Check if reporter is banned
+      const checkReporterStatus = async () => {
+        try {
+          const reporterId = reporter.id || report?.userId;
+          if (reporterId) {
+            const userDoc = await getDoc(doc(db, 'users', reporterId));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              if (userData.status === 'banned') {
+                Alert.alert(
+                  'User Banned',
+                  'This user has been banned and you cannot chat with them.',
+                  [{ text: 'OK', onPress: onClose }]
+                );
+                return;
+              }
+            }
+          }
       setOtherUser({
         id: reporter.id || report?.userId,
         name: reporter.name || 'Pet Lover',
         profileImage: reporter.profileImage || null,
       });
+        } catch (error) {
+          console.error('Error checking reporter status:', error);
+          setOtherUser({
+            id: reporter.id || report?.userId,
+            name: reporter.name || 'Pet Lover',
+            profileImage: reporter.profileImage || null,
+          });
+        }
+      };
+      checkReporterStatus();
       return;
     }
 
@@ -270,7 +328,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
 
   // Open camera
   const openCamera = async () => {
-    if (isBlocked || hasBlocked || reportStatus === 'Resolved' || report?.status === 'Resolved') {
+    if (isBlocked || hasBlocked || chatRestricted || reportStatus === 'Resolved' || report?.status === 'Resolved') {
       return;
     }
 
@@ -299,7 +357,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
 
   // Open image library
   const openImageLibrary = async () => {
-    if (isBlocked || hasBlocked || reportStatus === 'Resolved' || report?.status === 'Resolved') {
+    if (isBlocked || hasBlocked || chatRestricted || reportStatus === 'Resolved' || report?.status === 'Resolved') {
       return;
     }
 
@@ -329,7 +387,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
 
   // Show image picker options
   const showImagePickerOptions = () => {
-    if (isBlocked || hasBlocked || reportStatus === 'Resolved' || report?.status === 'Resolved') {
+    if (isBlocked || hasBlocked || chatRestricted || reportStatus === 'Resolved' || report?.status === 'Resolved') {
       return;
     }
 
@@ -458,6 +516,11 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
 
   const sendMessage = async () => {
     if ((!messageText.trim() && selectedImages.length === 0) || !currentUser || !report?.id || sending || uploadingImages) return;
+    
+    if (chatRestricted) {
+      Alert.alert('Chat Restricted', 'Your ability to send messages has been restricted by an administrator.');
+      return;
+    }
     
     // Don't allow sending messages if user is blocked
     if (isBlocked) {
@@ -1604,34 +1667,34 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
                     <TouchableOpacity
                       style={styles.attachButton}
                       onPress={showImagePickerOptions}
-                      disabled={isBlocked || hasBlocked || reportStatus === 'Resolved' || report?.status === 'Resolved'}
+                      disabled={isBlocked || hasBlocked || chatRestricted || reportStatus === 'Resolved' || report?.status === 'Resolved'}
                     >
                       <MaterialIcons 
                         name="add-photo-alternate" 
                         size={24} 
-                        color={isBlocked || hasBlocked || reportStatus === 'Resolved' || report?.status === 'Resolved' ? COLORS.secondaryText : COLORS.darkPurple} 
+                        color={isBlocked || hasBlocked || chatRestricted || reportStatus === 'Resolved' || report?.status === 'Resolved' ? COLORS.secondaryText : COLORS.darkPurple} 
                       />
                     </TouchableOpacity>
                     <TextInput
                       style={[
                         styles.textInput,
-                        (isBlocked || hasBlocked) && styles.textInputDisabled
+                        (isBlocked || hasBlocked || chatRestricted) && styles.textInputDisabled
                       ]}
-                      placeholder={isBlocked ? "You cannot message this person" : hasBlocked ? "You have blocked this user" : "Type a message..."}
+                      placeholder={chatRestricted ? "Your chat has been restricted" : isBlocked ? "You cannot message this person" : hasBlocked ? "You have blocked this user" : "Type a message..."}
                       placeholderTextColor={COLORS.secondaryText}
                       value={messageText}
                       onChangeText={setMessageText}
                       multiline
                       maxLength={500}
-                      editable={!isBlocked && !hasBlocked}
+                      editable={!isBlocked && !hasBlocked && !chatRestricted}
                     />
                     <TouchableOpacity
                       style={[
                         styles.sendButton,
-                        ((!messageText.trim() && selectedImages.length === 0) || sending || uploadingImages || isBlocked || hasBlocked) && styles.sendButtonDisabled,
+                        ((!messageText.trim() && selectedImages.length === 0) || sending || uploadingImages || isBlocked || hasBlocked || chatRestricted) && styles.sendButtonDisabled,
                       ]}
                       onPress={sendMessage}
-                      disabled={(!messageText.trim() && selectedImages.length === 0) || sending || uploadingImages || isBlocked || hasBlocked}
+                      disabled={(!messageText.trim() && selectedImages.length === 0) || sending || uploadingImages || isBlocked || hasBlocked || chatRestricted}
                     >
                       {(sending || uploadingImages) ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />

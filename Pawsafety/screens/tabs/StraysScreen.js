@@ -139,6 +139,16 @@ const StrayPetCard = React.memo(({
           <MaterialIcons name="message" size={18} color="#65676b" />
           <Text style={styles.reportActionText}>Message</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.reportActionButton}
+          onPress={() => {
+            // Navigate to Messages screen with reports filter to view comments
+            navigation.navigate('Messages', { initialFilter: 'reports' });
+          }}
+        >
+          <MaterialIcons name="comment" size={18} color="#65676b" />
+          <Text style={styles.reportActionText}>Comment</Text>
+        </TouchableOpacity>
       </View>
     )}
   </View>
@@ -550,6 +560,7 @@ const StraysScreen = ({ navigation }) => {
       paddingVertical: 8,
       borderTopWidth: 1,
       borderTopColor: '#e4e6eb',
+      gap: 8,
     },
     reportActionButton: {
       flex: 1,
@@ -558,6 +569,7 @@ const StraysScreen = ({ navigation }) => {
       justifyContent: 'center',
       paddingVertical: 6,
       borderRadius: 8,
+      gap: 6,
     },
     reportActionText: {
       fontSize: 14,

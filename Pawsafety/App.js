@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import React from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './navigation/AppNavigator';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProfileImageProvider } from './contexts/ProfileImageContext';
@@ -9,14 +10,16 @@ import { MessageProvider } from './contexts/MessageContext';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <ProfileImageProvider>
-        <TabBarVisibilityProvider>
-          <MessageProvider>
-            <AppNavigator />
-          </MessageProvider>
-        </TabBarVisibilityProvider>
-      </ProfileImageProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <ProfileImageProvider>
+          <TabBarVisibilityProvider>
+            <MessageProvider>
+              <AppNavigator />
+            </MessageProvider>
+          </TabBarVisibilityProvider>
+        </ProfileImageProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

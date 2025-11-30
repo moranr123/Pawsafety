@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Dimensions, Platform, Animated } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTabBarVisibility } from '../contexts/TabBarVisibilityContext';
@@ -21,6 +22,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { colors: COLORS } = useTheme();
   const { isVisible } = useTabBarVisibility();
   const { unreadCount } = useMessage();
+  const insets = useSafeAreaInsets();
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
   const translateY = useRef(new Animated.Value(0)).current;
 
@@ -54,19 +56,26 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   const wp = (percentage) => (currentWidth * percentage) / 100;
   const hp = (percentage) => (currentHeight * percentage) / 100;
   
-  const styles = useMemo(() => StyleSheet.create({
-    tabBar: {
-      flexDirection: 'row',
-      backgroundColor: COLORS.cardBackground,
-      borderTopWidth: 1,
-      borderTopColor: COLORS.lightBlue,
-      paddingBottom: Platform.OS === 'ios' ? (isSmallDevice ? SPACING.sm : SPACING.md) : 0,
-      paddingTop: Platform.OS === 'ios' ? SPACING.xs : (isSmallDevice ? SPACING.xs : SPACING.sm),
-      paddingHorizontal: isSmallDevice ? SPACING.xs : SPACING.sm,
-      height: Platform.OS === 'ios' ? (isSmallDevice ? 60 : isTablet ? 80 : 70) : (isSmallDevice ? 55 : isTablet ? 70 : 60),
-      minHeight: Platform.OS === 'ios' ? 60 : 55,
-      ...SHADOWS.medium,
-    },
+  const styles = useMemo(() => {
+    // Calculate bottom padding for Android navigation bar
+    const androidBottomPadding = Platform.OS === 'android' ? Math.max(insets.bottom, 8) : 0;
+    const iosBottomPadding = Platform.OS === 'ios' ? (isSmallDevice ? SPACING.sm : SPACING.md) : 0;
+    
+    return StyleSheet.create({
+      tabBar: {
+        flexDirection: 'row',
+        backgroundColor: COLORS.cardBackground,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.lightBlue,
+        paddingBottom: Platform.OS === 'ios' ? iosBottomPadding : androidBottomPadding,
+        paddingTop: Platform.OS === 'ios' ? SPACING.xs : (isSmallDevice ? SPACING.xs : SPACING.sm),
+        paddingHorizontal: isSmallDevice ? SPACING.xs : SPACING.sm,
+        height: Platform.OS === 'ios' 
+          ? (isSmallDevice ? 60 : isTablet ? 80 : 70) 
+          : (isSmallDevice ? 55 + androidBottomPadding : isTablet ? 70 + androidBottomPadding : 60 + androidBottomPadding),
+        minHeight: Platform.OS === 'ios' ? 60 : 55 + androidBottomPadding,
+        ...SHADOWS.medium,
+      },
     tabButton: {
       flex: 1,
       alignItems: 'center',
@@ -119,7 +128,8 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
       marginTop: Platform.OS === 'ios' ? (isSmallDevice ? 1 : 2) : (isSmallDevice ? 2 : 3),
       lineHeight: Platform.OS === 'ios' ? (isSmallDevice ? 11 : 13) : (isSmallDevice ? 12 : 14),
     },
-  }), [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight]);
+    });
+  }, [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight, insets.bottom]);
 
   return (
     <Animated.View 

@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from './firebase';
-import { doc, setDoc, onSnapshot, collection, query, where, limit, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, getDoc, onSnapshot, collection, query, where, limit, serverTimestamp } from 'firebase/firestore';
 
 // Global variable to track push notification preference
 let globalPushNotificationsEnabled = true;
@@ -222,7 +222,49 @@ class NotificationService {
     return unsubscribe;
   }
 
-  // Create a notification in Firestore
+  // Send push notification via Expo
+  async sendPushNotification(userId, title, body, data = {}) {
+    try {
+      if (!userId) return;
+      
+      // Get user's push token
+      const tokenDoc = await getDoc(doc(db, 'user_push_tokens', userId));
+      if (!tokenDoc.exists()) return;
+      
+      const tokenData = tokenDoc.data();
+      const token = tokenData?.expoPushToken;
+      
+      if (!token) return;
+      
+      // Send push notification via Expo API
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Accept-Encoding': 'gzip, deflate',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify([{
+          to: token,
+          sound: 'default',
+          title: title,
+          body: body,
+          data: data,
+          priority: 'high',
+          channelId: 'default'
+        }])
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to send push notification:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error sending push notification:', error);
+      // Don't throw - push notification is optional
+    }
+  }
+
+  // Create a notification in Firestore and send push notification
   async createNotification(notification) {
     try {
       const notificationRef = doc(collection(db, 'notifications'));
@@ -231,6 +273,17 @@ class NotificationService {
         createdAt: serverTimestamp(),
         read: false,
       });
+      
+      // Send push notification
+      if (notification.userId) {
+        await this.sendPushNotification(
+          notification.userId,
+          notification.title || 'New Notification',
+          notification.body || '',
+          notification.data || {}
+        );
+      }
+      
       return notificationRef.id;
     } catch (error) {
       // Re-throw error for caller to handle
@@ -245,6 +298,15 @@ class NotificationService {
         read: true,
         readAt: new Date().toISOString()
       }, { merge: true });
+    } catch (error) {
+      // Error handled silently - operation may retry
+    }
+  }
+
+  // Delete notification
+  async deleteNotification(notificationId) {
+    try {
+      await deleteDoc(doc(db, 'notifications', notificationId));
     } catch (error) {
       // Error handled silently - operation may retry
     }

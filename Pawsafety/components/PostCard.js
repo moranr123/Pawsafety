@@ -55,15 +55,129 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
   const [commentMenuId, setCommentMenuId] = useState(null);
+  const [commentLikes, setCommentLikes] = useState({});
+  const [isLikingComment, setIsLikingComment] = useState({});
   const [replyingToCommentId, setReplyingToCommentId] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState({});
   const [expandedReplies, setExpandedReplies] = useState({});
   const [expandedAllReplies, setExpandedAllReplies] = useState({});
-  const [commentLikes, setCommentLikes] = useState({});
-  const [isLikingComment, setIsLikingComment] = useState({});
+  const [friends, setFriends] = useState([]);
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [showReplyMentionSuggestions, setShowReplyMentionSuggestions] = useState({});
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [replyMentionQueries, setReplyMentionQueries] = useState({});
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [replyMentionStartIndices, setReplyMentionStartIndices] = useState({});
+  const [filteredFriends, setFilteredFriends] = useState([]);
+  const [filteredReplyFriends, setFilteredReplyFriends] = useState({});
+  const [commentInputRef, setCommentInputRef] = useState(null);
+  const [replyInputRefs, setReplyInputRefs] = useState({});
 
   const isOwner = user?.uid === post.userId;
+
+  // Helper function to extract @ mentions from text
+  // Matches @username or @displayName patterns
+  const extractMentions = (text) => {
+    if (!text || typeof text !== 'string') return [];
+    
+    // Match @ followed by alphanumeric characters, underscores, or spaces
+    // Pattern: @username or @display name (allows spaces)
+    const mentionRegex = /@([a-zA-Z0-9_\s]+)/g;
+    const mentions = [];
+    let match;
+    
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const username = match[1].trim();
+      if (username && !mentions.includes(username)) {
+        mentions.push(username);
+      }
+    }
+    
+    return mentions;
+  };
+
+  // Helper function to find user IDs from usernames/displayNames
+  const findMentionedUserIds = async (usernames) => {
+    if (!usernames || usernames.length === 0) return [];
+    
+    const userIds = [];
+    const uniqueUsernames = [...new Set(usernames)];
+    
+    try {
+      // Search for users by displayName or name
+      // Note: Firestore doesn't support case-insensitive search natively
+      // We'll need to fetch and filter, or use a more sophisticated approach
+      const usersQuery = query(collection(db, 'users'));
+      const usersSnapshot = await getDocs(usersQuery);
+      
+      const usernameMap = new Map();
+      
+      usersSnapshot.docs.forEach((doc) => {
+        const userData = doc.data();
+        const displayName = (userData.displayName || userData.name || '').toLowerCase().trim();
+        const name = (userData.name || '').toLowerCase().trim();
+        
+        // Create a map of lowercase usernames to user IDs
+        if (displayName) {
+          usernameMap.set(displayName, doc.id);
+        }
+        if (name && name !== displayName) {
+          usernameMap.set(name, doc.id);
+        }
+      });
+      
+      // Match mentioned usernames to user IDs
+      uniqueUsernames.forEach((mentionedUsername) => {
+        const lowerMentioned = mentionedUsername.toLowerCase().trim();
+        const userId = usernameMap.get(lowerMentioned);
+        
+        if (userId && !userIds.includes(userId)) {
+          userIds.push(userId);
+        }
+      });
+      
+      return userIds;
+    } catch (error) {
+      console.error('Error finding mentioned user IDs:', error);
+      return [];
+    }
+  };
+
+  // Helper function to send notifications to mentioned users
+  const notifyMentionedUsers = async (mentionedUserIds, commentText, commentId, isReply = false) => {
+    if (!mentionedUserIds || mentionedUserIds.length === 0 || !user?.uid) return;
+    
+    const notificationService = NotificationService.getInstance();
+    const currentUserName = user.displayName || 'Someone';
+    
+    // Filter out the current user (don't notify yourself)
+    const usersToNotify = mentionedUserIds.filter(uid => uid !== user.uid);
+    
+    // Send notifications to each mentioned user
+    await Promise.all(
+      usersToNotify.map(async (mentionedUserId) => {
+        try {
+          await notificationService.createNotification({
+            userId: mentionedUserId,
+            type: isReply ? 'comment_mention_reply' : 'comment_mention',
+            title: 'You were mentioned',
+            body: `${currentUserName} mentioned you ${isReply ? 'reply' : 'comment'}: "${commentText.substring(0, 50)}${commentText.length > 50 ? '...' : ''}"`,
+            data: {
+              postId: post.id,
+              commentId: commentId,
+              type: isReply ? 'comment_mention_reply' : 'comment_mention',
+              mentionedBy: user.uid,
+              mentionedByName: currentUserName,
+            },
+          });
+        } catch (error) {
+          // Error handled silently - notification is optional
+          console.error('Error sending mention notification:', error);
+        }
+      })
+    );
+  };
 
   const styles = useMemo(() => StyleSheet.create({
     card: {
@@ -629,6 +743,49 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       height: '100%',
       resizeMode: 'contain',
     },
+    mentionSuggestionsContainer: {
+      position: 'absolute',
+      bottom: 60,
+      left: Math.max(12, width * 0.03),
+      right: Math.max(12, width * 0.03),
+      backgroundColor: '#ffffff',
+      borderRadius: 8,
+      maxHeight: 200,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+      zIndex: 1000,
+      borderWidth: 1,
+      borderColor: '#e4e6eb',
+    },
+    mentionSuggestionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: Math.max(12, width * 0.03),
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+    },
+    mentionSuggestionItemLast: {
+      borderBottomWidth: 0,
+    },
+    mentionSuggestionImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 12,
+    },
+    mentionSuggestionName: {
+      fontSize: Math.max(15, width * 0.04),
+      color: '#050505',
+      fontWeight: '500',
+      flex: 1,
+    },
+    mentionLink: {
+      color: '#1877f2',
+      fontWeight: '500',
+    },
   }), [COLORS, width]);
 
   useEffect(() => {
@@ -752,6 +909,68 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   useEffect(() => {
     loadCommentsCount();
   }, [post.id]);
+
+  // Load user's friends list
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const friendsQuery = query(
+      collection(db, 'friends'),
+      where('userId', '==', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      friendsQuery,
+      async (snapshot) => {
+        const friendsList = [];
+        
+        // Check each friend's status to filter out banned users
+        for (const docSnapshot of snapshot.docs) {
+          const friendId = docSnapshot.data().friendId;
+          try {
+            const friendUserDoc = await getDoc(doc(db, 'users', friendId));
+            if (friendUserDoc.exists()) {
+              const friendUserData = friendUserDoc.data();
+              // Only include friends who are not banned
+              if (friendUserData.status !== 'banned') {
+                const friendName = docSnapshot.data().friendName || friendUserData.displayName || friendUserData.name || 'Unknown';
+                friendsList.push({
+                  id: friendId,
+                  name: friendName,
+                  displayName: friendUserData.displayName || friendUserData.name || friendName,
+                  profileImage: docSnapshot.data().friendProfileImage || friendUserData.profileImage || null,
+                });
+              }
+            } else {
+              // If user doc doesn't exist, still add friend (might be deleted user)
+              friendsList.push({
+                id: friendId,
+                name: docSnapshot.data().friendName || 'Unknown',
+                displayName: docSnapshot.data().friendName || 'Unknown',
+                profileImage: docSnapshot.data().friendProfileImage || null,
+              });
+            }
+          } catch (error) {
+            console.error(`Error checking friend status for ${friendId}:`, error);
+            // On error, still include the friend
+            friendsList.push({
+              id: friendId,
+              name: docSnapshot.data().friendName || 'Unknown',
+              displayName: docSnapshot.data().friendName || 'Unknown',
+              profileImage: docSnapshot.data().friendProfileImage || null,
+            });
+          }
+        }
+        
+        setFriends(friendsList);
+      },
+      (error) => {
+        console.error('Error fetching friends:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   const loadCommentsCount = async () => {
     try {
@@ -938,7 +1157,16 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         // Error handled silently - use existing values
       }
 
-      await addDoc(collection(db, 'post_comments'), {
+      // Extract @ mentions from comment text
+      const mentionedUsernames = extractMentions(commentText.trim());
+      let mentionedUserIds = [];
+      
+      if (mentionedUsernames.length > 0) {
+        mentionedUserIds = await findMentionedUserIds(mentionedUsernames);
+      }
+
+      // Create comment document
+      const commentRef = await addDoc(collection(db, 'post_comments'), {
         postId: post.id,
         userId: user.uid,
         userName: currentUserName,
@@ -947,12 +1175,12 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         createdAt: serverTimestamp(),
         likes: [],
         parentCommentId: null, // Top-level comment
+        mentionedUsers: mentionedUserIds, // Store mentioned user IDs
       });
 
-      // Comments are stored in separate collection, no need to update post
-
-      // Send notification to post owner if not the same user
-      if (post.userId && post.userId !== user.uid) {
+      // Send notification to post owner if not the same user and not mentioned
+      // Only notify post owner if they weren't already mentioned
+      if (post.userId && post.userId !== user.uid && !mentionedUserIds.includes(post.userId)) {
         try {
           const notificationService = NotificationService.getInstance();
           await notificationService.createNotification({
@@ -972,11 +1200,23 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         }
       }
 
+      // Send notifications to mentioned users ONLY (not all users)
+      if (mentionedUserIds.length > 0) {
+        await notifyMentionedUsers(mentionedUserIds, commentText.trim(), commentRef.id, false);
+      }
+
+      // Clear comment text and mention suggestions
       setCommentText('');
+      setShowMentionSuggestions(false);
+      setMentionQuery('');
+      setMentionStartIndex(-1);
+      setFilteredFriends([]);
+      
       await loadComments();
       // Update comment count
       await loadCommentsCount();
     } catch (error) {
+      console.error('Error adding comment:', error);
       Alert.alert('Error', 'Failed to add comment. Please try again.');
     } finally {
       setIsSubmittingComment(false);
@@ -990,15 +1230,39 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     }
 
     try {
+      // Extract @ mentions from edited comment text
+      const mentionedUsernames = extractMentions(editCommentText.trim());
+      let mentionedUserIds = [];
+      
+      if (mentionedUsernames.length > 0) {
+        mentionedUserIds = await findMentionedUserIds(mentionedUsernames);
+      }
+
       const commentRef = doc(db, 'post_comments', commentId);
       await updateDoc(commentRef, {
         text: editCommentText.trim(),
         updatedAt: serverTimestamp(),
+        mentionedUsers: mentionedUserIds, // Update mentioned user IDs
       });
+
+      // Send notifications to newly mentioned users (only if they weren't already mentioned)
+      // Get the original comment to check previous mentions
+      const originalCommentDoc = await getDoc(commentRef);
+      const originalCommentData = originalCommentDoc.data();
+      const previousMentions = originalCommentData?.mentionedUsers || [];
+      
+      // Find newly mentioned users (not in previous mentions)
+      const newMentions = mentionedUserIds.filter(uid => !previousMentions.includes(uid));
+      
+      if (newMentions.length > 0) {
+        await notifyMentionedUsers(newMentions, editCommentText.trim(), commentId, false);
+      }
+
       setEditingCommentId(null);
       setEditCommentText('');
       await loadComments();
     } catch (error) {
+      console.error('Error updating comment:', error);
       Alert.alert('Error', 'Failed to update comment. Please try again.');
     }
   };
@@ -1074,6 +1338,14 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         // Error handled silently
       }
 
+      // Extract @ mentions from reply text
+      const mentionedUsernames = extractMentions(replyText.trim());
+      let mentionedUserIds = [];
+      
+      if (mentionedUsernames.length > 0) {
+        mentionedUserIds = await findMentionedUserIds(mentionedUsernames);
+      }
+
       // Get parent comment to find the original comment owner
       const parentCommentDoc = await getDoc(doc(db, 'post_comments', parentCommentId));
       const parentCommentData = parentCommentDoc.data();
@@ -1081,7 +1353,8 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       const originalCommentDoc = await getDoc(doc(db, 'post_comments', originalCommentId));
       const originalCommentData = originalCommentDoc.data();
 
-      await addDoc(collection(db, 'post_comments'), {
+      // Create reply document
+      const replyRef = await addDoc(collection(db, 'post_comments'), {
         postId: post.id,
         userId: user.uid,
         userName: currentUserName,
@@ -1090,6 +1363,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         createdAt: serverTimestamp(),
         likes: [],
         parentCommentId: parentCommentId,
+        mentionedUsers: mentionedUserIds, // Store mentioned user IDs
       });
 
       // Send notification to parent comment owner if not the same user
@@ -1136,10 +1410,22 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         }
       }
 
+      // Send notifications to mentioned users
+      if (mentionedUserIds.length > 0) {
+        await notifyMentionedUsers(mentionedUserIds, replyText.trim(), replyRef.id, true);
+      }
+
+      // Clear reply text and mention suggestions
       setReplyText('');
       setReplyingToCommentId(null);
+      setShowReplyMentionSuggestions({});
+      setReplyMentionQueries({});
+      setReplyMentionStartIndices({});
+      setFilteredReplyFriends({});
+      
       await loadComments();
     } catch (error) {
+      console.error('Error adding reply:', error);
       Alert.alert('Error', 'Failed to add reply. Please try again.');
     } finally {
       setIsSubmittingReply(prev => ({ ...prev, [parentCommentId]: false }));
@@ -1364,6 +1650,266 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     }
   };
 
+  // Handle comment text change and detect @ mentions
+  const handleCommentTextChange = (text) => {
+    setCommentText(text);
+    
+    // Find the last @ symbol and check if we're in a mention
+    const lastAtIndex = text.lastIndexOf('@');
+    
+    if (lastAtIndex !== -1) {
+      // Get text after the @ symbol
+      const textAfterAt = text.substring(lastAtIndex + 1);
+      
+      // Check if there's a space in the text after @
+      const spaceIndex = textAfterAt.indexOf(' ');
+      
+      // Only show suggestions if we're actively typing a mention (no space yet, or space but we're before it)
+      if (spaceIndex === -1) {
+        // No space found after @ - we're actively typing a mention
+        const query = textAfterAt;
+        if (query.length > 0) {
+          setMentionQuery(query);
+          setMentionStartIndex(lastAtIndex);
+          setShowMentionSuggestions(true);
+          
+          // Filter friends based on query
+          const filtered = friends.filter(friend => {
+            const name = (friend.displayName || friend.name || '').toLowerCase();
+            return name.includes(query.toLowerCase());
+          });
+          setFilteredFriends(filtered.slice(0, 10)); // Limit to 10 results
+        } else {
+          // Just @ with no text yet - show all friends
+          setMentionQuery('');
+          setMentionStartIndex(lastAtIndex);
+          setShowMentionSuggestions(true);
+          setFilteredFriends(friends.slice(0, 10));
+        }
+      } else if (spaceIndex > 0) {
+        // There's text before the space - check if mention is complete
+        const query = textAfterAt.substring(0, spaceIndex);
+        const textAfterSpace = textAfterAt.substring(spaceIndex + 1);
+        
+        // Only show dropdown if:
+        // 1. There's actual text in the query (not just spaces)
+        // 2. There's NO text after the space (meaning we're still typing the mention, cursor is before space)
+        // If there's text after the space, the mention is complete - hide dropdown
+        if (query.trim().length > 0 && textAfterSpace.trim().length === 0) {
+          // We're typing a mention name, no text after space yet - show suggestions
+          setMentionQuery(query);
+          setMentionStartIndex(lastAtIndex);
+          setShowMentionSuggestions(true);
+          
+          // Filter friends based on query
+          const filtered = friends.filter(friend => {
+            const name = (friend.displayName || friend.name || '').toLowerCase();
+            return name.includes(query.toLowerCase());
+          });
+          setFilteredFriends(filtered.slice(0, 10)); // Limit to 10 results
+        } else {
+          // Mention is complete (has text after space) or invalid - hide suggestions
+          setShowMentionSuggestions(false);
+          setMentionQuery('');
+          setMentionStartIndex(-1);
+        }
+      } else {
+        // Space immediately after @ (spaceIndex === 0) - mention is complete or invalid
+        // OR there's a space after a completed mention - hide suggestions
+        setShowMentionSuggestions(false);
+        setMentionQuery('');
+        setMentionStartIndex(-1);
+      }
+    } else {
+      // No @ symbol found - hide suggestions
+      setShowMentionSuggestions(false);
+      setMentionQuery('');
+      setMentionStartIndex(-1);
+    }
+  };
+
+  // Handle reply text change and detect @ mentions
+  const handleReplyTextChange = (text, parentCommentId) => {
+    // Update reply text for the specific parent comment
+    setReplyText(text);
+    
+    // Find the last @ symbol and check if we're in a mention
+    const lastAtIndex = text.lastIndexOf('@');
+    
+    if (lastAtIndex !== -1) {
+      // Check if there's a space after @ (meaning mention is complete)
+      const textAfterAt = text.substring(lastAtIndex + 1);
+      const spaceIndex = textAfterAt.indexOf(' ');
+      
+      if (spaceIndex === -1 || spaceIndex > 0) {
+        // We're in a mention - extract the query
+        const query = spaceIndex === -1 ? textAfterAt : textAfterAt.substring(0, spaceIndex);
+        setReplyMentionQueries(prev => ({ ...prev, [parentCommentId]: query }));
+        setReplyMentionStartIndices(prev => ({ ...prev, [parentCommentId]: lastAtIndex }));
+        setShowReplyMentionSuggestions(prev => ({ ...prev, [parentCommentId]: true }));
+        
+        // Filter friends based on query
+        const filtered = friends.filter(friend => {
+          const name = (friend.displayName || friend.name || '').toLowerCase();
+          return name.includes(query.toLowerCase());
+        });
+        setFilteredReplyFriends(prev => ({ ...prev, [parentCommentId]: filtered.slice(0, 10) }));
+      } else {
+        setShowReplyMentionSuggestions(prev => ({ ...prev, [parentCommentId]: false }));
+      }
+    } else {
+      setShowReplyMentionSuggestions(prev => ({ ...prev, [parentCommentId]: false }));
+    }
+  };
+
+  // Handle friend selection from mention suggestions
+  const handleSelectMention = (friend, isReply = false, parentCommentId = null) => {
+    const friendName = friend.displayName || friend.name;
+    
+    if (isReply && parentCommentId) {
+      // Handle reply text
+      const currentText = replyText;
+      const startIndex = replyMentionStartIndices[parentCommentId] || 0;
+      const query = replyMentionQueries[parentCommentId] || '';
+      const beforeMention = currentText.substring(0, startIndex);
+      const afterMention = currentText.substring(startIndex + 1 + query.length);
+      const newText = `${beforeMention}@${friendName} ${afterMention}`;
+      setReplyText(newText);
+      
+      // Hide suggestions immediately
+      setShowReplyMentionSuggestions(prev => ({ ...prev, [parentCommentId]: false }));
+      setReplyMentionQueries(prev => {
+        const updated = { ...prev };
+        delete updated[parentCommentId];
+        return updated;
+      });
+      setReplyMentionStartIndices(prev => {
+        const updated = { ...prev };
+        delete updated[parentCommentId];
+        return updated;
+      });
+    } else {
+      // Handle comment text
+      const currentText = commentText;
+      const beforeMention = currentText.substring(0, mentionStartIndex);
+      const afterMention = currentText.substring(mentionStartIndex + 1 + mentionQuery.length);
+      const newText = `${beforeMention}@${friendName} ${afterMention}`;
+      
+      // Hide suggestions immediately before updating text
+      setShowMentionSuggestions(false);
+      setMentionQuery('');
+      setMentionStartIndex(-1);
+      
+      // Update text after hiding suggestions to prevent re-triggering
+      setCommentText(newText);
+    }
+  };
+
+  // Render text with clickable @ mentions
+  const renderTextWithMentions = (text, mentionedUserIds = [], textStyle = styles.commentText) => {
+    if (!text) return null;
+
+    // Improved regex: @ followed by word characters (letters, numbers, underscore) or spaces
+    // Stops at whitespace, punctuation, or end of string
+    const mentionRegex = /@([a-zA-Z0-9_]+(?:\s+[a-zA-Z0-9_]+)*)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+    let mentionIndex = 0;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      // Add text before the mention
+      if (match.index > lastIndex) {
+        parts.push({
+          type: 'text',
+          content: text.substring(lastIndex, match.index),
+        });
+      }
+
+      // Add the mention (only the @username part)
+      const mentionName = match[1].trim();
+      const userId = mentionedUserIds && mentionedUserIds.length > mentionIndex 
+        ? mentionedUserIds[mentionIndex] 
+        : null;
+      
+      parts.push({
+        type: 'mention',
+        content: `@${mentionName}`,
+        mentionName: mentionName,
+        userId: userId,
+      });
+
+      mentionIndex++;
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push({
+        type: 'text',
+        content: text.substring(lastIndex),
+      });
+    }
+
+    // If no mentions found, return plain text
+    if (parts.length === 0 || (parts.length === 1 && parts[0].type === 'text')) {
+      return <Text style={textStyle}>{text}</Text>;
+    }
+
+    // Render with clickable mentions - only mentions are styled as links
+    return (
+      <Text style={textStyle}>
+        {parts.map((part, index) => {
+          if (part.type === 'mention') {
+            return (
+              <Text
+                key={`mention-${index}`}
+                style={[textStyle, styles.mentionLink]}
+                onPress={async () => {
+                  // If we have the user ID directly, use it
+                  if (part.userId) {
+                    navigation.navigate('Profile', { userId: part.userId });
+                    return;
+                  }
+
+                  // Otherwise, try to find by name in friends list first
+                  const friend = friends.find(
+                    f => (f.displayName || f.name || '').toLowerCase() === part.mentionName.toLowerCase()
+                  );
+                  
+                  if (friend) {
+                    navigation.navigate('Profile', { userId: friend.id });
+                  } else {
+                    // If not in friends, search all users (fallback)
+                    try {
+                      const usersQuery = query(collection(db, 'users'));
+                      const usersSnapshot = await getDocs(usersQuery);
+                      
+                      for (const doc of usersSnapshot.docs) {
+                        const userData = doc.data();
+                        const displayName = (userData.displayName || userData.name || '').toLowerCase();
+                        if (displayName === part.mentionName.toLowerCase()) {
+                          navigation.navigate('Profile', { userId: doc.id });
+                          return;
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error finding mentioned user:', error);
+                    }
+                  }
+                }}
+              >
+                {part.content}
+              </Text>
+            );
+          }
+          // Regular text - return as string to inherit parent style
+          return part.content;
+        })}
+      </Text>
+    );
+  };
+
   const formatTime = (timestamp) => {
     if (!timestamp) return 'Just now';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -1559,7 +2105,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
 
         {/* Content */}
         <View style={styles.content}>
-          <Text style={styles.postText}>{post.text}</Text>
+          {renderTextWithMentions(post.text, post.mentionedUsers, styles.postText)}
           {post.images && post.images.length > 0 && (
             <View style={styles.imageContainer}>
               {renderImages()}
@@ -1614,6 +2160,15 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
           setReplyingToCommentId(null);
           setReplyText('');
           setExpandedReplies({});
+          // Clear mention suggestions
+          setShowMentionSuggestions(false);
+          setMentionQuery('');
+          setMentionStartIndex(-1);
+          setFilteredFriends([]);
+          setShowReplyMentionSuggestions({});
+          setReplyMentionQueries({});
+          setReplyMentionStartIndices({});
+          setFilteredReplyFriends({});
         }}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
@@ -1632,6 +2187,15 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                     setCommentMenuId(null);
                     setExpandedReplies({});
                     setExpandedAllReplies({});
+                    // Clear mention suggestions
+                    setShowMentionSuggestions(false);
+                    setMentionQuery('');
+                    setMentionStartIndex(-1);
+                    setFilteredFriends([]);
+                    setShowReplyMentionSuggestions({});
+                    setReplyMentionQueries({});
+                    setReplyMentionStartIndices({});
+                    setFilteredReplyFriends({});
                   }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
@@ -1765,9 +2329,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                           </View>
                         </View>
                       ) : (
-                        <Text style={styles.commentText}>
-                          {comment.text}
-                        </Text>
+                        renderTextWithMentions(comment.text, comment.mentionedUsers)
                       )}
                       
                       {/* Comment Actions (Like and Reply) */}
@@ -1789,292 +2351,56 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                             </Text>
                           )}
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.commentActionButton}
-                          onPress={() => {
-                            setReplyingToCommentId(replyingToCommentId === comment.id ? null : comment.id);
-                            setReplyText('');
-                          }}
-                        >
-                          <MaterialIcons name="subdirectory-arrow-left" size={16} color="#65676b" />
-                          <Text style={styles.commentActionText}>Reply</Text>
-                        </TouchableOpacity>
-                        {comment.totalRepliesCount > 0 && (
-                          <TouchableOpacity
-                            style={styles.viewRepliesButton}
-                            onPress={() => {
-                              setExpandedReplies(prev => ({
-                                ...prev,
-                                [comment.id]: !prev[comment.id]
-                              }));
-                            }}
-                          >
-                            <Text style={styles.viewRepliesText}>
-                              {expandedReplies[comment.id] ? 'Hide' : 'View'} {comment.totalRepliesCount} {comment.totalRepliesCount === 1 ? 'reply' : 'replies'}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
                       </View>
 
-                      {/* Reply Input */}
-                      {replyingToCommentId === comment.id && (
-                        <View style={styles.replyInputContainer}>
-                          <TextInput
-                            style={styles.replyInput}
-                            placeholder="Write a reply..."
-                            value={replyText}
-                            onChangeText={setReplyText}
-                            multiline
-                            autoFocus
-                          />
-                          <TouchableOpacity
-                            onPress={() => handleReply(comment.id)}
-                            disabled={!replyText.trim() || isSubmittingReply[comment.id]}
-                          >
-                            {isSubmittingReply[comment.id] ? (
-                              <ActivityIndicator color="#1877f2" size="small" />
-                            ) : (
-                              <MaterialIcons 
-                                name="send" 
-                                size={20} 
-                                color={replyText.trim() ? '#1877f2' : '#bcc0c4'} 
-                              />
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      )}
-
-                      {/* Nested Replies */}
-                      {comment.replies && comment.replies.length > 0 && expandedReplies[comment.id] === true && (
-                        <View style={styles.replyContainer}>
-                          {(expandedAllReplies[comment.id] ? comment.replies : comment.replies.slice(0, 5)).map((reply) => {
-                            const renderReply = (replyItem, depth = 0) => {
-                              const isReplyOwner = user?.uid === replyItem.userId;
-                              const canDeleteReply = isReplyOwner || isOwner;
-                              const canEditReply = isReplyOwner;
-
-                              return (
-                                <View key={replyItem.id} style={styles.replyItem}>
-                                  <TouchableOpacity
-                                    onPress={() => {
-                                      if (replyItem.userId && replyItem.userId !== user?.uid) {
-                                        navigation.navigate('Profile', { userId: replyItem.userId });
-                                      } else {
-                                        navigation.navigate('Profile');
-                                      }
-                                    }}
-                                    activeOpacity={0.7}
-                                  >
-                                  {replyItem.userProfileImage ? (
-                                    <Image source={{ uri: replyItem.userProfileImage }} style={[styles.commentProfileImage, { width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]} />
-                                  ) : (
-                                    <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center', width: Math.max(28, width * 0.07), height: Math.max(28, width * 0.07), borderRadius: Math.max(14, width * 0.035) }]}>
-                                      <MaterialIcons name="account-circle" size={28} color="#65676b" />
-                                    </View>
-                                  )}
-                                  </TouchableOpacity>
-                                  <View style={[styles.commentContent, { flex: 1, minWidth: 0 }]}>
-                                  <View style={styles.commentHeader}>
-                                      <TouchableOpacity 
-                                        style={{ flex: 1 }}
-                                        onPress={() => {
-                                          if (replyItem.userId && replyItem.userId !== user?.uid) {
-                                            navigation.navigate('Profile', { userId: replyItem.userId });
-                                          } else {
-                                            navigation.navigate('Profile');
-                                          }
-                                        }}
-                                        activeOpacity={0.7}
-                                      >
-                                      <Text style={styles.commentUserName} numberOfLines={1} ellipsizeMode="tail">
-                                        {replyItem.userName || 'Pet Lover'}
-                                      </Text>
-                                      {replyItem.createdAt && (
-                                        <Text style={styles.commentTime}>
-                                          {formatTime(replyItem.createdAt)}
-                                        </Text>
-                                      )}
-                                      </TouchableOpacity>
-                                    {(canEditReply || canDeleteReply) && (
-                                      <TouchableOpacity
-                                        style={styles.commentMenuButton}
-                                        onPress={() => setCommentMenuId(commentMenuId === replyItem.id ? null : replyItem.id)}
-                                      >
-                                        <MaterialIcons name="more-vert" size={18} color="#65676b" />
-                                      </TouchableOpacity>
-                                    )}
-                                  </View>
-                                    
-                                    {commentMenuId === replyItem.id && (canEditReply || canDeleteReply) && (
-                                      <>
-                                        <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
-                                          <View style={styles.commentMenuOverlay} />
-                                        </TouchableWithoutFeedback>
-                                        <View style={styles.commentMenu}>
-                                          {canEditReply && (
-                                            <TouchableOpacity
-                                              style={styles.commentMenuItem}
-                                              onPress={() => {
-                                                setEditingCommentId(replyItem.id);
-                                                setEditCommentText(replyItem.text);
-                                                setCommentMenuId(null);
-                                              }}
-                                            >
-                                              <Text style={styles.optionsMenuText}>Edit</Text>
-                                            </TouchableOpacity>
-                                          )}
-                                          {canDeleteReply && (
-                                            <TouchableOpacity
-                                              style={[styles.commentMenuItem, styles.commentMenuItemLast]}
-                                              onPress={() => {
-                                                setCommentMenuId(null);
-                                                handleDeleteComment(replyItem.id);
-                                              }}
-                                            >
-                                              <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
-                                            </TouchableOpacity>
-                                          )}
-                                        </View>
-                                      </>
-                                    )}
-
-                                    {editingCommentId === replyItem.id ? (
-                                      <View>
-                                        <TextInput
-                                          style={styles.commentEditInput}
-                                          value={editCommentText}
-                                          onChangeText={setEditCommentText}
-                                          multiline
-                                          autoFocus
-                                        />
-                                        <View style={styles.commentEditActions}>
-                                          <TouchableOpacity
-                                            style={styles.commentEditButton}
-                                            onPress={() => {
-                                              setEditingCommentId(null);
-                                              setEditCommentText('');
-                                            }}
-                                          >
-                                            <Text style={[styles.commentEditButtonText, { color: '#65676b' }]}>Cancel</Text>
-                                          </TouchableOpacity>
-                                          <TouchableOpacity
-                                            style={[styles.commentEditButton, { backgroundColor: '#1877f2' }]}
-                                            onPress={() => handleEditComment(replyItem.id)}
-                                          >
-                                            <Text style={[styles.commentEditButtonText, { color: '#ffffff' }]}>Save</Text>
-                                          </TouchableOpacity>
-                                        </View>
-                                      </View>
-                                    ) : (
-                                      <Text style={styles.commentText}>
-                                        {replyItem.text}
-                                      </Text>
-                                    )}
-
-                                    {/* Reply Actions */}
-                                    <View style={styles.commentActions}>
-                                      <TouchableOpacity
-                                        style={styles.commentActionButton}
-                                        onPress={() => handleLikeComment(replyItem.id)}
-                                        disabled={isLikingComment[replyItem.id]}
-                                      >
-                                        <MaterialIcons
-                                          name="thumb-up"
-                                          size={16}
-                                          color={commentLikes[replyItem.id]?.isLiked ? '#1877f2' : '#65676b'}
-                                          style={{ opacity: commentLikes[replyItem.id]?.isLiked ? 1 : 0.5 }}
-                                        />
-                                        {commentLikes[replyItem.id]?.count > 0 && (
-                                          <Text style={[styles.commentActionText, commentLikes[replyItem.id]?.isLiked && { color: '#1877f2' }]}>
-                                            {commentLikes[replyItem.id].count}
-                                          </Text>
-                                        )}
-                                      </TouchableOpacity>
-                                      <TouchableOpacity
-                                        style={styles.commentActionButton}
-                                        onPress={() => {
-                                          setReplyingToCommentId(replyingToCommentId === replyItem.id ? null : replyItem.id);
-                                          setReplyText('');
-                                        }}
-                                      >
-                                        <MaterialIcons name="subdirectory-arrow-left" size={16} color="#65676b" />
-                                        <Text style={styles.commentActionText}>Reply</Text>
-                                      </TouchableOpacity>
-                                    </View>
-
-                                    {/* Reply to Reply Input */}
-                                    {replyingToCommentId === replyItem.id && (
-                                      <View style={styles.replyInputContainer}>
-                                        <TextInput
-                                          style={styles.replyInput}
-                                          placeholder="Write a reply..."
-                                          value={replyText}
-                                          onChangeText={setReplyText}
-                                          multiline
-                                          autoFocus
-                                        />
-                                        <TouchableOpacity
-                                          onPress={() => handleReply(replyItem.id)}
-                                          disabled={!replyText.trim() || isSubmittingReply[replyItem.id]}
-                                        >
-                                          {isSubmittingReply[replyItem.id] ? (
-                                            <ActivityIndicator color="#1877f2" size="small" />
-                                          ) : (
-                                            <MaterialIcons 
-                                              name="send" 
-                                              size={20} 
-                                              color={replyText.trim() ? '#1877f2' : '#bcc0c4'} 
-                                            />
-                                          )}
-                                        </TouchableOpacity>
-                                      </View>
-                                    )}
-
-                                    {/* Nested Replies (replies to replies) */}
-                                    {replyItem.replies && replyItem.replies.length > 0 && (
-                                      <View style={[styles.replyContainer, { marginTop: 8, paddingLeft: Math.max(30, width * 0.075) }]}>
-                                        {replyItem.replies.map((nestedReply) => renderReply(nestedReply, depth + 1))}
-                                      </View>
-                                    )}
-                                  </View>
-                                </View>
-                              );
-                            };
-
-                            return renderReply(reply);
-                          })}
-                          {comment.replies.length > 5 && !expandedAllReplies[comment.id] && (
-                            <TouchableOpacity
-                              style={styles.viewMoreRepliesButton}
-                              onPress={() => {
-                                setExpandedAllReplies(prev => ({
-                                  ...prev,
-                                  [comment.id]: true
-                                }));
-                              }}
-                            >
-                              <Text style={styles.viewMoreRepliesText}>
-                                View {comment.replies.length - 5} more {comment.replies.length - 5 === 1 ? 'reply' : 'replies'}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
                     </View>
                   </View>
                 );
               })}
             </ScrollView>
-            {!replyingToCommentId && (
-              <View style={styles.commentInputContainer}>
-                <TextInput
-                  style={styles.commentInput}
-                  placeholder="Write a comment..."
-                  value={commentText}
-                  onChangeText={setCommentText}
-                  multiline
-                  editable={!isSubmittingComment}
-                />
+            <View style={styles.commentInputContainer}>
+                <View style={{ flex: 1, position: 'relative' }}>
+                  <TextInput
+                    ref={(ref) => setCommentInputRef(ref)}
+                    style={styles.commentInput}
+                    placeholder="Write a comment..."
+                    value={commentText}
+                    onChangeText={handleCommentTextChange}
+                    multiline
+                    editable={!isSubmittingComment}
+                  />
+                  {showMentionSuggestions && filteredFriends.length > 0 && (
+                    <View style={styles.mentionSuggestionsContainer}>
+                      <ScrollView nestedScrollEnabled>
+                        {filteredFriends.map((friend, index) => (
+                          <TouchableOpacity
+                            key={friend.id}
+                            style={[
+                              styles.mentionSuggestionItem,
+                              index === filteredFriends.length - 1 && styles.mentionSuggestionItemLast
+                            ]}
+                            onPress={() => handleSelectMention(friend, false)}
+                            activeOpacity={0.7}
+                          >
+                            {friend.profileImage ? (
+                              <Image 
+                                source={{ uri: friend.profileImage }} 
+                                style={styles.mentionSuggestionImage} 
+                              />
+                            ) : (
+                              <View style={[styles.mentionSuggestionImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center' }]}>
+                                <MaterialIcons name="account-circle" size={40} color="#65676b" />
+                              </View>
+                            )}
+                            <Text style={styles.mentionSuggestionName}>
+                              {friend.displayName || friend.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
                 <TouchableOpacity 
                   onPress={handleComment} 
                   disabled={isSubmittingComment || !commentText.trim()}
@@ -2087,7 +2413,6 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                   )}
                 </TouchableOpacity>
               </View>
-            )}
           </View>
         </KeyboardAvoidingView>
         </SafeAreaView>

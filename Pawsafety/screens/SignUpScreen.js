@@ -201,47 +201,10 @@ const SignUpScreen = ({ navigation }) => {
   const wp = (percentage) => (currentWidth * percentage) / 100;
   const hp = (percentage) => (currentHeight * percentage) / 100;
 
-  // Responsive placeholder text color
-  const getPlaceholderTextColor = () => {
-    if (isSmallDevice) {
-      return COLORS.lightGray;
-    } else if (isTablet) {
-      return COLORS.secondaryText;
-    } else {
-      return COLORS.secondaryText;
-    }
-  };
+  // Facebook blue color
+  const facebookBlue = '#1877F2';
 
-  // Responsive placeholder text size
-  const getPlaceholderTextSize = () => {
-    if (isSmallDevice) {
-      return 12;
-    } else if (isTablet) {
-      return 16;
-    } else {
-      return 14;
-    }
-  };
-
-  // Responsive placeholder text style
-  const getPlaceholderTextStyle = () => ({
-    fontSize: getPlaceholderTextSize(),
-    color: getPlaceholderTextColor(),
-    fontFamily: FONTS.family,
-  });
-
-  // Responsive placeholder text for different screen sizes
-  const getResponsivePlaceholder = (text) => {
-    if (isSmallDevice) {
-      return text.length > 12 ? text.substring(0, 12) + '...' : text;
-    } else if (isTablet) {
-      return text;
-    } else {
-      return text.length > 18 ? text.substring(0, 18) + '...' : text;
-    }
-  };
-
-  const styleSheet = useMemo(() => styles(isSmallDevice, isTablet, wp, hp, COLORS), [isSmallDevice, isTablet, currentWidth, currentHeight, COLORS]);
+  const styleSheet = useMemo(() => styles(isSmallDevice, isTablet, wp, hp, COLORS, facebookBlue), [isSmallDevice, isTablet, currentWidth, currentHeight, COLORS]);
 
   return (
     <SafeAreaView style={styleSheet.container}>
@@ -249,23 +212,22 @@ const SignUpScreen = ({ navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styleSheet.keyboardView}
       >
-        <ScrollView contentContainerStyle={styleSheet.scrollContainer}>
+        <ScrollView 
+          contentContainerStyle={styleSheet.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styleSheet.logoContainer}>
             <Image source={require('../assets/LogoBlue.png')} style={styleSheet.logoImage} />
             <Text style={styleSheet.appName}>PawSafety</Text>
-            <Text style={styleSheet.tagline}>Join our pet-loving community</Text>
           </View>
 
           <View style={styleSheet.formContainer}>
-            <Text style={styleSheet.title}>Create Account</Text>
-            <Text style={styleSheet.subtitle}>Sign up to get started</Text>
-
             <View style={styleSheet.inputContainer}>
               <Text style={styleSheet.inputLabel}>Full Name</Text>
               <TextInput
                 style={styleSheet.input}
-                placeholder={isSmallDevice ? "Full name" : "Enter your full name"}
-                placeholderTextColor={getPlaceholderTextColor()}
+                placeholder="Full name"
+                placeholderTextColor="#8A8D91"
                 value={fullName}
                 onChangeText={handleNameChange}
                 autoCapitalize="words"
@@ -281,8 +243,8 @@ const SignUpScreen = ({ navigation }) => {
               <Text style={styleSheet.inputLabel}>Email</Text>
               <TextInput
                 style={styleSheet.input}
-                placeholder={isSmallDevice ? "Email" : "Enter your email"}
-                placeholderTextColor={getPlaceholderTextColor()}
+                placeholder="Email or phone number"
+                placeholderTextColor="#8A8D91"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -300,8 +262,8 @@ const SignUpScreen = ({ navigation }) => {
               <View style={styleSheet.passwordInputContainer}>
                 <TextInput
                   style={styleSheet.passwordInput}
-                  placeholder={isSmallDevice ? "Password" : "Enter password"}
-                  placeholderTextColor={getPlaceholderTextColor()}
+                  placeholder="Password"
+                  placeholderTextColor="#8A8D91"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -310,7 +272,6 @@ const SignUpScreen = ({ navigation }) => {
                   includeFontPadding={false}
                   multiline={false}
                   numberOfLines={1}
-                  ellipsizeMode="tail"
                   returnKeyType="next"
                   blurOnSubmit={false}
                 />
@@ -320,8 +281,8 @@ const SignUpScreen = ({ navigation }) => {
                 >
                   <MaterialIcons
                     name={showPassword ? 'visibility' : 'visibility-off'}
-                    size={24}
-                    color={COLORS.gray}
+                    size={20}
+                    color="#8A8D91"
                   />
                 </TouchableOpacity>
               </View>
@@ -332,8 +293,8 @@ const SignUpScreen = ({ navigation }) => {
               <View style={styleSheet.passwordInputContainer}>
                 <TextInput
                   style={styleSheet.passwordInput}
-                  placeholder={isSmallDevice ? "Confirm" : "Confirm password"}
-                  placeholderTextColor={getPlaceholderTextColor()}
+                  placeholder="Confirm password"
+                  placeholderTextColor="#8A8D91"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
@@ -342,7 +303,6 @@ const SignUpScreen = ({ navigation }) => {
                   includeFontPadding={false}
                   multiline={false}
                   numberOfLines={1}
-                  ellipsizeMode="tail"
                   returnKeyType="done"
                   blurOnSubmit={true}
                 />
@@ -352,8 +312,8 @@ const SignUpScreen = ({ navigation }) => {
                 >
                   <MaterialIcons
                     name={showConfirmPassword ? 'visibility' : 'visibility-off'}
-                    size={24}
-                    color={COLORS.gray}
+                    size={20}
+                    color="#8A8D91"
                   />
                 </TouchableOpacity>
               </View>
@@ -367,7 +327,7 @@ const SignUpScreen = ({ navigation }) => {
               >
                 <View style={[styleSheet.checkbox, acceptedTerms && styleSheet.checkboxChecked]}>
                   {acceptedTerms && (
-                    <MaterialIcons name="check" size={18} color={COLORS.white} />
+                    <MaterialIcons name="check" size={16} color="#FFFFFF" />
                   )}
                 </View>
                 <View style={styleSheet.termsTextContainer}>
@@ -396,17 +356,22 @@ const SignUpScreen = ({ navigation }) => {
               <Text 
                 style={styleSheet.signUpButtonText}
                 numberOfLines={1}
-                adjustsFontSizeToFit={true}
-                minimumFontScale={0.8}
               >
-                {loading ? 'Creating Account...' : 'Sign Up'}
+                {loading ? 'Signing Up...' : 'Sign Up'}
               </Text>
             </TouchableOpacity>
 
+            <View style={styleSheet.divider}>
+              <View style={styleSheet.dividerLine} />
+            </View>
+
             <View style={styleSheet.loginContainer}>
-              <Text style={styleSheet.loginText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styleSheet.loginLink}>Sign In</Text>
+              <TouchableOpacity 
+                style={styleSheet.loginButton}
+                onPress={() => navigation.navigate('Login')}
+                activeOpacity={0.8}
+              >
+                <Text style={styleSheet.loginButtonText}>Already have an account?</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -542,11 +507,11 @@ const SignUpScreen = ({ navigation }) => {
                     📁 <Text style={styleSheet.spamFolderHighlight}>Please check your spam/junk folder</Text> if you don't see the email in your inbox.
                   </Text>
                   <TouchableOpacity 
-                    style={[styleSheet.resendButton, !canResend && styles.resendButtonDisabled]}
+                    style={[styleSheet.resendButton, !canResend && styleSheet.resendButtonDisabled]}
                     onPress={resendVerificationEmail}
                     disabled={!canResend}
                   >
-                    <Text style={[styleSheet.resendButtonText, !canResend && styles.resendButtonTextDisabled]}>
+                    <Text style={[styleSheet.resendButtonText, !canResend && styleSheet.resendButtonTextDisabled]}>
                       {canResend 
                         ? 'Resend Verification Email' 
                         : `Resend in ${resendCooldown}s`
@@ -574,7 +539,7 @@ const SignUpScreen = ({ navigation }) => {
   );
 };
 
-const styles = (isSmallDevice, isTablet, wp, hp, COLORS) => StyleSheet.create({
+const styles = (isSmallDevice, isTablet, wp, hp, COLORS, facebookBlue) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -585,133 +550,113 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS) => StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: isSmallDevice ? 15 : 20,
+    paddingHorizontal: isSmallDevice ? SPACING.lg : SPACING.xl,
+    paddingVertical: SPACING.xl,
     minHeight: hp(100),
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: isSmallDevice ? 20 : 40,
+    marginBottom: isSmallDevice ? hp(6) : hp(8),
   },
   logoImage: {
-    width: wp(isSmallDevice ? 18 : isTablet ? 12 : 20),
-    height: wp(isSmallDevice ? 18 : isTablet ? 12 : 20),
-    marginBottom: 10,
+    width: wp(isSmallDevice ? 25 : isTablet ? 18 : 30),
+    height: wp(isSmallDevice ? 25 : isTablet ? 18 : 30),
+    marginBottom: SPACING.md,
     resizeMode: 'contain',
   },
   appName: {
-    fontSize: isSmallDevice ? FONTS.sizes.xxlarge : FONTS.sizes.title,
+    fontSize: isSmallDevice ? 32 : 40,
     fontFamily: FONTS.family,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  tagline: {
-    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
-    fontFamily: FONTS.family,
-    color: COLORS.secondaryText,
-    textAlign: 'center',
+    fontWeight: '700',
+    color: '#1877F2',
+    letterSpacing: -0.5,
   },
   formContainer: {
-    backgroundColor: COLORS.cardBackground,
-    borderRadius: RADIUS.xlarge,
-    padding: isSmallDevice ? SPACING.lg : SPACING.xl,
     width: '100%',
     maxWidth: wp(90),
     alignSelf: 'center',
-    ...SHADOWS.medium,
-  },
-  title: {
-    fontSize: isSmallDevice ? FONTS.sizes.xxlarge : FONTS.sizes.xxxlarge,
-    fontFamily: FONTS.family,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: SPACING.xs,
-  },
-  subtitle: {
-    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
-    fontFamily: FONTS.family,
-    color: COLORS.secondaryText,
-    textAlign: 'center',
-    marginBottom: isSmallDevice ? SPACING.lg : SPACING.xl,
   },
   inputContainer: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   inputLabel: {
-    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
+    fontSize: 14,
     fontFamily: FONTS.family,
-    fontWeight: FONTS.weights.semiBold,
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-    textAlignVertical: 'center',
-    includeFontPadding: false,
+    fontWeight: '600',
+    color: '#1C1E21',
+    marginBottom: SPACING.xs,
   },
   input: {
-    backgroundColor: COLORS.inputBackground,
-    borderRadius: RADIUS.medium,
+    backgroundColor: '#F5F6F7',
+    borderRadius: 8,
     paddingHorizontal: SPACING.md,
-    paddingVertical: isSmallDevice ? SPACING.sm : SPACING.md,
-    fontSize: isSmallDevice ? 14 : 16,
+    paddingVertical: SPACING.md,
+    fontSize: 16,
     fontFamily: FONTS.family,
     borderWidth: 1,
-    borderColor: COLORS.mediumBlue,
-    color: COLORS.text,
-    height: isSmallDevice ? 50 : 56,
-    minHeight: 50,
+    borderColor: '#DDDFE2',
+    color: '#1C1E21',
+    height: 50,
     textAlignVertical: 'center',
     includeFontPadding: false,
   },
   signUpButton: {
-    backgroundColor: COLORS.golden,
-    borderRadius: RADIUS.medium,
+    backgroundColor: facebookBlue,
+    borderRadius: 8,
     paddingHorizontal: SPACING.lg,
     paddingVertical: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.lg,
-    height: isSmallDevice ? 50 : 56,
-    minHeight: 50,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.md,
+    height: 50,
     flexDirection: 'row',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   signUpButtonDisabled: {
-    backgroundColor: COLORS.secondaryText,
+    backgroundColor: '#BCC0C4',
   },
   signUpButtonText: {
-    color: COLORS.white,
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 18,
     fontFamily: FONTS.family,
     fontWeight: '700',
     textAlign: 'center',
     textAlignVertical: 'center',
     includeFontPadding: false,
-    lineHeight: 20,
-    marginVertical: 0,
-    marginHorizontal: 0,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: SPACING.lg,
+    width: '100%',
+  },
+  dividerLine: {
     flex: 1,
+    height: 1,
+    backgroundColor: '#DADDE1',
   },
   loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    paddingHorizontal: isSmallDevice ? SPACING.sm : SPACING.md,
+    marginTop: SPACING.sm,
   },
-  loginText: {
-    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
+  loginButton: {
+    backgroundColor: COLORS.darkPurple,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    width: '100%',
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
     fontFamily: FONTS.family,
-    color: COLORS.secondaryText,
+    fontWeight: '700',
     textAlign: 'center',
-  },
-  loginLink: {
-    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
-    fontFamily: FONTS.family,
-    color: COLORS.darkPurple,
-    fontWeight: FONTS.weights.bold,
-    textDecorationLine: 'underline',
   },
   
   // Modal Styles
@@ -834,12 +779,11 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS) => StyleSheet.create({
   passwordInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.inputBackground,
-    borderRadius: RADIUS.medium,
+    backgroundColor: '#F5F6F7',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.mediumBlue,
-    height: isSmallDevice ? 50 : 56,
-    minHeight: 50,
+    borderColor: '#DDDFE2',
+    height: 50,
     justifyContent: 'space-between',
     paddingRight: SPACING.xs,
   },
@@ -848,14 +792,12 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS) => StyleSheet.create({
     paddingLeft: SPACING.md,
     paddingRight: SPACING.sm,
     paddingVertical: 0,
-    fontSize: isSmallDevice ? 14 : 16,
+    fontSize: 16,
     fontFamily: FONTS.family,
-    color: COLORS.text,
+    color: '#1C1E21',
     textAlignVertical: 'center',
     includeFontPadding: false,
     height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
     textAlign: 'left',
   },
   eyeIcon: {
@@ -877,34 +819,34 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS) => StyleSheet.create({
     paddingVertical: SPACING.xs,
   },
   checkbox: {
-    width: 22,
-    height: 22,
+    width: 20,
+    height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: COLORS.mediumBlue,
-    backgroundColor: COLORS.inputBackground,
+    borderColor: '#DDDFE2',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.sm,
     marginTop: 2,
   },
   checkboxChecked: {
-    backgroundColor: COLORS.darkPurple,
-    borderColor: COLORS.darkPurple,
+    backgroundColor: facebookBlue,
+    borderColor: facebookBlue,
   },
   termsTextContainer: {
     flex: 1,
     flexWrap: 'wrap',
   },
   termsText: {
-    fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
+    fontSize: 14,
     fontFamily: FONTS.family,
-    color: COLORS.text,
+    color: '#1C1E21',
     lineHeight: 20,
   },
   termsLink: {
-    color: COLORS.darkPurple,
-    fontWeight: FONTS.weights.bold,
+    color: facebookBlue,
+    fontWeight: '600',
     textDecorationLine: 'underline',
   },
   termsModalContent: {
