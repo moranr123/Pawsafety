@@ -107,6 +107,8 @@ const AgriculturalDashboard = () => {
   const [archivedPets, setArchivedPets] = useState([]);
   const [archivedRegisteredPets, setArchivedRegisteredPets] = useState([]);
   const [deactivatedUsers, setDeactivatedUsers] = useState([]);
+  const [archivedUsers, setArchivedUsers] = useState([]);
+  const [showArchivedUsers, setShowArchivedUsers] = useState(false);
   const [selectedPet, setSelectedPet] = useState(null);
   const [showPetModal, setShowPetModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -400,7 +402,8 @@ const AgriculturalDashboard = () => {
           createdAt: userData.createdAt,
           profileImage: userData.profileImage || null,
           chatRestricted: userData.chatRestricted || false,
-          chatRestrictionExpiresAt: userData.chatRestrictionExpiresAt || null
+          chatRestrictionExpiresAt: userData.chatRestrictionExpiresAt || null,
+          archived: userData.archived || false
         });
       });
       
@@ -419,7 +422,9 @@ const AgriculturalDashboard = () => {
               displayName: appData.applicant.fullName || existingUser.displayName,
               phone: appData.applicant.phone || existingUser.phone,
               address: appData.applicant.address || existingUser.address,
-              hasAdoptionApplication: true
+              hasAdoptionApplication: true,
+              // Preserve archived status
+              archived: existingUser.archived || false
             });
           }
         });
@@ -431,12 +436,20 @@ const AgriculturalDashboard = () => {
       
       const regularUsers = allUsers.filter(user => {
         const role = user.role || 'user';
-        return role === 'user' || role === 'regular';
+        // Explicitly check that archived is not true (handles undefined, null, false)
+        return (role === 'user' || role === 'regular') && user.archived !== true;
+      });
+
+      const archivedUsersList = allUsers.filter(user => {
+        const role = user.role || 'user';
+        // Explicitly check that archived is true
+        return (role === 'user' || role === 'regular') && user.archived === true;
       });
       
       
       setUsers(regularUsers);
       setDeactivatedUsers(regularUsers.filter(user => user.status === 'deactivated'));
+      setArchivedUsers(archivedUsersList);
       
       // Generate user chart data
       setUserChartData(generateUserChartData(regularUsers, selectedYear));
@@ -950,7 +963,13 @@ const AgriculturalDashboard = () => {
 
   // Filter functions - memoized
   const getFilteredPets = useCallback((petList) => {
+    // Get archived user IDs
+    const archivedUserIds = new Set(archivedUsers.map(user => user.uid || user.id));
+    
     return petList.filter(pet => {
+      // Exclude pets from archived users
+      if (pet.userId && archivedUserIds.has(pet.userId)) return false;
+      
       const matchesSearch = !searchTerm || 
         pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -960,7 +979,7 @@ const AgriculturalDashboard = () => {
       
       return matchesSearch && matchesType;
     });
-  }, [searchTerm, filterType]);
+  }, [searchTerm, filterType, archivedUsers]);
 
   // Get unique breeds from registered pets - memoized
   const getUniqueBreeds = useMemo(() => {
@@ -974,7 +993,13 @@ const AgriculturalDashboard = () => {
 
   // Filter registered pets with additional filters - memoized
   const getFilteredRegisteredPets = useMemo(() => {
+    // Get archived user IDs
+    const archivedUserIds = new Set(archivedUsers.map(user => user.uid || user.id));
+    
     return registeredPets.filter(pet => {
+      // Exclude pets from archived users
+      if (pet.userId && archivedUserIds.has(pet.userId)) return false;
+      
       const matchesSearch = !searchTerm || 
         pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pet.ownerFullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1011,7 +1036,7 @@ const AgriculturalDashboard = () => {
       
       return matchesSearch && matchesType && matchesGender && matchesBreed && matchesDate;
     });
-  }, [registeredPets, searchTerm, filterType, filterGender, filterBreed, filterDate]);
+  }, [registeredPets, archivedUsers, searchTerm, filterType, filterGender, filterBreed, filterDate]);
   
   const getFilteredPendingPets = useMemo(() => getFilteredPets(pendingPets), [getFilteredPets, pendingPets]);
 
@@ -1196,6 +1221,98 @@ const AgriculturalDashboard = () => {
     }
   }, [users, currentUser, logActivity]);
 
+  const handleArchiveUser = useCallback(async (userId) => {
+    // Find user details for confirmation dialog
+    const user = users.find(u => u.uid === userId);
+    const userName = user?.displayName || 'Unknown User';
+    const userEmail = user?.email || 'No email';
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to archive this user account?\n\n` +
+      `User: ${userName}\n` +
+      `Email: ${userEmail}\n\n` +
+      `This will:\n` +
+      `• Move the user to archived users\n` +
+      `• Hide them from the main user list\n` +
+      `• Keep their data intact\n\n` +
+      `Click OK to archive or Cancel to abort.`
+    );
+    
+    if (!confirmed) {
+      return; // User cancelled the action
+    }
+    
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      await updateDoc(userDocRef, { 
+        archived: true,
+        archivedAt: serverTimestamp(),
+        archivedBy: currentUser?.email || 'agricultural_admin',
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser?.email || 'agricultural_admin'
+      });
+      
+      toast.success(`${userName} has been archived successfully`);
+      
+      // Log activity
+      await logActivity(
+        `Archived user account for ${userName}`,
+        'archive',
+        `Archived user: ${userName} (${userEmail})`
+      );
+    } catch (error) {
+      console.error('Error archiving user:', error);
+      console.error('Error details:', error.message, error.code);
+      toast.error(`Failed to archive user: ${error.message || 'Unknown error'}`);
+    }
+  }, [users, currentUser, logActivity]);
+
+  const handleRestoreUser = useCallback(async (userId) => {
+    // Find user details for confirmation dialog
+    const user = archivedUsers.find(u => u.uid === userId);
+    const userName = user?.displayName || 'Unknown User';
+    const userEmail = user?.email || 'No email';
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to restore this archived user account?\n\n` +
+      `User: ${userName}\n` +
+      `Email: ${userEmail}\n\n` +
+      `This will:\n` +
+      `• Move the user back to the main user list\n` +
+      `• Make them visible again\n\n` +
+      `Click OK to restore or Cancel to abort.`
+    );
+    
+    if (!confirmed) {
+      return; // User cancelled the action
+    }
+    
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      await updateDoc(userDocRef, { 
+        archived: false,
+        restoredAt: serverTimestamp(),
+        restoredBy: currentUser?.email || 'agricultural_admin',
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser?.email || 'agricultural_admin'
+      });
+      
+      toast.success(`${userName} has been restored successfully`);
+      
+      // Log activity
+      await logActivity(
+        `Restored archived user account for ${userName}`,
+        'restore',
+        `Restored user: ${userName} (${userEmail})`
+      );
+    } catch (error) {
+      console.error('Error restoring user:', error);
+      toast.error('Failed to restore user');
+    }
+  }, [archivedUsers, currentUser, logActivity]);
+
   // Filter users based on search term - memoized
   // Helper function to check if chat restriction is still active
   const isChatRestrictionActive = useCallback((user) => {
@@ -1216,25 +1333,28 @@ const AgriculturalDashboard = () => {
   }, []);
 
   const getFilteredUsers = useMemo(() => {
-    return users.filter(user => {
+    const userList = showArchivedUsers ? archivedUsers : users;
+    return userList.filter(user => {
       const matchesSearch = !searchTerm || 
         user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.phone?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Filter by user status
+      // Filter by user status (only for non-archived view)
       let matchesStatus = true;
-      if (userStatusFilter === 'restricted') {
-        matchesStatus = isChatRestrictionActive(user);
-      } else if (userStatusFilter === 'deactivated') {
-        matchesStatus = user.status === 'deactivated';
-      } else if (userStatusFilter === 'banned') {
-        matchesStatus = user.status === 'banned';
+      if (!showArchivedUsers) {
+        if (userStatusFilter === 'restricted') {
+          matchesStatus = isChatRestrictionActive(user);
+        } else if (userStatusFilter === 'deactivated') {
+          matchesStatus = user.status === 'deactivated';
+        } else if (userStatusFilter === 'banned') {
+          matchesStatus = user.status === 'banned';
+        }
       }
       
       return matchesSearch && matchesStatus;
     });
-  }, [users, searchTerm, userStatusFilter, isChatRestrictionActive]);
+  }, [users, archivedUsers, showArchivedUsers, searchTerm, userStatusFilter, isChatRestrictionActive]);
 
   // View user details - memoized
   const handleViewUser = useCallback((user) => {
@@ -3032,16 +3152,38 @@ const AgriculturalDashboard = () => {
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-4 sm:p-6 border border-indigo-200">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-2">
               <div>
-                <h2 className="text-base sm:text-lg font-medium text-gray-900">User Management</h2>
-                <p className="text-xs sm:text-sm text-gray-600">Managing regular users only (admin users not displayed)</p>
+                <h2 className="text-base sm:text-lg font-medium text-gray-900">
+                  {showArchivedUsers ? 'Archived Users' : 'User Management'}
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  {showArchivedUsers 
+                    ? 'View and restore archived users' 
+                    : 'Managing regular users only (admin users not displayed)'}
+                </p>
               </div>
-              <div className="text-xs sm:text-sm text-gray-900 font-medium">
-                User Management
+              <div className="flex items-center gap-2">
+                {showArchivedUsers ? (
+                  <button
+                    onClick={() => setShowArchivedUsers(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors shadow-sm"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Users
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowArchivedUsers(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 transition-colors shadow-sm"
+                  >
+                    <Archive className="h-4 w-4" />
+                    View Archived ({archivedUsers.length})
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Inactive Users Alert */}
-            {inactiveUsers.length > 0 && showInactiveAlert && (
+            {/* Inactive Users Alert - Only show when not viewing archived users */}
+            {!showArchivedUsers && inactiveUsers.length > 0 && showInactiveAlert && (
               <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg relative">
                 <button
                   onClick={() => setShowInactiveAlert(false)}
@@ -3112,49 +3254,51 @@ const AgriculturalDashboard = () => {
                 </div>
               </div>
               
-              {/* User Status Filter Buttons */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setUserStatusFilter('all')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
-                    userStatusFilter === 'all'
-                      ? 'bg-indigo-600 text-white shadow-md'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  All Users
-                </button>
-                <button
-                  onClick={() => setUserStatusFilter('restricted')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
-                    userStatusFilter === 'restricted'
-                      ? 'bg-yellow-600 text-white shadow-md'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Restricted
-                </button>
-                <button
-                  onClick={() => setUserStatusFilter('deactivated')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
-                    userStatusFilter === 'deactivated'
-                      ? 'bg-red-600 text-white shadow-md'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Deactivated
-                </button>
-                <button
-                  onClick={() => setUserStatusFilter('banned')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
-                    userStatusFilter === 'banned'
-                      ? 'bg-red-800 text-white shadow-md'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Banned
-                </button>
-              </div>
+              {/* User Status Filter Buttons - Only show when not viewing archived users */}
+              {!showArchivedUsers && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setUserStatusFilter('all')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                      userStatusFilter === 'all'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    All Users
+                  </button>
+                  <button
+                    onClick={() => setUserStatusFilter('restricted')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                      userStatusFilter === 'restricted'
+                        ? 'bg-yellow-600 text-white shadow-md'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Restricted
+                  </button>
+                  <button
+                    onClick={() => setUserStatusFilter('deactivated')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                      userStatusFilter === 'deactivated'
+                        ? 'bg-red-600 text-white shadow-md'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Deactivated
+                  </button>
+                  <button
+                    onClick={() => setUserStatusFilter('banned')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                      userStatusFilter === 'banned'
+                        ? 'bg-red-800 text-white shadow-md'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Banned
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Mobile Card View */}
@@ -3335,6 +3479,23 @@ const AgriculturalDashboard = () => {
                       >
                         <ShieldOff className="h-3 w-3 mr-1" />
                         Deactivate
+                      </button>
+                    )}
+                    {showArchivedUsers ? (
+                      <button
+                        onClick={() => handleRestoreUser(user.uid)}
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleArchiveUser(user.uid)}
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors"
+                      >
+                        <Archive className="h-3 w-3 mr-1" />
+                        Archive
                       </button>
                     )}
                   </div>
@@ -3538,7 +3699,24 @@ const AgriculturalDashboard = () => {
                               Deactivate
                             </button>
                           )}
-                </div>
+                          {showArchivedUsers ? (
+                            <button
+                              onClick={() => handleRestoreUser(user.uid)}
+                              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Restore
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleArchiveUser(user.uid)}
+                              className="px-3 py-1 text-xs rounded bg-purple-600 text-white hover:bg-purple-700 flex items-center transition-all duration-300"
+                            >
+                              <Archive className="h-3 w-3 mr-1" />
+                              Archive
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     );
