@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -74,11 +74,11 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const [commentInputRef, setCommentInputRef] = useState(null);
   const [replyInputRefs, setReplyInputRefs] = useState({});
 
-  const isOwner = user?.uid === post.userId;
+  const isOwner = useMemo(() => user?.uid === post.userId, [user?.uid, post.userId]);
 
-  // Helper function to extract @ mentions from text
+  // Helper function to extract @ mentions from text - memoized
   // Matches @username or @displayName patterns
-  const extractMentions = (text) => {
+  const extractMentions = useCallback((text) => {
     if (!text || typeof text !== 'string') return [];
     
     // Match @ followed by alphanumeric characters, underscores, or spaces
@@ -95,10 +95,10 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     }
     
     return mentions;
-  };
+  }, []);
 
-  // Helper function to find user IDs from usernames/displayNames
-  const findMentionedUserIds = async (usernames) => {
+  // Helper function to find user IDs from usernames/displayNames - memoized
+  const findMentionedUserIds = useCallback(async (usernames) => {
     if (!usernames || usernames.length === 0) return [];
     
     const userIds = [];
@@ -142,17 +142,20 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       console.error('Error finding mentioned user IDs:', error);
       return [];
     }
-  };
+  }, []);
 
-  // Helper function to send notifications to mentioned users
-  const notifyMentionedUsers = async (mentionedUserIds, commentText, commentId, isReply = false) => {
+  // Helper function to send notifications to mentioned users - memoized
+  const notifyMentionedUsers = useCallback(async (mentionedUserIds, commentText, commentId, isReply = false) => {
     if (!mentionedUserIds || mentionedUserIds.length === 0 || !user?.uid) return;
     
     const notificationService = NotificationService.getInstance();
     const currentUserName = user.displayName || 'Someone';
     
     // Filter out the current user (don't notify yourself)
-    const usersToNotify = mentionedUserIds.filter(uid => uid !== user.uid);
+    // Use String comparison to handle any type mismatches
+    const usersToNotify = mentionedUserIds.filter(uid => 
+      uid !== user.uid && String(uid) !== String(user.uid)
+    );
     
     // Send notifications to each mentioned user
     await Promise.all(
@@ -177,7 +180,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         }
       })
     );
-  };
+  }, [user, post.id]);
 
   const styles = useMemo(() => StyleSheet.create({
     card: {
@@ -1081,7 +1084,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     }
   };
 
-  const handleLike = async () => {
+  const handleLike = useCallback(async () => {
     if (!user?.uid || isLiking) return;
 
     // Prevent duplicate likes by checking if user is already in the array
@@ -1135,9 +1138,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } finally {
       setIsLiking(false);
     }
-  };
+  }, [user, post, isLiking]);
 
-  const handleComment = async () => {
+  const handleComment = useCallback(async () => {
     if (!commentText.trim() || !user?.uid) return;
 
     setIsSubmittingComment(true);
@@ -1180,19 +1183,23 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
 
       // Send notification to post owner if not the same user and not mentioned
       // Only notify post owner if they weren't already mentioned
-      if (post.userId && post.userId !== user.uid && !mentionedUserIds.includes(post.userId)) {
+      // IMPORTANT: Don't notify if the current user is the post owner
+      if (post.userId && 
+          post.userId !== user.uid && 
+          String(post.userId) !== String(user.uid) &&
+          !mentionedUserIds.includes(post.userId)) {
         try {
           const notificationService = NotificationService.getInstance();
           await notificationService.createNotification({
             userId: post.userId,
             type: 'post_comment',
             title: 'New Comment',
-            body: `${user.displayName || 'Someone'} commented on your post: "${commentText.trim().substring(0, 50)}${commentText.trim().length > 50 ? '...' : ''}"`,
+            body: `${currentUserName} commented on your post: "${commentText.trim().substring(0, 50)}${commentText.trim().length > 50 ? '...' : ''}"`,
             data: {
               postId: post.id,
               type: 'post_comment',
               commentedBy: user.uid,
-              commentedByName: user.displayName || 'Someone',
+              commentedByName: currentUserName,
             },
           });
         } catch (notifError) {
@@ -1221,9 +1228,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } finally {
       setIsSubmittingComment(false);
     }
-  };
+  }, [user, post, commentText, profileImage, extractMentions, findMentionedUserIds, notifyMentionedUsers, loadComments, loadCommentsCount]);
 
-  const handleEditComment = async (commentId) => {
+  const handleEditComment = useCallback(async (commentId) => {
     if (!editCommentText.trim()) {
       Alert.alert('Error', 'Comment text cannot be empty.');
       return;
@@ -1265,9 +1272,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       console.error('Error updating comment:', error);
       Alert.alert('Error', 'Failed to update comment. Please try again.');
     }
-  };
+  }, [editCommentText, extractMentions, findMentionedUserIds, notifyMentionedUsers, loadComments]);
 
-  const handleLikeComment = async (commentId) => {
+  const handleLikeComment = useCallback(async (commentId) => {
     if (!user?.uid || isLikingComment[commentId]) return;
 
     setIsLikingComment(prev => ({ ...prev, [commentId]: true }));
@@ -1290,19 +1297,35 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
           });
           
           // Send notification to comment owner if not the same user
-          if (commentData.userId && commentData.userId !== user.uid) {
+          // IMPORTANT: Don't notify if the current user is the comment owner
+          if (commentData.userId && 
+              commentData.userId !== user.uid &&
+              String(commentData.userId) !== String(user.uid)) {
             try {
+              // Fetch current user's display name for notification
+              let likerName = user.displayName || 'Someone';
+              try {
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  likerName = userData.displayName || userData.name || likerName;
+                }
+              } catch (error) {
+                // Use existing value if fetch fails
+              }
+              
               const notificationService = NotificationService.getInstance();
               await notificationService.createNotification({
                 userId: commentData.userId,
                 type: 'comment_like',
                 title: 'New Like',
-                body: `${user.displayName || 'Someone'} liked your comment`,
+                body: `${likerName} liked your comment`,
                 data: {
                   postId: post.id,
                   commentId: commentId,
                   type: 'comment_like',
                   likedBy: user.uid,
+                  likedByName: likerName,
                 },
               });
             } catch (notifError) {
@@ -1316,9 +1339,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } finally {
       setIsLikingComment(prev => ({ ...prev, [commentId]: false }));
     }
-  };
+  }, [user, post, isLikingComment]);
 
-  const handleReply = async (parentCommentId) => {
+  const handleReply = useCallback(async (parentCommentId) => {
     if (!replyText.trim() || !user?.uid) return;
 
     setIsSubmittingReply(prev => ({ ...prev, [parentCommentId]: true }));
@@ -1367,19 +1390,23 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       });
 
       // Send notification to parent comment owner if not the same user
-      if (parentCommentData?.userId && parentCommentData.userId !== user.uid) {
+      // IMPORTANT: Don't notify if the current user is the parent comment owner
+      if (parentCommentData?.userId && 
+          parentCommentData.userId !== user.uid &&
+          String(parentCommentData.userId) !== String(user.uid)) {
         try {
           const notificationService = NotificationService.getInstance();
           await notificationService.createNotification({
             userId: parentCommentData.userId,
             type: 'comment_reply',
             title: 'New Reply',
-            body: `${user.displayName || 'Someone'} replied to your comment`,
+            body: `${currentUserName} replied to your comment`,
             data: {
               postId: post.id,
               commentId: parentCommentId,
               type: 'comment_reply',
               repliedBy: user.uid,
+              repliedByName: currentUserName,
             },
           });
         } catch (notifError) {
@@ -1388,21 +1415,24 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       }
 
       // Also notify original comment owner if different from parent
+      // IMPORTANT: Don't notify if the current user is the original comment owner
       if (originalCommentData?.userId && 
           originalCommentData.userId !== parentCommentData?.userId && 
-          originalCommentData.userId !== user.uid) {
+          originalCommentData.userId !== user.uid &&
+          String(originalCommentData.userId) !== String(user.uid)) {
         try {
           const notificationService = NotificationService.getInstance();
           await notificationService.createNotification({
             userId: originalCommentData.userId,
             type: 'comment_reply',
             title: 'New Reply',
-            body: `${user.displayName || 'Someone'} replied to a comment on your post`,
+            body: `${currentUserName} replied to a comment on your post`,
             data: {
               postId: post.id,
               commentId: originalCommentId,
               type: 'comment_reply',
               repliedBy: user.uid,
+              repliedByName: currentUserName,
             },
           });
         } catch (notifError) {
@@ -1430,9 +1460,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } finally {
       setIsSubmittingReply(prev => ({ ...prev, [parentCommentId]: false }));
     }
-  };
+  }, [user, post, replyText, profileImage, extractMentions, findMentionedUserIds, notifyMentionedUsers, loadComments]);
 
-  const handleDeleteComment = (commentId) => {
+  const handleDeleteComment = useCallback((commentId) => {
     Alert.alert(
       'Delete Comment',
       'Are you sure you want to delete this comment?',
@@ -1453,10 +1483,10 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         }
       ]
     );
-  };
+  }, [loadComments, loadCommentsCount]);
 
-  // Initialize edit images when opening edit modal
-  const openEditModal = () => {
+  // Initialize edit images when opening edit modal - memoized
+  const openEditModal = useCallback(() => {
     const initialImages = (post.images || []).map(url => ({
       uri: url,
       isNew: false,
@@ -1465,10 +1495,10 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     setEditImages(initialImages);
     setEditText(post.text || '');
     setShowEditModal(true);
-  };
+  }, [post]);
 
-  // Select images for editing
-  const selectEditImages = async () => {
+  // Select images for editing - memoized
+  const selectEditImages = useCallback(async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
@@ -1494,14 +1524,14 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } catch (error) {
       Alert.alert('Error', 'Failed to select images. Please try again.');
     }
-  };
+  }, []);
 
-  // Remove image from edit list
-  const removeEditImage = (index) => {
+  // Remove image from edit list - memoized
+  const removeEditImage = useCallback((index) => {
     setEditImages(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
-  const handleEdit = async () => {
+  const handleEdit = useCallback(async () => {
     // Both text and images are optional, but at least one must be present
     if (!editText.trim() && editImages.length === 0) {
       Alert.alert('Error', 'Post must have text or images.');
@@ -1574,9 +1604,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, [post, editText, editImages, user, onPostDeleted]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     Alert.alert(
       'Delete Post',
       'Are you sure you want to delete this post? This action cannot be undone.',
@@ -1601,16 +1631,16 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         }
       ]
     );
-  };
+  }, [post, user, onPostDeleted]);
 
-  const handleReport = () => {
+  const handleReport = useCallback(() => {
     setShowOptionsMenu(false);
     setTimeout(() => {
       setReportModalVisible(true);
     }, 500);
-  };
+  }, []);
 
-  const submitReport = async (reason) => {
+  const submitReport = useCallback(async (reason) => {
     if (!user) return;
 
     try {
@@ -1632,9 +1662,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       console.error('Error reporting post:', error);
       Alert.alert('Error', 'Failed to report post. Please try again.');
     }
-  };
+  }, [user, post]);
 
-  const handleHide = async () => {
+  const handleHide = useCallback(async () => {
     try {
       const hiddenPosts = await AsyncStorage.getItem('hidden_posts');
       const hiddenArray = hiddenPosts ? JSON.parse(hiddenPosts) : [];
@@ -1648,10 +1678,10 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } catch (error) {
       Alert.alert('Error', 'Failed to hide post. Please try again.');
     }
-  };
+  }, [post, onPostHidden]);
 
-  // Handle comment text change and detect @ mentions
-  const handleCommentTextChange = (text) => {
+  // Handle comment text change and detect @ mentions - memoized
+  const handleCommentTextChange = useCallback((text) => {
     setCommentText(text);
     
     // Find the last @ symbol and check if we're in a mention
@@ -1726,10 +1756,10 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       setMentionQuery('');
       setMentionStartIndex(-1);
     }
-  };
+  }, [friends]);
 
-  // Handle reply text change and detect @ mentions
-  const handleReplyTextChange = (text, parentCommentId) => {
+  // Handle reply text change and detect @ mentions - memoized
+  const handleReplyTextChange = useCallback((text, parentCommentId) => {
     // Update reply text for the specific parent comment
     setReplyText(text);
     
@@ -1760,10 +1790,10 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } else {
       setShowReplyMentionSuggestions(prev => ({ ...prev, [parentCommentId]: false }));
     }
-  };
+  }, [friends]);
 
-  // Handle friend selection from mention suggestions
-  const handleSelectMention = (friend, isReply = false, parentCommentId = null) => {
+  // Handle friend selection from mention suggestions - memoized
+  const handleSelectMention = useCallback((friend, isReply = false, parentCommentId = null) => {
     const friendName = friend.displayName || friend.name;
     
     if (isReply && parentCommentId) {
@@ -1803,10 +1833,10 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       // Update text after hiding suggestions to prevent re-triggering
       setCommentText(newText);
     }
-  };
+  }, [commentText, mentionStartIndex, mentionQuery, replyText, replyMentionStartIndices, replyMentionQueries]);
 
-  // Render text with clickable @ mentions
-  const renderTextWithMentions = (text, mentionedUserIds = [], textStyle = styles.commentText) => {
+  // Render text with clickable @ mentions - memoized
+  const renderTextWithMentions = useCallback((text, mentionedUserIds = [], textStyle = styles.commentText) => {
     if (!text) return null;
 
     // Improved regex: @ followed by word characters (letters, numbers, underscore) or spaces
@@ -1908,9 +1938,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         })}
       </Text>
     );
-  };
+  }, [navigation, friends]);
 
-  const formatTime = (timestamp) => {
+  const formatTime = useCallback((timestamp) => {
     if (!timestamp) return 'Just now';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
@@ -1924,16 +1954,16 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     if (diffHours < 24) return `${diffHours}h`;
     if (diffDays < 7) return `${diffDays}d`;
     return date.toLocaleDateString();
-  };
+  }, []);
 
-  const renderImages = () => {
+  const renderImages = useCallback(() => {
     if (!post.images || post.images.length === 0) return null;
 
     const imageCount = post.images.length;
 
     if (imageCount === 1) {
       return (
-        <TouchableOpacity onPress={() => { setSelectedImageIndex(0); setShowImageModal(true); }}>
+        <TouchableOpacity onPress={() => handleImagePress(0)}>
           <Image source={{ uri: post.images[0] }} style={styles.singleImage} resizeMode="cover" />
         </TouchableOpacity>
       );
@@ -1948,7 +1978,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         {/* First row: 2 images */}
         <View style={styles.gridImageRow}>
           {imagesToShow.slice(0, 2).map((img, idx) => (
-            <TouchableOpacity key={idx} onPress={() => { setSelectedImageIndex(idx); setShowImageModal(true); }}>
+            <TouchableOpacity key={idx} onPress={() => handleImagePress(idx)}>
               <Image source={{ uri: img }} style={styles.gridImage} resizeMode="cover" />
             </TouchableOpacity>
           ))}
@@ -1962,7 +1992,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
               return (
                 <TouchableOpacity 
                   key={actualIndex} 
-                  onPress={() => { setSelectedImageIndex(actualIndex); setShowImageModal(true); }}
+                  onPress={() => handleImagePress(actualIndex)}
                 >
                   <View style={{ position: 'relative' }}>
                     <Image source={{ uri: img }} style={styles.gridImage} resizeMode="cover" />
@@ -1979,10 +2009,77 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         )}
       </View>
     );
-  };
+  }, [post.images, width]);
 
   const optionsButtonRef = useRef(null);
   const [menuPosition, setMenuPosition] = useState({ top: 50, right: 12 });
+
+  // Memoize navigation handlers
+  const handleProfilePress = useCallback(() => {
+    if (post.userId && post.userId !== user?.uid) {
+      navigation.navigate('Profile', { userId: post.userId });
+    } else {
+      navigation.navigate('Profile');
+    }
+  }, [post.userId, user?.uid, navigation]);
+
+  const handleCommentPress = useCallback(() => {
+    setShowComments(true);
+  }, []);
+
+  const handleOptionsPress = useCallback(() => {
+    if (optionsButtonRef.current) {
+      optionsButtonRef.current.measureInWindow((x, y, width, height) => {
+        const screenWidth = Dimensions.get('window').width;
+        setMenuPosition({
+          top: y + height + 4,
+          right: screenWidth - x - width
+        });
+        setShowOptionsMenu(true);
+      });
+    } else {
+      setShowOptionsMenu(!showOptionsMenu);
+    }
+  }, [showOptionsMenu]);
+
+  const handleImagePress = useCallback((index) => {
+    setSelectedImageIndex(index);
+    setShowImageModal(true);
+  }, []);
+
+  const handleCloseComments = useCallback(() => {
+    setShowComments(false);
+    setCommentMenuId(null);
+    setEditingCommentId(null);
+    setReplyingToCommentId(null);
+    setReplyText('');
+    setExpandedReplies({});
+    setShowMentionSuggestions(false);
+    setMentionQuery('');
+    setMentionStartIndex(-1);
+    setFilteredFriends([]);
+    setShowReplyMentionSuggestions({});
+    setReplyMentionQueries({});
+    setReplyMentionStartIndices({});
+    setFilteredReplyFriends({});
+  }, []);
+
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false);
+  }, []);
+
+  const handleCloseImageModal = useCallback(() => {
+    setShowImageModal(false);
+  }, []);
+
+  const handleCloseReportModal = useCallback(() => {
+    setReportModalVisible(false);
+  }, []);
+
+  const handleImageScroll = useCallback((e) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / width);
+    setSelectedImageIndex(index);
+  }, [width]);
 
   return (
     <>
@@ -2026,23 +2123,26 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
               </>
             ) : (
               <>
+                {/* Don't show Report option for admin announcements */}
+                {!post.isAnnouncement && (
+                  <TouchableOpacity
+                    style={styles.optionsMenuItem}
+                    onPress={() => {
+                      setShowOptionsMenu(false);
+                      handleReport();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.optionsMenuText}>Report</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
-                  style={styles.optionsMenuItem}
-                      onPress={() => {
-                        setShowOptionsMenu(false);
-                        handleReport();
-                      }}
-                      activeOpacity={0.7}
-                >
-                  <Text style={styles.optionsMenuText}>Report</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.optionsMenuItem, styles.optionsMenuItemLast]}
-                      onPress={() => {
-                        setShowOptionsMenu(false);
-                        handleHide();
-                      }}
-                      activeOpacity={0.7}
+                  style={[styles.optionsMenuItem, post.isAnnouncement ? styles.optionsMenuItemLast : {}]}
+                  onPress={() => {
+                    setShowOptionsMenu(false);
+                    handleHide();
+                  }}
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.optionsMenuText}>Hide</Text>
                 </TouchableOpacity>
@@ -2059,13 +2159,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.userInfo}
-            onPress={() => {
-              if (post.userId && post.userId !== user?.uid) {
-                navigation.navigate('Profile', { userId: post.userId });
-              } else {
-                navigation.navigate('Profile');
-              }
-            }}
+            onPress={handleProfilePress}
             activeOpacity={0.7}
           >
             {post.userProfileImage ? (
@@ -2083,21 +2177,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
           <TouchableOpacity
             ref={optionsButtonRef}
             style={styles.optionsButton}
-            onPress={() => {
-              if (optionsButtonRef.current) {
-                optionsButtonRef.current.measureInWindow((x, y, width, height) => {
-                  const screenWidth = Dimensions.get('window').width;
-                  // Position menu below the button, aligned to the right edge of the button
-                  setMenuPosition({
-                    top: y + height + 4,
-                    right: screenWidth - x - width
-                  });
-                  setShowOptionsMenu(true);
-                });
-              } else {
-                setShowOptionsMenu(!showOptionsMenu);
-              }
-            }}
+            onPress={handleOptionsPress}
           >
             <MaterialIcons name="more-horiz" size={24} color="#65676b" />
           </TouchableOpacity>
@@ -2120,7 +2200,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
               <Text style={styles.likesText}>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</Text>
             )}
             {commentsCount > 0 && (
-              <TouchableOpacity onPress={() => setShowComments(true)}>
+              <TouchableOpacity onPress={handleCommentPress}>
                 <Text style={styles.commentsText}>{commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}</Text>
               </TouchableOpacity>
             )}
@@ -2142,7 +2222,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
             />
             <Text style={[styles.actionText, isLiked && styles.actionTextLiked]}>Like</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => setShowComments(true)}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleCommentPress}>
             <MaterialIcons name="comment" size={20} color="#65676b" />
             <Text style={styles.actionText}>Comment</Text>
           </TouchableOpacity>
@@ -2153,23 +2233,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       <Modal
         visible={showComments}
         animationType="slide"
-        onRequestClose={() => {
-          setShowComments(false);
-          setCommentMenuId(null);
-          setEditingCommentId(null);
-          setReplyingToCommentId(null);
-          setReplyText('');
-          setExpandedReplies({});
-          // Clear mention suggestions
-          setShowMentionSuggestions(false);
-          setMentionQuery('');
-          setMentionStartIndex(-1);
-          setFilteredFriends([]);
-          setShowReplyMentionSuggestions({});
-          setReplyMentionQueries({});
-          setReplyMentionStartIndices({});
-          setFilteredReplyFriends({});
-        }}
+        onRequestClose={handleCloseComments}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
           <StatusBar barStyle="dark-content" />
@@ -2182,21 +2246,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
               <View style={styles.commentModalHeader}>
                 <Text style={styles.commentModalTitle}>Comments</Text>
                 <TouchableOpacity 
-                  onPress={() => {
-                    setShowComments(false);
-                    setCommentMenuId(null);
-                    setExpandedReplies({});
-                    setExpandedAllReplies({});
-                    // Clear mention suggestions
-                    setShowMentionSuggestions(false);
-                    setMentionQuery('');
-                    setMentionStartIndex(-1);
-                    setFilteredFriends([]);
-                    setShowReplyMentionSuggestions({});
-                    setReplyMentionQueries({});
-                    setReplyMentionStartIndices({});
-                    setFilteredReplyFriends({});
-                  }}
+                  onPress={handleCloseComments}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <MaterialIcons name="close" size={24} color="#050505" />
@@ -2423,7 +2473,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         visible={reportModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setReportModalVisible(false)}
+        onRequestClose={handleCloseReportModal}
       >
         <View style={styles.reportModalOverlay}>
           <View style={styles.reportModalContent}>
@@ -2443,7 +2493,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
 
             <TouchableOpacity
               style={styles.reportCancelButton}
-              onPress={() => setReportModalVisible(false)}
+              onPress={handleCloseReportModal}
             >
               <Text style={styles.reportCancelText}>Cancel</Text>
             </TouchableOpacity>
@@ -2455,14 +2505,14 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       <Modal
         visible={showEditModal}
         animationType="slide"
-        onRequestClose={() => setShowEditModal(false)}
+        onRequestClose={handleCloseEditModal}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
           <StatusBar barStyle="dark-content" />
           <View style={styles.editModal}>
             <View style={styles.editModalHeader}>
               <TouchableOpacity 
-                onPress={() => setShowEditModal(false)}
+                onPress={handleCloseEditModal}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Text style={{ fontSize: 15, color: '#1877f2', fontWeight: '600' }}>Cancel</Text>
@@ -2540,14 +2590,14 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
         visible={showImageModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowImageModal(false)}
+        onRequestClose={handleCloseImageModal}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
           <StatusBar barStyle="light-content" />
           <View style={styles.imageModal}>
             <View style={styles.imageModalHeader}>
               <TouchableOpacity 
-                onPress={() => setShowImageModal(false)}
+                onPress={handleCloseImageModal}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <MaterialIcons name="close" size={24} color="#ffffff" />
@@ -2561,10 +2611,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => {
-              const index = Math.round(e.nativeEvent.contentOffset.x / width);
-              setSelectedImageIndex(index);
-            }}
+            onMomentumScrollEnd={handleImageScroll}
           >
             {post.images.map((img, idx) => (
               <Image key={idx} source={{ uri: img }} style={styles.imageModalImage} />

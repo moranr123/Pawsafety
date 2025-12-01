@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -64,13 +64,13 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
   const scrollViewRef = useRef(null);
   const currentUser = auth.currentUser;
 
-  // Get chat ID - unique for each report between two users
-  const getChatId = () => {
+  // Get chat ID - unique for each report between two users - memoized
+  const getChatId = useCallback(() => {
     if (chatId) return chatId;
     if (!currentUser || !report?.userId) return null;
     const userIds = [currentUser.uid, report.userId].sort();
     return `report_${report.id}_${userIds[0]}_${userIds[1]}`;
-  };
+  }, [chatId, currentUser, report?.userId, report?.id]);
 
   // Check block status
   useEffect(() => {
@@ -739,7 +739,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
     }
   };
 
-  const formatTime = (timestamp) => {
+  const formatTime = useCallback((timestamp) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
@@ -752,9 +752,9 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+  }, []);
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1309,9 +1309,9 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
       color: COLORS.text,
       fontWeight: '600',
     },
-  });
+  }), [COLORS]);
 
-  const isReporter = currentUser?.uid === report?.userId;
+  const isReporter = useMemo(() => currentUser?.uid === report?.userId, [currentUser?.uid, report?.userId]);
 
   if (!report || !currentUser) return null;
 

@@ -17,6 +17,7 @@ import {
   StatusBar
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Image as RNImage } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebase';
 import { signOut } from 'firebase/auth';
@@ -29,6 +30,7 @@ import { useTabBarVisibility } from '../../contexts/TabBarVisibilityContext';
 import UserManualModal from '../../components/UserManualModal';
 import PostCard from '../../components/PostCard';
 import NotificationService from '../../services/NotificationService';
+import { logUserActivity } from '../../services/userService';
 
 const HomeTabScreen = ({ navigation }) => {
   const user = auth.currentUser;
@@ -47,7 +49,9 @@ const HomeTabScreen = ({ navigation }) => {
   const [socialNotifs, setSocialNotifs] = useState([]);
   const [friendRequestNotifs, setFriendRequestNotifs] = useState([]);
   const [friendRequestAcceptedNotifs, setFriendRequestAcceptedNotifs] = useState([]);
-  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets | Social | Friend Requests
+  const [announcementNotifs, setAnnouncementNotifs] = useState([]);
+  const [adminActionNotifs, setAdminActionNotifs] = useState([]);
+  const [notifFilter, setNotifFilter] = useState('All'); // All | Applications | Pets | Transfers | Registration | Incidents | Strays | Found Pets | Social | Friend Requests | Announcements | Admin Actions
   const [notifMenu, setNotifMenu] = useState(null); // { type: 'app'|'pet', id: string } | null
   const [showBanner, setShowBanner] = useState(false);
   const [bannerCounts, setBannerCounts] = useState({ apps: 0, pets: 0, transfers: 0, registrations: 0, incidents: 0, strays: 0 });
@@ -61,6 +65,7 @@ const HomeTabScreen = ({ navigation }) => {
   const [hiddenIncidentIds, setHiddenIncidentIds] = useState(new Set());
   const [hiddenFoundPetIds, setHiddenFoundPetIds] = useState(new Set());
   const [hiddenFriendRequestIds, setHiddenFriendRequestIds] = useState(new Set());
+  const [hiddenAdminActionIds, setHiddenAdminActionIds] = useState(new Set());
   const [lastReadUpdate, setLastReadUpdate] = useState(0);
   const [userManualVisible, setUserManualVisible] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
@@ -178,6 +183,7 @@ const HomeTabScreen = ({ navigation }) => {
           AsyncStorage.getItem('PAW_HIDDEN_INCIDENT_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_FOUND_PET_NOTIFS'),
           AsyncStorage.getItem('PAW_HIDDEN_FRIEND_REQUEST_NOTIFS'),
+          AsyncStorage.getItem('PAW_HIDDEN_ADMIN_ACTION_NOTIFS'),
         ]);
         if (appJson) setHiddenAppIds(new Set(JSON.parse(appJson)));
         if (petJson) setHiddenPetIds(new Set(JSON.parse(petJson)));
@@ -190,7 +196,7 @@ const HomeTabScreen = ({ navigation }) => {
     })();
   }, []);
 
-  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet, nextIncidentSet, nextFoundPetSet, nextFriendRequestSet) => {
+  const persistHiddenSets = async (nextAppSet, nextPetSet, nextTransferSet, nextRegistrationSet, nextIncidentSet, nextFoundPetSet, nextFriendRequestSet, nextAdminActionSet) => {
     try {
       await Promise.all([
         AsyncStorage.setItem('PAW_HIDDEN_APP_NOTIFS', JSON.stringify(Array.from(nextAppSet || hiddenAppIds))),
@@ -200,6 +206,7 @@ const HomeTabScreen = ({ navigation }) => {
         AsyncStorage.setItem('PAW_HIDDEN_INCIDENT_NOTIFS', JSON.stringify(Array.from(nextIncidentSet || hiddenIncidentIds))),
         AsyncStorage.setItem('PAW_HIDDEN_FOUND_PET_NOTIFS', JSON.stringify(Array.from(nextFoundPetSet || hiddenFoundPetIds))),
         AsyncStorage.setItem('PAW_HIDDEN_FRIEND_REQUEST_NOTIFS', JSON.stringify(Array.from(nextFriendRequestSet || hiddenFriendRequestIds))),
+        AsyncStorage.setItem('PAW_HIDDEN_ADMIN_ACTION_NOTIFS', JSON.stringify(Array.from(nextAdminActionSet || hiddenAdminActionIds))),
       ]);
     } catch (_) {}
   };
@@ -261,6 +268,14 @@ const HomeTabScreen = ({ navigation }) => {
         persistHiddenSets(null, null, null, null, null, null, next);
         return next;
       });
+    } else if (type === 'admin_action') {
+      setAdminActionNotifs((prev) => prev.filter((aa) => aa.id !== id));
+      setHiddenAdminActionIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        persistHiddenSets(null, null, null, null, null, null, null, next);
+        return next;
+      });
     } else {
       setPetNotifs((prev) => prev.filter((p) => p.id !== id));
       setHiddenPetIds((prev) => {
@@ -272,8 +287,55 @@ const HomeTabScreen = ({ navigation }) => {
     }
     setNotifMenu(null);
   };
-  const notifCount = Math.min(99, (appNotifs?.length || 0) + (petNotifs?.length || 0) + (transferNotifs?.length || 0) + (registrationNotifs?.length || 0) + (foundPetNotifs?.length || 0) + (friendRequestNotifs?.length || 0) + (friendRequestAcceptedNotifs?.length || 0));
+    const notifCount = Math.min(99, (appNotifs?.length || 0) + (petNotifs?.length || 0) + (transferNotifs?.length || 0) + (registrationNotifs?.length || 0) + (foundPetNotifs?.length || 0) + (friendRequestNotifs?.length || 0) + (friendRequestAcceptedNotifs?.length || 0) + (announcementNotifs?.length || 0) + (adminActionNotifs?.length || 0));
   
+  // Combine and sort announcements and posts by date (newest first)
+  const combinedFeed = useMemo(() => {
+    // Get LogoBlue image URI
+    const logoSource = require('../../assets/LogoBlue.png');
+    let logoUri = null;
+    try {
+      const resolved = RNImage.resolveAssetSource(logoSource);
+      logoUri = resolved?.uri || null;
+    } catch (error) {
+      console.error('Error loading LogoBlue:', error);
+    }
+
+    // Convert announcements to post format
+    const announcementPosts = announcements.map((announcement) => {
+      const postText = announcement.title 
+        ? `${announcement.title}${announcement.message ? '\n\n' + announcement.message : ''}`
+        : announcement.message || '';
+      
+      return {
+        id: `announcement_${announcement.id}`,
+        userId: announcement.createdById || 'pawsafety_admin',
+        userName: 'Pawsafety',
+        userProfileImage: logoUri,
+        text: postText || 'Announcement',
+        images: announcement.imageUrl ? [announcement.imageUrl] : [],
+        createdAt: announcement.createdAt || new Date(),
+        likes: [],
+        shares: 0,
+        isAnnouncement: true,
+        title: announcement.title,
+        deleted: false
+      };
+    });
+
+    // Combine announcements and posts, filter hidden/deleted, and sort by date
+    const allPosts = [...announcementPosts, ...posts]
+      .filter(post => !hiddenPostIds.has(post.id) && !post.deleted)
+      .sort((a, b) => {
+        // Sort by createdAt descending (newest first)
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+    return allPosts;
+  }, [announcements, posts, hiddenPostIds]);
+
   const notifUnreadCount = useMemo(() => {
     try {
       const lastApp = (() => { try { return Number((globalThis.__PAW_LAST_APP__) || 0); } catch (_) { return 0; } })();
@@ -305,7 +367,7 @@ const HomeTabScreen = ({ navigation }) => {
     } catch (e) {
       return 0;
     }
-  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, socialNotifs, lastReadUpdate]);
+  }, [appNotifs, petNotifs, transferNotifs, registrationNotifs, incidentNotifs, socialNotifs, announcementNotifs, lastReadUpdate]);
 
   useEffect(() => {
     setLoading(false);
@@ -392,24 +454,59 @@ const HomeTabScreen = ({ navigation }) => {
   useEffect(() => {
     if (!user?.uid) return;
 
-    const announcementsQuery = query(
-      collection(db, 'announcements'),
-      where('isActive', '==', true),
-      orderBy('createdAt', 'desc'),
-      limit(5)
-    );
+    // Try query with where and orderBy first, fallback to just orderBy if index missing
+    let announcementsQuery;
+    try {
+      announcementsQuery = query(
+        collection(db, 'announcements'),
+        where('isActive', '==', true),
+        orderBy('createdAt', 'desc'),
+        limit(10)
+      );
+    } catch (error) {
+      // If index error, try without where clause and filter client-side
+      console.log('Index error, using fallback query');
+      announcementsQuery = query(
+        collection(db, 'announcements'),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+    }
 
     const unsubscribe = onSnapshot(
       announcementsQuery,
       (snapshot) => {
-        const announcementsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const announcementsData = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }))
+          .filter(announcement => {
+            // Filter active announcements (client-side if index missing)
+            return announcement.isActive !== false;
+          })
+          .sort((a, b) => {
+            // Sort by createdAt descending
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return dateB.getTime() - dateA.getTime();
+          })
+          .slice(0, 10); // Limit to 10 most recent
+        
+        console.log('✅ Announcements fetched:', announcementsData.length);
+        if (announcementsData.length > 0) {
+          console.log('📢 Sample announcement:', {
+            id: announcementsData[0].id,
+            title: announcementsData[0].title,
+            hasImage: !!announcementsData[0].imageUrl
+          });
+        }
         setAnnouncements(announcementsData);
       },
       (error) => {
-        // Error handled silently
+        console.error('❌ Error fetching announcements:', error);
+        console.error('Error code:', error.code, 'Error message:', error.message);
+        setAnnouncements([]);
       }
     );
 
@@ -630,6 +727,60 @@ const HomeTabScreen = ({ navigation }) => {
       })
     );
 
+    // Announcement notifications
+    const announcementNotifQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'announcement'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(announcementNotifQ, (snap) => {
+        const items = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            type: 'announcement',
+            ts: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+            title: data.title || 'New Announcement',
+            sub: data.body || data.message || '',
+            read: data.read || false,
+            announcementId: data.announcementId || null,
+          };
+        });
+        setAnnouncementNotifs(items);
+      })
+    );
+
+    // Admin action notifications (report updates)
+    const adminActionNotifQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'admin_action'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    unsubscribers.push(
+      onSnapshot(adminActionNotifQ, (snap) => {
+        const items = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            type: 'admin_action',
+            ts: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+            title: data.title || 'Admin Action',
+            sub: data.body || '',
+            read: data.read || false,
+            data: data.data || {},
+          };
+        });
+        setAdminActionNotifs(items);
+      })
+    );
+
     return () => {
       unsubscribers.forEach(unsub => unsub && unsub());
     };
@@ -785,8 +936,8 @@ const HomeTabScreen = ({ navigation }) => {
 
   const markNotificationAsRead = async (notif) => {
     try {
-      // Handle social and friend request notifications differently - mark as read in Firestore
-      if (notif.type === 'social' || notif.type === 'friend_request' || notif.type === 'friend_request_accepted') {
+      // Handle social, friend request, announcement, and admin action notifications differently - mark as read in Firestore
+      if (notif.type === 'social' || notif.type === 'friend_request' || notif.type === 'friend_request_accepted' || notif.type === 'announcement' || notif.type === 'admin_action') {
         try {
           const notificationService = NotificationService.getInstance();
           await notificationService.markNotificationAsRead(notif.id);
@@ -1361,30 +1512,6 @@ const HomeTabScreen = ({ navigation }) => {
           />
         }
       >
-        {/* Announcements */}
-        {announcements.length > 0 && announcements.map((announcement) => (
-          <View key={announcement.id} style={[styles.announcementCard, { backgroundColor: COLORS.cardBackground }]}>
-            <View style={styles.announcementHeader}>
-              <View style={styles.announcementIconContainer}>
-                <MaterialIcons name="campaign" size={24} color={COLORS.darkPurple} />
-              </View>
-              <View style={styles.announcementHeaderText}>
-                <Text style={[styles.announcementTitle, { color: COLORS.darkPurple }]}>
-                  {announcement.title}
-                </Text>
-                <Text style={[styles.announcementDate, { color: COLORS.secondaryText }]}>
-                  {announcement.createdAt?.toDate 
-                    ? announcement.createdAt.toDate().toLocaleDateString()
-                    : 'Recently'}
-                </Text>
-              </View>
-            </View>
-            <Text style={[styles.announcementMessage, { color: COLORS.text }]}>
-              {announcement.message}
-            </Text>
-          </View>
-        ))}
-
         {/* Create Post Field */}
         <View style={styles.createPostCard}>
           <View style={styles.createPostHeader}>
@@ -1440,33 +1567,35 @@ const HomeTabScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Posts Feed */}
-        {posts
-          .filter(post => !hiddenPostIds.has(post.id) && !post.deleted)
-          .map((post) => (
-            <View
-              key={post.id}
-              ref={(ref) => {
-                if (ref) {
-                  postRefs.current[post.id] = ref;
-                } else {
-                  delete postRefs.current[post.id];
-                }
-              }}
-            >
-              <PostCard
+        {/* Combined Feed: Announcements + Posts (sorted by date, newest first) */}
+        {combinedFeed.map((post) => (
+          <View
+            key={post.id}
+            ref={(ref) => {
+              if (ref) {
+                postRefs.current[post.id] = ref;
+              } else {
+                delete postRefs.current[post.id];
+              }
+            }}
+          >
+            <PostCard
               post={post}
               onPostDeleted={(postId) => {
+                if (postId.startsWith('announcement_')) {
+                  // Announcements can't be deleted by users
+                  return;
+                }
                 setPosts(prev => prev.filter(p => p.id !== postId));
               }}
               onPostHidden={(postId) => {
                 setHiddenPostIds(prev => new Set([...prev, postId]));
               }}
             />
-            </View>
-          ))}
+          </View>
+        ))}
         
-        {posts.filter(post => !hiddenPostIds.has(post.id)).length === 0 && (
+        {combinedFeed.length === 0 && (
           <View style={{ padding: 40, alignItems: 'center' }}>
             <Text style={{ fontSize: 16, color: '#65676b', textAlign: 'center' }}>
               No posts yet. Be the first to share something!
@@ -1853,6 +1982,16 @@ const HomeTabScreen = ({ navigation }) => {
                           style: 'destructive',
                           onPress: async () => {
                             try {
+                              // Log logout activity before signing out
+                              if (user?.uid) {
+                                await logUserActivity(
+                                  user.uid,
+                                  'Logged out of the mobile app',
+                                  'logout',
+                                  'User logged out from mobile application'
+                                );
+                              }
+                              
                               await signOut(auth);
                               Animated.timing(slideAnim, {
                                 toValue: -300,
@@ -1924,7 +2063,7 @@ const HomeTabScreen = ({ navigation }) => {
               contentContainerStyle={{ paddingRight: 16 }}
             >
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets', 'Social', 'Friend Requests'].map((opt) => (
+                {['All', 'Apps', 'Pets', 'Transfers', 'Registration', 'Incidents', 'Strays', 'Found Pets', 'Social', 'Friend Requests', 'Announcements', 'Admin Actions'].map((opt) => (
                   <TouchableOpacity
                     key={opt}
                     onPress={() => setNotifFilter(opt === 'Apps' ? 'Applications' : opt)}
@@ -2098,7 +2237,29 @@ const HomeTabScreen = ({ navigation }) => {
                   data: fra.data || {},
                   read: fra.read || false,
                 }));
-                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets, ...social, ...friendRequests, ...friendRequestAccepted].sort((a, b) => b.ts - a.ts);
+                const announcements = (announcementNotifs || [])
+                  .map((an) => ({
+                    id: an.id,
+                    type: 'announcement',
+                    ts: an.ts,
+                    title: an.title || 'New Announcement',
+                    sub: an.sub || an.body || '',
+                    data: an.data || {},
+                    read: an.read || false,
+                    announcementId: an.announcementId || null,
+                  }));
+                const adminActions = (adminActionNotifs || [])
+                  .filter((aa) => !hiddenAdminActionIds.has(aa.id))
+                  .map((aa) => ({
+                    id: aa.id,
+                    type: 'admin_action',
+                    ts: aa.ts,
+                    title: aa.title || 'Admin Action',
+                    sub: aa.sub || aa.body || '',
+                    data: aa.data || {},
+                    read: aa.read || false,
+                  }));
+                let list = [...apps, ...pets, ...transfers, ...registrations, ...incidents, ...foundPets, ...social, ...friendRequests, ...friendRequestAccepted, ...announcements, ...adminActions].sort((a, b) => b.ts - a.ts);
                 if (notifFilter === 'Applications') list = list.filter((n) => n.type === 'app');
                 if (notifFilter === 'Pets') list = list.filter((n) => n.type === 'pet');
                 if (notifFilter === 'Transfers') list = list.filter((n) => n.type === 'transfer');
@@ -2108,13 +2269,15 @@ const HomeTabScreen = ({ navigation }) => {
                 if (notifFilter === 'Found Pets') list = list.filter((n) => n.type === 'found_pet');
                 if (notifFilter === 'Social') list = list.filter((n) => n.type === 'social');
                 if (notifFilter === 'Friend Requests') list = list.filter((n) => n.type === 'friend_request' || n.type === 'friend_request_accepted');
+                if (notifFilter === 'Announcements') list = list.filter((n) => n.type === 'announcement');
+                if (notifFilter === 'Admin Actions') list = list.filter((n) => n.type === 'admin_action');
                 if (list.length === 0) return (
                   <View style={{ padding: 40, alignItems: 'center' }}>
                     <Text style={{ color: '#65676b', fontSize: 15 }}>No notifications yet.</Text>
                   </View>
                 );
                 return list.map((n) => {
-                  const isUnread = n.type === 'social' || n.type === 'friend_request' || n.type === 'friend_request_accepted'
+                  const isUnread = n.type === 'social' || n.type === 'friend_request' || n.type === 'friend_request_accepted' || n.type === 'announcement' || n.type === 'admin_action'
                     ? !n.read 
                     : (n.type === 'app' ? (n.ts > (Number(lastSeenApp) || 0)) : n.type === 'transfer' ? (n.ts > (Number(lastSeenTransfer) || 0)) : n.type === 'registration' ? (n.ts > (Number(lastSeenRegistration) || 0)) : n.type === 'found_pet' ? (n.ts > (Number(globalThis.__PAW_LAST_FOUND_PET__) || 0)) : (n.ts > (Number(lastSeenPet) || 0)));
                   return (
@@ -2161,6 +2324,13 @@ const HomeTabScreen = ({ navigation }) => {
                             // Ensure we're on the home tab (if not already)
                             // The post will be scrolled to when it's rendered
                           }
+                        } else if (n.type === 'announcement') {
+                          // Announcement notification -> Scroll to announcement in feed
+                          const announcementId = n.announcementId || n.data?.announcementId;
+                          if (announcementId) {
+                            // Set the announcement to scroll to
+                            setScrollToPostId(`announcement_${announcementId}`);
+                          }
                         }
                       }} 
                       activeOpacity={0.7}
@@ -2190,6 +2360,10 @@ const HomeTabScreen = ({ navigation }) => {
                                     ? '#e3f2fd'
                                     : n.type === 'friend_request_accepted'
                                       ? '#d1fae5'
+                                  : n.type === 'announcement'
+                                    ? '#ddd6fe'
+                                    : n.type === 'admin_action'
+                                      ? '#fef3c7'
                                   : (n.data?.status === 'Approved' ? '#d1fae5' : n.data?.status === 'Declined' ? '#fee2e2' : '#e5e7eb'),
                         justifyContent: 'center',
                         alignItems: 'center',
@@ -2218,6 +2392,10 @@ const HomeTabScreen = ({ navigation }) => {
                                   ? 'person-add'
                                   : n.type === 'friend_request_accepted'
                                     ? 'check-circle'
+                                  : n.type === 'announcement'
+                                    ? 'campaign'
+                                    : n.type === 'admin_action'
+                                      ? 'admin-panel-settings'
                                 : (n.data?.status === 'Approved' 
                                     ? 'check-circle' 
                                     : (n.data?.status === 'Declined' 
@@ -2240,6 +2418,8 @@ const HomeTabScreen = ({ navigation }) => {
                                   ? '#1877f2'
                                   : n.type === 'friend_request_accepted'
                                     ? '#16a34a'
+                                  : n.type === 'announcement'
+                                    ? '#7c3aed'
                                 : (n.data?.status === 'Declined' 
                                     ? '#dc2626' 
                                     : (n.data?.status === 'Approved' 

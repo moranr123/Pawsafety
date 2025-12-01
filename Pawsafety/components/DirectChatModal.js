@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -61,12 +61,12 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
   const scrollViewRef = useRef(null);
   const currentUser = auth.currentUser;
 
-  // Get chat ID - unique for each pair of users
-  const getChatId = () => {
+  // Get chat ID - unique for each pair of users - memoized
+  const getChatId = useCallback(() => {
     if (!currentUser || !friend?.id) return null;
     const userIds = [currentUser.uid, friend.id].sort();
     return `direct_${userIds[0]}_${userIds[1]}`;
-  };
+  }, [currentUser, friend?.id]);
 
   // Check block status and ban status
   useEffect(() => {
@@ -227,8 +227,8 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
     }
   }, [visible]);
 
-  // Open camera
-  const openCamera = async () => {
+  // Open camera - memoized
+  const openCamera = useCallback(async () => {
     if (isBlocked || hasBlocked || isBanned) {
       return;
     }
@@ -254,10 +254,10 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
-  };
+  }, [isBlocked, hasBlocked, isBanned]);
 
-  // Open image library
-  const openImageLibrary = async () => {
+  // Open image library - memoized
+  const openImageLibrary = useCallback(async () => {
     if (isBlocked || hasBlocked) {
       return;
     }
@@ -284,10 +284,10 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
-  };
+  }, [isBlocked, hasBlocked]);
 
-  // Show image picker options
-  const showImagePickerOptions = () => {
+  // Show image picker options - memoized
+  const showImagePickerOptions = useCallback(() => {
     if (isBlocked || hasBlocked || isBanned) {
       return;
     }
@@ -301,34 +301,34 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
         { text: 'Cancel', style: 'cancel' }
       ]
     );
-  };
+  }, [isBlocked, hasBlocked, isBanned, openCamera, openImageLibrary]);
 
-  const removeImage = (index) => {
+  const removeImage = useCallback((index) => {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
-  // Handle message menu
-  const handleMessageMenu = (messageId) => {
+  // Handle message menu - memoized
+  const handleMessageMenu = useCallback((messageId) => {
     setSelectedMessageId(messageId);
-  };
+  }, []);
 
-  // Cancel menu
-  const cancelMenu = () => {
+  // Cancel menu - memoized
+  const cancelMenu = useCallback(() => {
     setSelectedMessageId(null);
     setEditingMessageId(null);
     setEditText('');
     setMenuPosition({ top: 0 });
-  };
+  }, []);
 
-  // Edit message
-  const handleEditMessage = (message) => {
+  // Edit message - memoized
+  const handleEditMessage = useCallback((message) => {
     setEditingMessageId(message.id);
     setEditText(message.text || '');
     setSelectedMessageId(null);
-  };
+  }, []);
 
-  // Save edited message
-  const saveEditedMessage = async () => {
+  // Save edited message - memoized
+  const saveEditedMessage = useCallback(async () => {
     if (!editingMessageId || !editText.trim()) {
       cancelMenu();
       return;
@@ -346,18 +346,18 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       console.error('Error editing message:', error);
       Alert.alert('Error', 'Failed to edit message. Please try again.');
     }
-  };
+  }, [editingMessageId, editText, cancelMenu]);
 
-  // Copy message
-  const handleCopyMessage = async (text) => {
+  // Copy message - memoized
+  const handleCopyMessage = useCallback(async (text) => {
     if (!text) return;
     await Clipboard.setStringAsync(text);
     cancelMenu();
     Alert.alert('Copied', 'Message copied to clipboard');
-  };
+  }, [cancelMenu]);
 
-  // Delete message
-  const handleDeleteMessage = (messageId) => {
+  // Delete message - memoized
+  const handleDeleteMessage = useCallback((messageId) => {
     Alert.alert(
       'Delete Message',
       'Are you sure you want to delete this message?',
@@ -378,16 +378,16 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
         },
       ]
     );
-  };
+  }, [cancelMenu]);
 
-  // Report message
-  const handleReportMessage = (message) => {
+  // Report message - memoized
+  const handleReportMessage = useCallback((message) => {
     setMessageToReport(message);
     setReportModalVisible(true);
     cancelMenu();
-  };
+  }, [cancelMenu]);
 
-  const submitReport = async (reason) => {
+  const submitReport = useCallback(async (reason) => {
     if (!currentUser || !messageToReport) return;
 
     try {
@@ -412,9 +412,9 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       console.error('Error reporting message:', error);
       Alert.alert('Error', 'Failed to report message. Please try again.');
     }
-  };
+  }, [currentUser, messageToReport, getChatId]);
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if ((!messageText.trim() && selectedImages.length === 0) || !currentUser || !friend?.id || sending || uploadingImages) return;
     
     if (chatRestricted) {
@@ -521,9 +521,9 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       setSending(false);
       setUploadingImages(false);
     }
-  };
+  }, [messageText, selectedImages, currentUser, friend?.id, sending, uploadingImages, chatRestricted, isBanned, isBlocked, hasBlocked, getChatId]);
 
-  const formatTime = (timestamp) => {
+  const formatTime = useCallback((timestamp) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
@@ -536,9 +536,9 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+  }, []);
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -964,7 +964,7 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       color: COLORS.text,
       fontWeight: '600',
     },
-  });
+  }), [COLORS]);
 
   if (!friend || !currentUser) return null;
   

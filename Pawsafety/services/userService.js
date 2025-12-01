@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { db } from './firebase';
 
 /**
@@ -87,6 +87,36 @@ export const updateUserDocument = async (uid, updateData) => {
     return true;
   } catch (error) {
     // Error handled silently - return false on failure
+    return false;
+  }
+};
+
+/**
+ * Logs user activity to user_activities collection
+ * @param {string} userId - User ID
+ * @param {string} action - Action description (e.g., "Logged out of the mobile app")
+ * @param {string} actionType - Action type (e.g., "logout", "login")
+ * @param {string} details - Additional details (optional)
+ * @returns {Promise<boolean>} - Success status
+ */
+export const logUserActivity = async (userId, action, actionType, details = '') => {
+  if (!userId) {
+    return false;
+  }
+
+  try {
+    await addDoc(collection(db, 'user_activities'), {
+      userId,
+      action,
+      actionType,
+      details,
+      timestamp: serverTimestamp()
+    });
+    
+    return true;
+  } catch (error) {
+    // Error handled silently - return false on failure
+    console.error('Error logging user activity:', error);
     return false;
   }
 };

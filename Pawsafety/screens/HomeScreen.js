@@ -12,12 +12,23 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { logUserActivity } from '../services/userService';
 
 const HomeScreen = () => {
   const { colors: COLORS } = useTheme();
   
   const handleLogout = async () => {
     try {
+      // Log logout activity before signing out
+      if (user?.uid) {
+        await logUserActivity(
+          user.uid,
+          'Logged out of the mobile app',
+          'logout',
+          'User logged out from mobile application'
+        );
+      }
+      
       await signOut(auth);
       // Navigation handled by auth state change
     } catch (error) {

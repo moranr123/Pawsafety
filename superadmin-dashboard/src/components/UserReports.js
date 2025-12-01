@@ -63,7 +63,7 @@ const UserReports = () => {
     return () => unsubPost && unsubPost();
   }, []);
 
-  const sendNotification = async (userId, title, body) => {
+  const sendNotification = async (userId, title, body, data = {}) => {
     if (!userId) return;
     try {
       // Create notification document in Firestore
@@ -73,6 +73,7 @@ const UserReports = () => {
         body,
         type: 'admin_action',
         read: false,
+        data: data,
         createdAt: serverTimestamp()
       });
 
@@ -100,7 +101,8 @@ const UserReports = () => {
                 body: body,
                 data: {
                   type: 'admin_action',
-                  userId: userId
+                  userId: userId,
+                  ...data
                 },
                 priority: 'high',
                 channelId: 'default'
@@ -138,10 +140,14 @@ const UserReports = () => {
         
         await batch.commit();
         
-        const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
-        uniqueReporters.forEach(reporterId => {
-            sendNotification(reporterId, 'Report Dismissed', 'We have reviewed your report and decided to dismiss it as it does not violate our community guidelines.');
-        });
+      const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
+      uniqueReporters.forEach(reporterId => {
+        sendNotification(
+          reporterId, 
+          'Report Update - Dismissed', 
+          `We have reviewed your report about a ${content.type === 'post' ? 'post' : 'message'} and decided to dismiss it as it does not violate our community guidelines.`
+        );
+      });
         
         toast.success('Reports dismissed successfully');
         if (selectedContent && selectedContent.id === content.id) setSelectedContent(null);
@@ -197,9 +203,13 @@ const UserReports = () => {
         await sendNotification(userId, 'Content Removed', `Your ${content.type} has been removed. Reason: ${removeReason.trim()}`);
       }
       
-      const uniqueReporters = [...new Set(pendingReports.map(r => r.reporterId).filter(id => id))];
+      const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
       uniqueReporters.forEach(reporterId => {
-        sendNotification(reporterId, 'Report Resolved - Content Removed', `We have reviewed your report and removed the reported ${content.type === 'post' ? 'post' : 'message'}. Reason: ${removeReason.trim()}`);
+        sendNotification(
+          reporterId, 
+          'Report Resolved - Content Removed', 
+          `We have reviewed your report and removed the reported ${content.type === 'post' ? 'post' : 'message'}. Reason: ${removeReason.trim()}`
+        );
       });
       
       toast.success(`${content.type === 'post' ? 'Post' : 'Message'} removed successfully. ${pendingReports.length} report(s) resolved.`);
@@ -366,9 +376,13 @@ const UserReports = () => {
       
       await sendNotification(userId, 'Chat Restricted', `Your ability to send messages has been restricted for ${durationText}. Reason: ${restrictReason.trim()}`);
       
-      const uniqueReporters = [...new Set(pendingReports.map(r => r.reporterId).filter(id => id))];
+      const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
       uniqueReporters.forEach(reporterId => {
-        sendNotification(reporterId, 'Report Resolved - Chat Restricted', `We have reviewed your report and restricted the reported user's ability to send messages for ${durationText}. Reason: ${restrictReason.trim()}`);
+        sendNotification(
+          reporterId, 
+          'Report Resolved - User Chat Restricted', 
+          `We have reviewed your report and restricted the reported user's ability to send messages for ${durationText}. Reason: ${restrictReason.trim()}`
+        );
       });
       
       toast.success(`Chat restricted for ${content.ownerName} for ${durationText}. ${pendingReports.length} report(s) resolved.`);
@@ -507,9 +521,13 @@ const UserReports = () => {
       
       await batch.commit();
       
-      const uniqueReporters = [...new Set(pendingReports.map(r => r.reporterId).filter(id => id))];
+      const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
       uniqueReporters.forEach(reporterId => {
-          sendNotification(reporterId, 'Report Resolved - User Banned', `We have reviewed your report and banned the reported user for ${days} ${days === 1 ? 'day' : 'days'}. The reported content has also been removed.`);
+        sendNotification(
+          reporterId, 
+          'Report Resolved - User Banned', 
+          `We have reviewed your report and banned the reported user for ${days} ${days === 1 ? 'day' : 'days'}. The reported content has also been removed.`
+        );
       });
       
       toast.success(`User banned for ${days} days. ${resolveCount} report(s) resolved.`);
@@ -1081,40 +1099,6 @@ const UserReports = () => {
                     <Trash2 className="w-3 h-3" />
                     Remove
                         </button>
-                  <button 
-                    onClick={() => handleRestrictChat(content)}
-                    disabled={isCheckingRestrict}
-                    className="px-2 py-1 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded transition-colors text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCheckingRestrict ? (
-                      <>
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Checking...</span>
-                      </>
-                    ) : (
-                      <>
-                    <Ban className="w-3 h-3" />
-                    Restrict
-                      </>
-                    )}
-                  </button>
-                  <button 
-                    onClick={() => { setContentToBan(content); setBanModalOpen(true); }}
-                    disabled={isCheckingBan}
-                    className="px-2 py-1 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded transition-colors text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCheckingBan ? (
-                      <>
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Checking...</span>
-                      </>
-                    ) : (
-                      <>
-                    <UserX className="w-3 h-3" />
-                    Ban
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
             ))}
@@ -1247,26 +1231,6 @@ const UserReports = () => {
                         </td>
                         <td className="px-4 py-2 text-right text-sm">
                           <div className="inline-flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            {((content.resolution === 'user_banned_content_deleted' || content.resolution === 'user_banned') && 
-                              historyUserStatus[content.ownerId]?.status === 'banned') && (
-                              <button 
-                                onClick={() => handleUndoBan(content)}
-                                className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
-                              >
-                                <RotateCcw className="h-3 w-3 mr-1" />
-                                Unban
-                        </button>
-                            )}
-                            {content.resolution === 'user_chat_restricted' && 
-                              historyUserStatus[content.ownerId]?.chatRestricted && (
-                              <button 
-                                onClick={() => handleUndoRestrict(content)}
-                                className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
-                              >
-                                <RotateCcw className="h-3 w-3 mr-1" />
-                                Unrestrict
-                        </button>
-                    )}
                             <button 
                               onClick={() => handleArchiveHistory(content)}
                               className="px-3 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 transition-all duration-300 flex items-center"
@@ -1859,32 +1823,6 @@ const UserReports = () => {
 
             {/* Action Buttons */}
             <div className="p-6 border-t border-gray-200 bg-gray-50 flex flex-wrap justify-end gap-3">
-              {((selectedHistoryContent.resolution === 'user_banned_content_deleted' || selectedHistoryContent.resolution === 'user_banned') && 
-                historyUserStatus[selectedHistoryContent.ownerId]?.status === 'banned') && (
-                <button 
-                  onClick={() => {
-                    handleUndoBan(selectedHistoryContent);
-                    setSelectedHistoryContent(null);
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white font-medium hover:bg-green-700 rounded-lg transition-colors shadow-sm flex items-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Unban
-                </button>
-              )}
-              {selectedHistoryContent.resolution === 'user_chat_restricted' && 
-                historyUserStatus[selectedHistoryContent.ownerId]?.chatRestricted && (
-                <button 
-                  onClick={() => {
-                    handleUndoRestrict(selectedHistoryContent);
-                    setSelectedHistoryContent(null);
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white font-medium hover:bg-green-700 rounded-lg transition-colors shadow-sm flex items-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Unrestrict
-                </button>
-              )}
               <button 
                 onClick={() => {
                   handleArchiveHistory(selectedHistoryContent);

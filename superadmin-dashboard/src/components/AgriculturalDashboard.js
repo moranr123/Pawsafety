@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { 
@@ -14,19 +14,19 @@ import {
   serverTimestamp,
   writeBatch,
   getDocs,
-  getDoc
+  getDoc,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   LogOut, 
-  Leaf, 
   Users, 
   Dog,
   UserX,
   BarChart3,
   List,
   CheckCircle2,
-  XCircle,
   Clock,
   FileText,
   Settings,
@@ -39,13 +39,18 @@ import {
   ArrowLeft,
   Flag,
   Megaphone,
-  Plus,
-  X
+  X,
+  Ban,
+  RotateCcw,
+  AlertTriangle,
+  MessageSquare
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
+import LogoBlue from '../assets/LogoBlue.png';
 import UserReports from './UserReports';
 
-const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
+// eslint-disable-next-line no-unused-vars
+const TabButton = React.memo(({ active, label, icon: Icon, onClick, badge = 0 }) => (
   <button
     onClick={onClick}
     role="tab"
@@ -68,13 +73,13 @@ const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
       </span>
     )}
   </button>
-);
+));
 
 const AgriculturalDashboard = () => {
   const { currentUser, logout } = useAuth();
   
-  // Helper function to log admin activities
-  const logActivity = async (action, actionType, details = '') => {
+  // Helper function to log admin activities - memoized
+  const logActivity = useCallback(async (action, actionType, details = '') => {
     try {
       await addDoc(collection(db, 'admin_activities'), {
         adminId: currentUser?.uid || '',
@@ -89,7 +94,7 @@ const AgriculturalDashboard = () => {
     } catch (error) {
       console.error('Error logging activity:', error);
     }
-  };
+  }, [currentUser]);
   
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -105,11 +110,12 @@ const AgriculturalDashboard = () => {
   const [selectedPet, setSelectedPet] = useState(null);
   const [showPetModal, setShowPetModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterGender, setFilterGender] = useState('all');
   const [filterBreed, setFilterBreed] = useState('all');
   const [filterDate, setFilterDate] = useState('all');
+  const [userStatusFilter, setUserStatusFilter] = useState('all'); // 'all', 'restricted', 'deactivated', 'banned'
+  const [showInactiveAlert, setShowInactiveAlert] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -117,16 +123,39 @@ const AgriculturalDashboard = () => {
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [banModalOpen, setBanModalOpen] = useState(false);
+  const [banDuration, setBanDuration] = useState('');
+  const [userToBan, setUserToBan] = useState(null);
+  const [restrictModalOpen, setRestrictModalOpen] = useState(false);
+  const [restrictDuration, setRestrictDuration] = useState('');
+  const [restrictDurationType, setRestrictDurationType] = useState('days');
+  const [restrictReason, setRestrictReason] = useState('');
+  const [userToRestrict, setUserToRestrict] = useState(null);
+  const [checkingRestrict, setCheckingRestrict] = useState(new Set());
+  const [restricting, setRestricting] = useState(new Set());
+  const [checkingBan, setCheckingBan] = useState(new Set());
+  const [banning, setBanning] = useState(new Set());
+  const [lastLogoutTimes, setLastLogoutTimes] = useState({});
+  const [inactiveUsers, setInactiveUsers] = useState([]);
   const [chartData, setChartData] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [userReportCounts, setUserReportCounts] = useState({});
+  const notificationsRef = useRef([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [announcementImage, setAnnouncementImage] = useState(null);
+  const [announcementImagePreview, setAnnouncementImagePreview] = useState(null);
   const [isCreatingAnnouncement, setIsCreatingAnnouncement] = useState(false);
+  const [showReportHistoryModal, setShowReportHistoryModal] = useState(false);
+  const [selectedUserForReports, setSelectedUserForReports] = useState(null);
+  const [userReports, setUserReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showImageModal, setShowImageModal] = useState(false);
 
-  const generateChartData = (pets) => {
+  const generateChartData = useCallback((pets) => {
     // Filter only registered pets
     const registeredPets = pets.filter(pet => 
       pet.registrationStatus === 'registered' && !pet.archived
@@ -164,41 +193,10 @@ const AgriculturalDashboard = () => {
     }
     
     return months;
-  };
+  }, []);
 
-  const generateRecentActivity = (pets, users) => {
-    const activities = [];
-    
-    pets.slice(0, 5).forEach(pet => {
-      activities.push({
-        id: `pet-${pet.id}`,
-        type: 'pet_registration',
-        message: `New pet "${pet.petName}" registered`,
-        timestamp: pet.createdAt,
-        icon: '🐕'
-      });
-    });
-    
-    users.slice(0, 3).forEach((user, index) => {
-      activities.push({
-        id: `user-${user.uid || `unknown-${index}`}`,
-        type: 'user_registration',
-        message: `New user "${user.email}" registered`,
-        timestamp: user.createdAt,
-        icon: '👤'
-      });
-    });
-    
-    return activities
-      .sort((a, b) => {
-        const timeA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
-        const timeB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
-        return timeB - timeA;
-      })
-      .slice(0, 8);
-  };
 
-  const generateChartPath = (data, maxValue = 10) => {
+  const generateChartPath = useCallback((data, maxValue = 10) => {
     if (!data || data.length === 0) return "M 20,180 L 20,180";
     const points = data.map((d, i) => {
       const x = 20 + (i * 80);
@@ -209,9 +207,9 @@ const AgriculturalDashboard = () => {
       return `M ${points[0]} L ${points[0]}`;
     }
     return `M ${points[0]} L ${points.slice(1).join(' L ')}`;
-  };
+  }, []);
 
-  const generateChartAreaPath = (data, maxValue = 10) => {
+  const generateChartAreaPath = useCallback((data, maxValue = 10) => {
     if (!data || data.length === 0) return "M 20,180 L 20,180 L 20,180 Z";
     const points = data.map((d, i) => {
       const x = 20 + (i * 80);
@@ -221,7 +219,7 @@ const AgriculturalDashboard = () => {
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
     return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},180 L 20,180 Z`;
-  };
+  }, []);
 
   // Firebase data listeners
   useEffect(() => {
@@ -237,11 +235,11 @@ const AgriculturalDashboard = () => {
             await addDoc(collection(db, 'admin_notifications'), {
               type: 'new_registration',
               title: 'New Pet Registration',
-              message: `${newPet.ownerFullName || 'Unknown Owner'} has registered a new pet: "${newPet.petName}" (${newPet.petType || 'Unknown Type'})`,
+              message: `${newPet.ownerFullName || 'Unknown Owner'} has registered a new pet: "${newPet.petName || 'Unknown Pet'}" (${newPet.petType || 'Unknown Type'})`,
               petId: newPet.id,
-              petName: newPet.petName,
-              ownerName: newPet.ownerFullName,
-              petType: newPet.petType,
+              petName: newPet.petName || 'Unknown Pet',
+              ownerName: newPet.ownerFullName || 'Unknown Owner',
+              petType: newPet.petType || 'Unknown Type',
               read: false,
               createdAt: new Date()
             });
@@ -251,7 +249,7 @@ const AgriculturalDashboard = () => {
         } else if (change.type === 'removed') {
           const deletedPet = { id: change.doc.id, ...change.doc.data() };
           
-          const recentDeceasedNotifications = notifications.filter(n => 
+          const recentDeceasedNotifications = notificationsRef.current.filter(n => 
             n.type === 'pet_deceased' && 
             n.petId === deletedPet.id &&
             n.createdAt && 
@@ -263,11 +261,11 @@ const AgriculturalDashboard = () => {
               await addDoc(collection(db, 'admin_notifications'), {
                 type: 'pet_deleted',
                 title: 'Pet Deleted',
-                message: `Pet "${deletedPet.petName}" (${deletedPet.petType || 'Unknown Type'}) has been deleted by ${deletedPet.ownerFullName || 'Unknown Owner'}`,
+                message: `Pet "${deletedPet.petName || 'Unknown Pet'}" (${deletedPet.petType || 'Unknown Type'}) has been deleted by ${deletedPet.ownerFullName || 'Unknown Owner'}`,
                 petId: deletedPet.id,
-                petName: deletedPet.petName,
-                ownerName: deletedPet.ownerFullName,
-                petType: deletedPet.petType,
+                petName: deletedPet.petName || 'Unknown Pet',
+                ownerName: deletedPet.ownerFullName || 'Unknown Owner',
+                petType: deletedPet.petType || 'Unknown Type',
                 read: false,
                 createdAt: new Date()
               });
@@ -362,7 +360,9 @@ const AgriculturalDashboard = () => {
           role: userData.role || 'user',
           emailVerified: userData.emailVerified || false,
           createdAt: userData.createdAt,
-          profileImage: userData.profileImage || null
+          profileImage: userData.profileImage || null,
+          chatRestricted: userData.chatRestricted || false,
+          chatRestrictionExpiresAt: userData.chatRestrictionExpiresAt || null
         });
       });
       
@@ -400,8 +400,6 @@ const AgriculturalDashboard = () => {
       setUsers(regularUsers);
       setDeactivatedUsers(regularUsers.filter(user => user.status === 'deactivated'));
       
-      setRecentActivity(generateRecentActivity(pets, regularUsers));
-      
       setIsLoading(false);
     });
 
@@ -422,6 +420,7 @@ const AgriculturalDashboard = () => {
         });
         
         setNotifications(notificationsList);
+        notificationsRef.current = notificationsList;
         
         // Count unread notifications
         const unread = notificationsList.filter(notification => !notification.read).length;
@@ -432,46 +431,140 @@ const AgriculturalDashboard = () => {
       }
     );
 
+    // Fetch last logout times for users
+    let unsubscribeLogoutTimes;
+    try {
+      // Check user_activities collection for logout activities
+      const activitiesQuery = query(
+        collection(db, 'user_activities'),
+        orderBy('timestamp', 'desc')
+      );
+      
+      unsubscribeLogoutTimes = onSnapshot(
+        activitiesQuery, 
+        (snapshot) => {
+          const allActivities = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          // Filter for logout activities
+          const userLogouts = allActivities.filter(activity => {
+            const actionType = activity.actionType || '';
+            const action = activity.action || '';
+            return actionType === 'logout' || action.toLowerCase().includes('logout');
+          });
+          
+          // Create a map of userId to last logout timestamp
+          const logoutMap = {};
+          userLogouts.forEach(activity => {
+            if (activity.userId && activity.timestamp) {
+              const timestamp = activity.timestamp.toDate ? activity.timestamp.toDate() : new Date(activity.timestamp);
+              const existingTimestamp = logoutMap[activity.userId];
+              const existingDate = existingTimestamp ? (existingTimestamp.toDate ? existingTimestamp.toDate() : new Date(existingTimestamp)) : null;
+              
+              // Only keep the most recent logout for each user
+              if (!existingDate || timestamp > existingDate) {
+                logoutMap[activity.userId] = activity.timestamp;
+              }
+            }
+          });
+          
+          setLastLogoutTimes(logoutMap);
+        },
+        (error) => {
+          console.error('Error fetching last logout times:', error);
+          setLastLogoutTimes({});
+        }
+      );
+    } catch (error) {
+      console.error('Error setting up last logout times listener:', error);
+      setLastLogoutTimes({});
+      unsubscribeLogoutTimes = () => {};
+    }
+
+    // Fetch report counts for users
+    let unsubscribePostReports;
+    let unsubscribeMessageReports;
+    try {
+      const updateReportCounts = async () => {
+        try {
+          const [postSnapshot, messageSnapshot] = await Promise.all([
+            getDocs(query(collection(db, 'post_reports'))),
+            getDocs(query(collection(db, 'message_reports')))
+          ]);
+          
+          const counts = {};
+          
+          // Count post reports (exclude dismissed reports)
+          postSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            // Only count if status is not 'dismissed'
+            if (data.status !== 'dismissed') {
+              const userId = data.postOwnerId || data.userId || data.ownerId || data.reportedUser;
+              if (userId) {
+                counts[userId] = (counts[userId] || 0) + 1;
+              }
+            }
+          });
+          
+          // Count message reports (exclude dismissed reports)
+          messageSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            // Only count if status is not 'dismissed'
+            if (data.status !== 'dismissed') {
+              const userId = data.userId || data.ownerId || data.reportedUser || data.messageOwnerId;
+              if (userId) {
+                counts[userId] = (counts[userId] || 0) + 1;
+              }
+            }
+          });
+          
+          setUserReportCounts(counts);
+        } catch (error) {
+          console.error('Error fetching report counts:', error);
+        }
+      };
+      
+      // Initial fetch
+      updateReportCounts();
+      
+      // Listen to changes in post_reports
+      const postReportsQuery = query(collection(db, 'post_reports'));
+      unsubscribePostReports = onSnapshot(postReportsQuery, () => {
+        updateReportCounts();
+      });
+
+      // Listen to changes in message_reports
+      const messageReportsQuery = query(collection(db, 'message_reports'));
+      unsubscribeMessageReports = onSnapshot(messageReportsQuery, () => {
+        updateReportCounts();
+      });
+    } catch (error) {
+      console.error('Error setting up report counts listener:', error);
+      unsubscribePostReports = () => {};
+      unsubscribeMessageReports = () => {};
+    }
+
     return () => {
       unsubscribePets();
       unsubscribeUsers();
       unsubscribeNotifications();
+      if (unsubscribeLogoutTimes) unsubscribeLogoutTimes();
+      if (unsubscribePostReports) unsubscribePostReports();
+      if (unsubscribeMessageReports) unsubscribeMessageReports();
     };
-  }, []);
+  }, [generateChartData]);
 
-  // Fetch current user profile information
-  useEffect(() => {
-  const fetchCurrentUserProfile = async () => {
-    if (currentUser) {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setCurrentUserProfile({
-            uid: currentUser.uid,
-            displayName: userData.name || userData.displayName || currentUser.displayName || 'Agricultural Admin',
-            email: currentUser.email,
-            profileImage: userData.profileImage || null,
-            role: userData.role || 'agricultural_admin'
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching current user profile:', error);
-      }
-    }
-  };
 
-  fetchCurrentUserProfile();
-}, [currentUser]);
+  // Function to get owner's profile image - memoized
+  const getOwnerProfileImage = useCallback((pet) => {
+    if (!pet || !pet.userId) return null;
+    const owner = users.find(user => user.uid === pet.userId);
+    return owner?.profileImage || null;
+  }, [users]);
 
-// Function to get owner's profile image
-const getOwnerProfileImage = (pet) => {
-  if (!pet || !pet.userId) return null;
-  const owner = users.find(user => user.uid === pet.userId);
-  return owner?.profileImage || null;
-};
-
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     const ok = window.confirm('Are you sure you want to logout?');
     if (!ok) return;
     try {
@@ -480,9 +573,9 @@ const getOwnerProfileImage = (pet) => {
     } catch (e) {
       toast.error('Logout failed');
     }
-  };
+  }, [logout]);
 
-  const handleApprovePetRegistration = async (petId) => {
+  const handleApprovePetRegistration = useCallback(async (petId) => {
     try {
       const petDoc = pets.find(pet => pet.id === petId);
       
@@ -518,9 +611,9 @@ const getOwnerProfileImage = (pet) => {
       console.error('Error approving registration:', error);
       toast.error('Failed to approve registration');
     }
-  };
+  }, [pets, currentUser, logActivity]);
 
-  const handleRejectPetRegistration = async (petId) => {
+  const handleRejectPetRegistration = useCallback(async (petId) => {
       const petDoc = pets.find(pet => pet.id === petId);
     const petName = petDoc?.petName || 'Unnamed Pet';
     const ownerName = petDoc?.ownerFullName || 'Unknown Owner';
@@ -577,16 +670,58 @@ const getOwnerProfileImage = (pet) => {
       console.error('Error rejecting registration:', error);
       toast.error('Failed to reject registration');
     }
-  };
+  }, [pets, currentUser, logActivity]);
 
-  const handleCreateAnnouncement = async () => {
-    if (!announcementTitle.trim() || !announcementMessage.trim()) {
-      toast.error('Please fill in both title and message');
+  const handleImageSelect = useCallback((event) => {
+    const file = event.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast.error('Image size must be less than 10MB');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      setAnnouncementImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAnnouncementImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const handleRemoveImage = useCallback(() => {
+    setAnnouncementImage(null);
+    setAnnouncementImagePreview(null);
+  }, []);
+
+  const handleCreateAnnouncement = useCallback(async () => {
+    if (!announcementTitle.trim() && !announcementMessage.trim() && !announcementImage) {
+      toast.error('Please add at least a title, message, or image');
       return;
     }
 
     setIsCreatingAnnouncement(true);
     try {
+      let imageUrl = null;
+      
+      // Upload image if selected
+      if (announcementImage) {
+        try {
+          const storage = getStorage();
+          const imageRef = ref(storage, `announcements/${Date.now()}_${announcementImage.name}`);
+          await uploadBytes(imageRef, announcementImage);
+          imageUrl = await getDownloadURL(imageRef);
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          toast.error('Failed to upload image. Please try again.');
+          setIsCreatingAnnouncement(false);
+          return;
+        }
+      }
+
       // Get all users
       const usersSnapshot = await getDocs(collection(db, 'users'));
       const userIds = [];
@@ -596,34 +731,111 @@ const getOwnerProfileImage = (pet) => {
 
       // Create announcement document
       const announcementRef = await addDoc(collection(db, 'announcements'), {
-        title: announcementTitle.trim(),
-        message: announcementMessage.trim(),
-        createdBy: currentUser?.email || 'agricultural_admin',
+        title: announcementTitle.trim() || 'Announcement',
+        message: announcementMessage.trim() || '',
+        imageUrl: imageUrl,
+        createdBy: 'Pawsafety',
         createdById: currentUser?.uid || '',
+        createdByEmail: currentUser?.email || 'agricultural_admin',
         createdAt: serverTimestamp(),
         targetUsers: 'all', // All users
-        isActive: true
+        isActive: true,
+        userName: 'Pawsafety',
+        userProfileImage: LogoBlue // Store the path, will be used in mobile app
       });
 
-      // Create notifications for all users
-      const batch = writeBatch(db);
-      const notificationPromises = [];
+      // Create notifications for all users and send push notifications
+      const pushNotificationPromises = [];
 
-      userIds.forEach((userId) => {
-        const notificationRef = doc(collection(db, 'notifications'));
-        batch.set(notificationRef, {
-          userId: userId,
-          title: announcementTitle.trim(),
-          body: announcementMessage.trim(),
-          type: 'announcement',
-          announcementId: announcementRef.id,
-          read: false,
-          createdAt: serverTimestamp()
+      // Get push tokens for all users
+      const pushTokensMap = new Map();
+      const pushTokensSnapshot = await getDocs(collection(db, 'user_push_tokens'));
+      pushTokensSnapshot.forEach((tokenDoc) => {
+        const tokenData = tokenDoc.data();
+        const token = tokenData?.expoPushToken || tokenData?.pushToken;
+        if (token) {
+          pushTokensMap.set(tokenDoc.id, token);
+        }
+      });
+
+      // Prepare notification title and body
+      const notificationTitle = announcementTitle.trim() || 'New Announcement from Pawsafety';
+      const notificationBody = announcementMessage.trim() || 'Check out the latest announcement!';
+
+      // Split into batches of 500 (Firestore batch limit)
+      const BATCH_SIZE = 500;
+      const batches = [];
+      for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+        batches.push(userIds.slice(i, i + BATCH_SIZE));
+      }
+
+      // Process each batch
+      let totalNotifications = 0;
+      for (const userBatch of batches) {
+        const batch = writeBatch(db);
+        
+        userBatch.forEach((userId) => {
+          // Create Firestore notification
+          const notificationRef = doc(collection(db, 'notifications'));
+          batch.set(notificationRef, {
+            userId: userId,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'announcement',
+            announcementId: announcementRef.id,
+            read: false,
+            createdAt: serverTimestamp(),
+            data: {
+              type: 'announcement',
+              announcementId: announcementRef.id
+            }
+          });
+
+          // Send push notification if token exists
+          const pushToken = pushTokensMap.get(userId);
+          if (pushToken) {
+            pushNotificationPromises.push(
+              fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Accept-Encoding': 'gzip, deflate',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify([{
+                  to: pushToken,
+                  sound: 'default',
+                  title: notificationTitle,
+                  body: notificationBody,
+                  data: {
+                    type: 'announcement',
+                    announcementId: announcementRef.id
+                  },
+                  priority: 'high',
+                  channelId: 'default'
+                }])
+              }).catch(error => {
+                console.error(`Error sending push to user ${userId}:`, error);
+                return null; // Don't fail the whole operation
+              })
+            );
+          }
         });
-        notificationPromises.push(notificationRef);
-      });
 
-      await batch.commit();
+        // Commit this batch
+        await batch.commit();
+        totalNotifications += userBatch.length;
+      }
+
+      console.log(`✅ Created ${totalNotifications} notifications in Firestore`);
+
+      // Send all push notifications (don't await, let them run in background)
+      Promise.all(pushNotificationPromises).then(results => {
+        const successful = results.filter(r => r && r.ok).length;
+        console.log(`📱 Sent ${successful}/${pushNotificationPromises.length} push notifications`);
+      }).catch(error => {
+        console.error('Error sending some push notifications:', error);
+      });
 
       // Log activity
       await logActivity(
@@ -636,15 +848,17 @@ const getOwnerProfileImage = (pet) => {
       setShowAnnouncementModal(false);
       setAnnouncementTitle('');
       setAnnouncementMessage('');
+      setAnnouncementImage(null);
+      setAnnouncementImagePreview(null);
     } catch (error) {
       console.error('Error creating announcement:', error);
       toast.error('Failed to create announcement');
     } finally {
       setIsCreatingAnnouncement(false);
     }
-  };
+  }, [announcementTitle, announcementMessage, announcementImage, currentUser, logActivity]);
 
-  const handleArchivePet = async (petId, petName) => {
+  const handleArchivePet = useCallback(async (petId, petName) => {
     const confirmed = window.confirm(
       `Are you sure you want to archive ${petName}?\n\n` +
       `This will:\n` +
@@ -676,15 +890,15 @@ const getOwnerProfileImage = (pet) => {
       console.error('Error archiving pet:', error);
       toast.error('Failed to archive pet');
     }
-  };
+  }, [currentUser, logActivity]);
 
-  const handleViewPet = (pet) => {
+  const handleViewPet = useCallback((pet) => {
     setSelectedPet(pet);
     setShowPetModal(true);
-  };
+  }, []);
 
-  // Filter functions
-  const getFilteredPets = (petList) => {
+  // Filter functions - memoized
+  const getFilteredPets = useCallback((petList) => {
     return petList.filter(pet => {
       const matchesSearch = !searchTerm || 
         pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -695,20 +909,20 @@ const getOwnerProfileImage = (pet) => {
       
       return matchesSearch && matchesType;
     });
-  };
+  }, [searchTerm, filterType]);
 
-  // Get unique breeds from registered pets
-  const getUniqueBreeds = () => {
+  // Get unique breeds from registered pets - memoized
+  const getUniqueBreeds = useMemo(() => {
     const breeds = registeredPets
       .map(pet => pet.breed)
       .filter(breed => breed && breed.trim() !== '')
       .filter((breed, index, self) => self.indexOf(breed) === index)
       .sort();
     return breeds;
-  };
+  }, [registeredPets]);
 
-  // Filter registered pets with additional filters
-  const getFilteredRegisteredPets = () => {
+  // Filter registered pets with additional filters - memoized
+  const getFilteredRegisteredPets = useMemo(() => {
     return registeredPets.filter(pet => {
       const matchesSearch = !searchTerm || 
         pet.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -746,11 +960,11 @@ const getOwnerProfileImage = (pet) => {
       
       return matchesSearch && matchesType && matchesGender && matchesBreed && matchesDate;
     });
-  };
+  }, [registeredPets, searchTerm, filterType, filterGender, filterBreed, filterDate]);
   
-  const getFilteredPendingPets = () => getFilteredPets(pendingPets);
+  const getFilteredPendingPets = useMemo(() => getFilteredPets(pendingPets), [getFilteredPets, pendingPets]);
 
-  const markNotificationAsRead = async (notificationId) => {
+  const markNotificationAsRead = useCallback(async (notificationId) => {
     try {
       await updateDoc(doc(db, 'admin_notifications', notificationId), {
         read: true
@@ -758,9 +972,10 @@ const getOwnerProfileImage = (pet) => {
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
-  };
+  }, []);
 
-  const markAllNotificationsAsRead = async () => {
+  // eslint-disable-next-line no-unused-vars
+  const markAllNotificationsAsRead = useCallback(async () => {
     try {
       const batch = writeBatch(db);
       notifications.forEach(notification => {
@@ -773,9 +988,9 @@ const getOwnerProfileImage = (pet) => {
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
-  };
+  }, [notifications]);
 
-  const deleteNotification = async (notificationId) => {
+  const deleteNotification = useCallback(async (notificationId) => {
     const confirmed = window.confirm('Are you sure you want to delete this notification? This action cannot be undone.');
     if (!confirmed) return;
 
@@ -786,9 +1001,9 @@ const getOwnerProfileImage = (pet) => {
       console.error('Error deleting notification:', error);
       toast.error('Failed to delete notification');
     }
-  };
+  }, []);
 
-  const deleteAllNotifications = async () => {
+  const deleteAllNotifications = useCallback(async () => {
     const confirmed = window.confirm('Are you sure you want to delete all notifications? This action cannot be undone.');
     if (!confirmed) return;
 
@@ -804,9 +1019,9 @@ const getOwnerProfileImage = (pet) => {
       console.error('Error deleting all notifications:', error);
       toast.error('Failed to delete notifications');
     }
-  };
+  }, [notifications]);
 
-  const handleNotificationClick = async (notification) => {
+  const handleNotificationClick = useCallback(async (notification) => {
     // Mark notification as read
     if (!notification.read) {
       await markNotificationAsRead(notification.id);
@@ -814,11 +1029,11 @@ const getOwnerProfileImage = (pet) => {
     // Open notification details modal without closing the list
     setSelectedNotification(notification);
     setShowNotificationModal(true);
-  };
+  }, [markNotificationAsRead]);
 
 
-  // User Management Functions
-  const handleActivateUser = async (userId) => {
+  // User Management Functions - memoized
+  const handleActivateUser = useCallback(async (userId) => {
     // Find user details for confirmation dialog
     const user = users.find(u => u.uid === userId);
     const userName = user?.displayName || 'Unknown User';
@@ -872,9 +1087,9 @@ const getOwnerProfileImage = (pet) => {
       console.error('Error activating user:', error);
       toast.error('Failed to activate user');
     }
-  };
+  }, [users, currentUser, logActivity]);
 
-  const handleDeactivateUser = async (userId) => {
+  const handleDeactivateUser = useCallback(async (userId) => {
     // Find user details for confirmation dialog
     const user = users.find(u => u.uid === userId);
     const userName = user?.displayName || 'Unknown User';
@@ -928,44 +1143,663 @@ const getOwnerProfileImage = (pet) => {
       console.error('Error deactivating user:', error);
       toast.error('Failed to deactivate user');
     }
-  };
+  }, [users, currentUser, logActivity]);
 
-  // Filter users based on search term
-  const getFilteredUsers = () => {
+  // Filter users based on search term - memoized
+  // Helper function to check if chat restriction is still active
+  const isChatRestrictionActive = useCallback((user) => {
+    if (!user.chatRestricted || !user.chatRestrictionExpiresAt) {
+      return false;
+    }
+    
+    try {
+      const expiry = user.chatRestrictionExpiresAt.toDate 
+        ? user.chatRestrictionExpiresAt.toDate() 
+        : new Date(user.chatRestrictionExpiresAt);
+      const now = new Date();
+      return expiry > now;
+    } catch (error) {
+      console.error('Error checking restriction expiry:', error);
+      return user.chatRestricted; // Fallback to the boolean value
+    }
+  }, []);
+
+  const getFilteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = !searchTerm || 
         user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.phone?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      return matchesSearch;
+      // Filter by user status
+      let matchesStatus = true;
+      if (userStatusFilter === 'restricted') {
+        matchesStatus = isChatRestrictionActive(user);
+      } else if (userStatusFilter === 'deactivated') {
+        matchesStatus = user.status === 'deactivated';
+      } else if (userStatusFilter === 'banned') {
+        matchesStatus = user.status === 'banned';
+      }
+      
+      return matchesSearch && matchesStatus;
     });
-  };
+  }, [users, searchTerm, userStatusFilter, isChatRestrictionActive]);
 
-  // View user details
-  const handleViewUser = (user) => {
+  // View user details - memoized
+  const handleViewUser = useCallback((user) => {
     setSelectedUser(user);
     setShowUserModal(true);
-  };
+  }, []);
+
+  // Handle viewing user report history
+  const handleViewUserReports = useCallback(async (user) => {
+    setSelectedUserForReports(user);
+    setLoadingReports(true);
+    setShowReportHistoryModal(true);
+    
+    try {
+      // Fetch all post reports and filter client-side (since Firestore doesn't support OR queries)
+      const allPostReportsSnapshot = await getDocs(query(collection(db, 'post_reports')));
+      const postReports = allPostReportsSnapshot.docs
+        .filter(doc => {
+          const data = doc.data();
+          return data.postOwnerId === user.uid || 
+                 data.userId === user.uid || 
+                 data.ownerId === user.uid || 
+                 data.reportedUser === user.uid;
+        })
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            type: 'post',
+            content: data.postContent || data.content || data.postText || 'Post content',
+            images: data.postImages || data.images || [],
+            reason: data.reason || data.reportReason || 'No reason provided',
+            date: data.reportedAt || data.createdAt || data.timestamp,
+            status: data.status || 'pending',
+            ...data
+          };
+        });
+
+      // Fetch all message reports and filter client-side
+      const allMessageReportsSnapshot = await getDocs(query(collection(db, 'message_reports')));
+      const messageReports = allMessageReportsSnapshot.docs
+        .filter(doc => {
+          const data = doc.data();
+          return data.userId === user.uid || 
+                 data.ownerId === user.uid || 
+                 data.reportedUser === user.uid ||
+                 data.messageOwnerId === user.uid;
+        })
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            type: 'message',
+            content: data.messageContent || data.content || data.messageText || 'Message content',
+            reason: data.reason || data.reportReason || 'No reason provided',
+            date: data.createdAt || data.reportedAt || data.timestamp,
+            status: data.status || 'pending',
+            ...data
+          };
+        });
+
+      // Combine and sort by date
+      const allReports = [...postReports, ...messageReports].sort((a, b) => {
+        const dateA = a.date?.toDate ? a.date.toDate() : (a.date ? new Date(a.date) : new Date(0));
+        const dateB = b.date?.toDate ? b.date.toDate() : (b.date ? new Date(b.date) : new Date(0));
+        return dateB - dateA;
+      });
+
+      setUserReports(allReports);
+    } catch (error) {
+      console.error('Error fetching user reports:', error);
+      toast.error('Failed to load report history');
+      setUserReports([]);
+    } finally {
+      setLoadingReports(false);
+    }
+  }, []);
+
+  // Format timestamp helper
+  const formatTimestamp = useCallback((timestamp) => {
+    if (!timestamp) return 'Never';
+    
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      // Format as: "MM/DD/YYYY, HH:MM AM/PM"
+      const formattedDate = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const formattedTime = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      return `${formattedDate}, ${formattedTime}`;
+    } catch (error) {
+      console.error('Error formatting timestamp:', error);
+      return 'Unknown';
+    }
+  }, []);
+
+  // Get users that have been inactive for more than 1 month
+  const getInactiveUsers = useMemo(() => {
+    const now = new Date();
+    const oneMonthInMs = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+    
+    return users.filter(user => {
+      // Skip banned and deactivated users
+      if (user.status === 'banned' || user.status === 'deactivated') return false;
+      
+      const lastLogout = lastLogoutTimes[user.uid];
+      if (!lastLogout) {
+        // If no logout record, check if account was created more than 1 month ago
+        if (user.createdAt) {
+          const createdAt = user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt);
+          return (now - createdAt) >= oneMonthInMs;
+        }
+        return false;
+      }
+      
+      const logoutDate = lastLogout.toDate ? lastLogout.toDate() : new Date(lastLogout);
+      const timeSinceLogout = now - logoutDate;
+      
+      return timeSinceLogout >= oneMonthInMs;
+    });
+  }, [users, lastLogoutTimes]);
+
+  // Helper function to check if a user is inactive
+  const isUserInactive = useCallback((user) => {
+    // Skip banned and deactivated users
+    if (user.status === 'banned' || user.status === 'deactivated') return false;
+    
+    const now = new Date();
+    const oneMonthInMs = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+    
+    const lastLogout = lastLogoutTimes[user.uid];
+    if (!lastLogout) {
+      // If no logout record, check if account was created more than 1 month ago
+      if (user.createdAt) {
+        const createdAt = user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt);
+        return (now - createdAt) >= oneMonthInMs;
+      }
+      return false;
+    }
+    
+    const logoutDate = lastLogout.toDate ? lastLogout.toDate() : new Date(lastLogout);
+    const timeSinceLogout = now - logoutDate;
+    
+    return timeSinceLogout >= oneMonthInMs;
+  }, [lastLogoutTimes]);
+
+  // Update inactive users when getInactiveUsers changes
+  useEffect(() => {
+    setInactiveUsers(getInactiveUsers);
+  }, [getInactiveUsers]);
+
+  // Send notification helper function
+  const sendNotification = useCallback(async (userId, title, body) => {
+    if (!userId) return;
+    try {
+      // Create notification document in Firestore
+      await addDoc(collection(db, 'notifications'), {
+        userId,
+        title,
+        body,
+        type: 'admin_action',
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      // Send push notification
+      try {
+        const tokenDoc = await getDoc(doc(db, 'user_push_tokens', userId));
+        
+        if (tokenDoc.exists()) {
+          const tokenData = tokenDoc.data();
+          const token = tokenData?.expoPushToken || tokenData?.pushToken;
+          
+          if (token) {
+            // Send push notification via Expo API
+            const response = await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip, deflate',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify([{
+                to: token,
+                sound: 'default',
+                title: title,
+                body: body,
+                data: {
+                  type: 'admin_action',
+                  userId: userId
+                },
+                priority: 'high',
+                channelId: 'default'
+              }])
+            });
+            
+            if (!response.ok) {
+              console.error('Failed to send push notification:', response.statusText);
+            }
+          }
+        }
+      } catch (pushError) {
+        console.error('Error sending push notification:', pushError);
+        // Don't throw - Firestore notification was already created
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+    }
+  }, []);
+
+  // Handle ban user
+  const handleBanUser = useCallback(async (user) => {
+    setCheckingBan(prev => new Set(prev).add(user.uid));
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const now = new Date();
+        
+        // Check if user is already banned
+        if (userData.status === 'banned' && userData.banExpiresAt) {
+          const banExpiry = userData.banExpiresAt.toDate ? userData.banExpiresAt.toDate() : new Date(userData.banExpiresAt);
+          if (banExpiry > now) {
+            toast.error(`This user is already banned until ${banExpiry.toLocaleDateString()}. Please wait for the ban to expire or unban the user first.`);
+            setCheckingBan(prev => {
+              const next = new Set(prev);
+              next.delete(user.uid);
+              return next;
+            });
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking user ban status:', error);
+      toast.error('Failed to check user ban status');
+      setCheckingBan(prev => {
+        const next = new Set(prev);
+        next.delete(user.uid);
+        return next;
+      });
+      return;
+    }
+
+    setCheckingBan(prev => {
+      const next = new Set(prev);
+      next.delete(user.uid);
+      return next;
+    });
+    setUserToBan(user);
+    setBanModalOpen(true);
+  }, []);
+
+  // Confirm ban user
+  const confirmBanUser = useCallback(async () => {
+    if (!banDuration || isNaN(banDuration) || parseInt(banDuration) <= 0) {
+      toast.error('Please enter a valid number of days');
+      return;
+    }
+
+    const days = parseInt(banDuration);
+    const user = userToBan;
+    
+    if (!user || !user.uid) {
+      toast.error('Could not find user to ban');
+      return;
+    }
+
+    setBanning(prev => new Set(prev).add(user.uid));
+    try {
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + days);
+      
+      // Get the current user data to archive it
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      const currentUserData = userDoc.exists() ? userDoc.data() : {};
+      
+      const batch = writeBatch(db);
+      
+      // Ban the user and archive profile data
+      const userRef = doc(db, 'users', user.uid);
+      batch.update(userRef, { 
+        status: 'banned', 
+        bannedAt: serverTimestamp(),
+        bannedBy: currentUser?.email || 'agricultural_admin',
+        banDuration: days,
+        banExpiresAt: Timestamp.fromDate(expiry),
+        // Archive original profile data for restoration
+        archivedProfileData: {
+          displayName: currentUserData.displayName || currentUserData.name || null,
+          name: currentUserData.displayName || currentUserData.name || null,
+          profileImage: currentUserData.profileImage || null,
+          archivedAt: serverTimestamp()
+        },
+        // Hide profile by setting profile fields to null/empty
+        displayName: null,
+        name: null,
+        profileImage: null,
+        isProfileVisible: false
+      });
+      
+      // Hide user's content (posts and pets)
+      const postsQuery = query(collection(db, 'posts'), where('userId', '==', user.uid));
+      const postsSnapshot = await getDocs(postsQuery);
+      postsSnapshot.forEach(doc => {
+        batch.update(doc.ref, { isHidden: true });
+      });
+      
+      const petsQuery = query(collection(db, 'pets'), where('userId', '==', user.uid));
+      const petsSnapshot = await getDocs(petsQuery);
+      petsSnapshot.forEach(doc => {
+        batch.update(doc.ref, { isHidden: true });
+      });
+      
+      await batch.commit();
+      
+      await sendNotification(user.uid, 'Account Banned', `Your account has been banned for ${days} ${days === 1 ? 'day' : 'days'}.`);
+      
+      toast.success(`User banned for ${days} days.`);
+      setBanning(prev => {
+        const next = new Set(prev);
+        next.delete(user.uid);
+        return next;
+      });
+      setBanModalOpen(false);
+      setUserToBan(null);
+      setBanDuration('');
+      
+      await logActivity(
+        `Banned user ${user.displayName || user.email}`,
+        'user_ban',
+        `Banned user: ${user.displayName || user.email} for ${days} days`
+      );
+    } catch (error) {
+      console.error('Error banning user:', error);
+      toast.error('Failed to ban user');
+      setBanning(prev => {
+        const next = new Set(prev);
+        next.delete(user.uid);
+        return next;
+      });
+    }
+  }, [banDuration, userToBan, currentUser, sendNotification, logActivity]);
+
+  // Handle restrict chat
+  const handleRestrictChat = useCallback(async (user) => {
+    const userId = user.uid;
+    if (!userId) {
+      toast.error('Could not find user to restrict');
+      return;
+    }
+
+    setCheckingRestrict(prev => new Set(prev).add(userId));
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const now = new Date();
+        
+        // Check if user is banned
+        if (userData.status === 'banned' && userData.banExpiresAt) {
+          const banExpiry = userData.banExpiresAt.toDate ? userData.banExpiresAt.toDate() : new Date(userData.banExpiresAt);
+          if (banExpiry > now) {
+            toast.error(`This user is already banned until ${banExpiry.toLocaleDateString()}. Please wait for the ban to expire or unban the user first.`);
+            setCheckingRestrict(prev => {
+              const next = new Set(prev);
+              next.delete(userId);
+              return next;
+            });
+            return;
+          }
+        }
+        
+        // Check if user is already restricted
+        if (userData.chatRestricted && userData.chatRestrictionExpiresAt) {
+          const restrictExpiry = userData.chatRestrictionExpiresAt.toDate ? userData.chatRestrictionExpiresAt.toDate() : new Date(userData.chatRestrictionExpiresAt);
+          if (restrictExpiry > now) {
+            toast.error(`This user is already restricted until ${restrictExpiry.toLocaleDateString()}. Please wait for the restriction to expire or remove the restriction first.`);
+            setCheckingRestrict(prev => {
+              const next = new Set(prev);
+              next.delete(userId);
+              return next;
+            });
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking user status:', error);
+      toast.error('Failed to check user status');
+      setCheckingRestrict(prev => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+      return;
+    }
+
+    setCheckingRestrict(prev => {
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+    setUserToRestrict(user);
+    setRestrictModalOpen(true);
+  }, []);
+
+  // Confirm restrict chat
+  const confirmRestrictChat = useCallback(async () => {
+    if (!restrictDuration || isNaN(restrictDuration) || parseInt(restrictDuration) <= 0) {
+      toast.error('Please enter a valid duration');
+      return;
+    }
+
+    if (!restrictReason.trim()) {
+      toast.error('Please provide a reason for the chat restriction');
+      return;
+    }
+
+    const duration = parseInt(restrictDuration);
+    const user = userToRestrict;
+    const userId = user.uid;
+    
+    if (!userId) {
+      toast.error('Could not find user to restrict');
+      return;
+    }
+
+    setRestricting(prev => new Set(prev).add(userId));
+    try {
+      const expiry = new Date();
+      if (restrictDurationType === 'hours') {
+        expiry.setHours(expiry.getHours() + duration);
+      } else {
+        expiry.setDate(expiry.getDate() + duration);
+      }
+
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, { 
+        chatRestricted: true,
+        chatRestrictedAt: serverTimestamp(),
+        chatRestrictedBy: currentUser?.email || 'agricultural_admin',
+        chatRestrictionDuration: duration,
+        chatRestrictionDurationType: restrictDurationType,
+        chatRestrictionExpiresAt: Timestamp.fromDate(expiry),
+        chatRestrictionReason: restrictReason.trim()
+      });
+      
+      const durationText = restrictDurationType === 'hours' 
+        ? `${duration} ${duration === 1 ? 'hour' : 'hours'}` 
+        : `${duration} ${duration === 1 ? 'day' : 'days'}`;
+      
+      await sendNotification(userId, 'Chat Restricted', `Your ability to send messages has been restricted for ${durationText}. Reason: ${restrictReason.trim()}`);
+      
+      toast.success(`Chat restricted for ${user.displayName || user.email} for ${durationText}.`);
+      setRestricting(prev => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+      setRestrictModalOpen(false);
+      setUserToRestrict(null);
+      setRestrictDuration('');
+      setRestrictReason('');
+      setRestrictDurationType('days');
+      
+      await logActivity(
+        `Restricted chat for ${user.displayName || user.email}`,
+        'user_restrict',
+        `Restricted chat for: ${user.displayName || user.email} for ${durationText}`
+      );
+    } catch (error) {
+      console.error('Error restricting chat:', error);
+      toast.error('Failed to restrict chat');
+      setRestricting(prev => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    }
+  }, [restrictDuration, restrictDurationType, restrictReason, userToRestrict, currentUser, sendNotification, logActivity]);
+
+  // Handle unban user
+  const handleUnbanUser = useCallback(async (user) => {
+    if (!window.confirm(`Are you sure you want to lift the ban for ${user.displayName || user.email}?`)) return;
+
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      const archivedData = userData.archivedProfileData || {};
+      
+      const batch = writeBatch(db);
+      
+      // Restore user status and profile data
+      const userRef = doc(db, 'users', user.uid);
+      batch.update(userRef, { 
+        status: 'active', 
+        bannedAt: null,
+        bannedBy: null,
+        banDuration: null,
+        banExpiresAt: null,
+        displayName: archivedData.displayName || userData.displayName || userData.name || null,
+        name: archivedData.displayName || userData.displayName || userData.name || null,
+        profileImage: archivedData.profileImage || null,
+        isProfileVisible: true,
+        archivedProfileData: null
+      });
+      
+      // Unhide user's content
+      const postsQuery = query(collection(db, 'posts'), where('userId', '==', user.uid));
+      const postsSnapshot = await getDocs(postsQuery);
+      postsSnapshot.forEach(doc => {
+        batch.update(doc.ref, { isHidden: false });
+      });
+      
+      const petsQuery = query(collection(db, 'pets'), where('userId', '==', user.uid));
+      const petsSnapshot = await getDocs(petsQuery);
+      petsSnapshot.forEach(doc => {
+        batch.update(doc.ref, { isHidden: false });
+      });
+      
+      await batch.commit();
+      
+      await sendNotification(user.uid, 'Ban Lifted', 'Your account ban has been lifted. You can now access your account again.');
+      
+      toast.success('Ban lifted successfully');
+      
+      await logActivity(
+        `Unbanned user ${user.displayName || user.email}`,
+        'user_unban',
+        `Unbanned user: ${user.displayName || user.email}`
+      );
+    } catch (error) {
+      console.error('Error lifting ban:', error);
+      toast.error('Failed to lift ban');
+    }
+  }, [sendNotification, logActivity]);
+
+  // Handle unrestrict chat
+  const handleUnrestrictChat = useCallback(async (user) => {
+    if (!window.confirm(`Are you sure you want to remove the chat restriction for ${user.displayName || user.email}?`)) return;
+
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { 
+        chatRestricted: false,
+        chatRestrictedAt: null,
+        chatRestrictedBy: null,
+        chatRestrictionDuration: null,
+        chatRestrictionDurationType: null,
+        chatRestrictionExpiresAt: null,
+        chatRestrictionReason: null
+      });
+      
+      await sendNotification(user.uid, 'Chat Restriction Lifted', 'Your chat restriction has been removed. You can now send messages again.');
+      
+      toast.success('Chat restriction lifted successfully');
+      
+      await logActivity(
+        `Unrestricted chat for ${user.displayName || user.email}`,
+        'user_unrestrict',
+        `Unrestricted chat for: ${user.displayName || user.email}`
+      );
+    } catch (error) {
+      console.error('Error lifting chat restriction:', error);
+      toast.error('Failed to lift chat restriction');
+    }
+  }, [sendNotification, logActivity]);
 
 
+
+  // Memoize tab change handlers
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  }, []);
+
+  const handleToggleMobileMenu = useCallback(() => {
+    setMobileMenuOpen(prev => !prev);
+  }, []);
+
+  const handleToggleNotifications = useCallback(() => {
+    setShowNotifications(prev => !prev);
+  }, []);
+
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleCloseNotifications = useCallback(() => {
+    setShowNotifications(false);
+  }, []);
+
+  const handleClickOutside = useCallback((event) => {
+    if (
+      showNotifications &&
+      !event.target.closest('.notifications-container') &&
+      !event.target.closest('[data-notification-detail-modal]')
+    ) {
+      setShowNotifications(false);
+    }
+  }, [showNotifications]);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        showNotifications &&
-        !event.target.closest('.notifications-container') &&
-        !event.target.closest('[data-notification-detail-modal]')
-      ) {
-        setShowNotifications(false);
-      }
-    };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showNotifications]);
+  }, [handleClickOutside]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col lg:block">
@@ -974,7 +1808,7 @@ const getOwnerProfileImage = (pet) => {
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={handleToggleMobileMenu}
               className="p-2 text-white hover:bg-slate-700 rounded-lg transition-all"
               aria-label="Toggle menu"
             >
@@ -995,7 +1829,7 @@ const getOwnerProfileImage = (pet) => {
           </div>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={handleToggleNotifications}
               className="relative p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
               aria-label="Notifications"
             >
@@ -1022,15 +1856,12 @@ const getOwnerProfileImage = (pet) => {
         <>
           <div 
             className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40 top-[60px]"
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={handleCloseNotifications}
           />
           <div className="lg:hidden fixed top-[60px] left-0 right-0 z-50 bg-gradient-to-b from-slate-800 to-slate-900 shadow-xl border-t border-slate-700 max-h-[calc(100vh-60px)] overflow-y-auto">
             <nav className="py-2">
               <button
-                onClick={() => {
-                  setActiveTab('dashboard');
-                  setMobileMenuOpen(false);
-                }}
+                onClick={() => handleTabChange('dashboard')}
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-all ${
                   activeTab === 'dashboard'
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
@@ -1044,10 +1875,7 @@ const getOwnerProfileImage = (pet) => {
               <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">Pet Management</div>
               
               <button
-                onClick={() => {
-                  setActiveTab('registered');
-                  setMobileMenuOpen(false);
-                }}
+                onClick={() => handleTabChange('registered')}
                 className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
                   activeTab === 'registered'
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
@@ -1066,10 +1894,7 @@ const getOwnerProfileImage = (pet) => {
               </button>
               
               <button
-                onClick={() => {
-                  setActiveTab('pending');
-                  setMobileMenuOpen(false);
-                }}
+                onClick={() => handleTabChange('pending')}
                 className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
                   activeTab === 'pending'
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
@@ -1090,10 +1915,7 @@ const getOwnerProfileImage = (pet) => {
               <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">User Management</div>
               
               <button
-                onClick={() => {
-                  setActiveTab('users');
-                  setMobileMenuOpen(false);
-                }}
+                onClick={() => handleTabChange('users')}
                 className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
                   activeTab === 'users'
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
@@ -1107,10 +1929,7 @@ const getOwnerProfileImage = (pet) => {
               </button>
 
               <button
-                onClick={() => {
-                  setActiveTab('reports');
-                  setMobileMenuOpen(false);
-                }}
+                onClick={() => handleTabChange('reports')}
                 className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
                   activeTab === 'reports'
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
@@ -1150,7 +1969,7 @@ const getOwnerProfileImage = (pet) => {
             <div className="flex items-center gap-2">
               {(sidebarOpen || sidebarHovered) && (
                 <button
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  onClick={handleToggleSidebar}
                   className="px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700"
                   aria-label="Toggle sidebar"
                 >
@@ -1166,7 +1985,7 @@ const getOwnerProfileImage = (pet) => {
             <div className="mb-2">
               {(sidebarOpen || sidebarHovered) ? (
                 <button
-                  onClick={() => setShowNotifications(!showNotifications)}
+                  onClick={handleToggleNotifications}
                   className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-xl bg-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-600/50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 relative"
                 >
                   <Bell className="h-5 w-5 mr-2" />
@@ -1179,7 +1998,7 @@ const getOwnerProfileImage = (pet) => {
                 </button>
               ) : (
                 <button
-                  onClick={() => setShowNotifications(!showNotifications)}
+                  onClick={handleToggleNotifications}
                   className="w-full p-3 rounded-xl transition-all duration-300 relative text-slate-300 hover:text-white hover:bg-slate-700/50"
                   aria-label="Notifications"
                 >
@@ -1193,7 +2012,7 @@ const getOwnerProfileImage = (pet) => {
                           )}
                         </div>
                             <button
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => handleTabChange('dashboard')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
                 activeTab === 'dashboard'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
@@ -1204,7 +2023,7 @@ const getOwnerProfileImage = (pet) => {
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">Dashboard</span>}
                             </button>
             <button
-              onClick={() => setActiveTab('pending')}
+              onClick={() => handleTabChange('pending')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
                 activeTab === 'pending'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
@@ -1220,7 +2039,7 @@ const getOwnerProfileImage = (pet) => {
               )}
             </button>
                             <button
-              onClick={() => setActiveTab('registered')}
+              onClick={() => handleTabChange('registered')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
                 activeTab === 'registered'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
@@ -1236,7 +2055,7 @@ const getOwnerProfileImage = (pet) => {
               )}
                             </button>
             <button
-              onClick={() => setActiveTab('users')}
+              onClick={() => handleTabChange('users')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
                 activeTab === 'users'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
@@ -1247,7 +2066,7 @@ const getOwnerProfileImage = (pet) => {
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">User Management</span>}
             </button>
             <button
-              onClick={() => setActiveTab('reports')}
+              onClick={() => handleTabChange('reports')}
               className={`w-full p-3 rounded-xl transition-all duration-300 ${
                 activeTab === 'reports'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
@@ -1310,7 +2129,7 @@ const getOwnerProfileImage = (pet) => {
                   </svg>
                   <span>Delete All</span>
                 </button>
-                <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                <button onClick={handleCloseNotifications} className="text-gray-400 hover:text-gray-600">✕</button>
               </div>
             </div>
                     <div className="max-h-80 overflow-y-auto">
@@ -1578,7 +2397,7 @@ const getOwnerProfileImage = (pet) => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
               <h2 className="text-base sm:text-lg font-medium text-gray-900">Pet Registration Requests</h2>
               <button
-                onClick={() => setActiveTab('archive')}
+                onClick={() => handleTabChange('archive')}
                 className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
               >
                 <Archive className="h-4 w-4 mr-2" />
@@ -1626,7 +2445,7 @@ const getOwnerProfileImage = (pet) => {
 
             {/* Mobile Card View */}
             <div className="block md:hidden space-y-3">
-              {getFilteredPendingPets().map((pet) => (
+              {getFilteredPendingPets.map((pet) => (
                 <div key={pet.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -1669,7 +2488,7 @@ const getOwnerProfileImage = (pet) => {
                   </div>
                 </div>
               ))}
-              {getFilteredPendingPets().length === 0 && (
+              {getFilteredPendingPets.length === 0 && (
                 <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
                   {searchTerm || filterType !== 'all' ? 'No registrations match your search criteria' : 'No pending registrations'}
                 </div>
@@ -1689,7 +2508,7 @@ const getOwnerProfileImage = (pet) => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                   {getFilteredPendingPets().map((pet) => (
+                   {getFilteredPendingPets.map((pet) => (
                    <tr key={pet.id} className="hover:bg-gray-50 transition-all duration-300">
                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{pet.petName || 'Unnamed Pet'}</td>
                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
@@ -1723,7 +2542,7 @@ const getOwnerProfileImage = (pet) => {
                        </td>
                     </tr>
                   ))}
-                                     {getFilteredPendingPets().length === 0 && (
+                                     {getFilteredPendingPets.length === 0 && (
                     <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-600">
                        {searchTerm || filterType !== 'all' ? 'No registrations match your search criteria' : 'No pending registrations'}
                      </td></tr>
@@ -1739,7 +2558,7 @@ const getOwnerProfileImage = (pet) => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
               <h2 className="text-base sm:text-lg font-medium text-gray-900">Registered Pets Management</h2>
               <button
-                onClick={() => setActiveTab('archived-registered')}
+                onClick={() => handleTabChange('archived-registered')}
                 className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-md transition-all duration-300 shadow-md hover:shadow-lg"
               >
                 <Archive className="h-4 w-4 mr-2" />
@@ -1818,7 +2637,7 @@ const getOwnerProfileImage = (pet) => {
                      className="w-full px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                    >
                      <option value="all">All Breeds</option>
-                     {getUniqueBreeds().map(breed => (
+                     {getUniqueBreeds.map(breed => (
                        <option key={breed} value={breed}>{breed}</option>
                      ))}
                    </select>
@@ -1843,7 +2662,7 @@ const getOwnerProfileImage = (pet) => {
              
             {/* Mobile Card View */}
             <div className="block md:hidden space-y-3">
-              {getFilteredRegisteredPets().map((pet) => (
+              {getFilteredRegisteredPets.map((pet) => (
                 <div key={pet.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -1901,7 +2720,7 @@ const getOwnerProfileImage = (pet) => {
                   </div>
                 </div>
               ))}
-              {getFilteredRegisteredPets().length === 0 && (
+              {getFilteredRegisteredPets.length === 0 && (
                 <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
                   {searchTerm || filterType !== 'all' || filterGender !== 'all' || filterBreed !== 'all' || filterDate !== 'all' 
                     ? 'No pets match your filter criteria' 
@@ -1926,7 +2745,7 @@ const getOwnerProfileImage = (pet) => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                   {getFilteredRegisteredPets().map((pet) => (
+                   {getFilteredRegisteredPets.map((pet) => (
                    <tr key={pet.id} className="hover:bg-gray-50 transition-all duration-300">
                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{pet.petName || 'Unnamed Pet'}</td>
                      <td className="px-4 py-2 text-sm text-gray-700">{pet.ownerFullName || 'Unknown Owner'}</td>
@@ -1973,7 +2792,7 @@ const getOwnerProfileImage = (pet) => {
                       </td>
                     </tr>
                   ))}
-                                     {getFilteredRegisteredPets().length === 0 && (
+                                     {getFilteredRegisteredPets.length === 0 && (
                     <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-600">
                        {searchTerm || filterType !== 'all' || filterGender !== 'all' || filterBreed !== 'all' || filterDate !== 'all' 
                          ? 'No pets match your filter criteria' 
@@ -2040,32 +2859,130 @@ const getOwnerProfileImage = (pet) => {
                 User Management
               </div>
             </div>
+
+            {/* Inactive Users Alert */}
+            {inactiveUsers.length > 0 && showInactiveAlert && (
+              <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg relative">
+                <button
+                  onClick={() => setShowInactiveAlert(false)}
+                  className="absolute top-2 right-2 text-orange-600 hover:text-orange-800 transition-colors"
+                  aria-label="Close alert"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="flex items-start">
+                  <AlertTriangle className="h-5 w-5 text-orange-600 mr-3 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 pr-6">
+                    <h3 className="text-sm font-semibold text-orange-900 mb-1">
+                      Inactive Users Alert
+                    </h3>
+                    <p className="text-xs text-orange-800 mb-2">
+                      The following {inactiveUsers.length} user{inactiveUsers.length > 1 ? 's have' : ' has'} been inactive for more than 1 month and may need attention:
+                    </p>
+                    <div className="space-y-1">
+                      {inactiveUsers.slice(0, 5).map(user => {
+                        const lastLogout = lastLogoutTimes[user.uid];
+                        const now = new Date();
+                        let daysInactive = 0;
+                        
+                        if (lastLogout) {
+                          const logoutDate = lastLogout.toDate ? lastLogout.toDate() : new Date(lastLogout);
+                          daysInactive = Math.floor((now - logoutDate) / (1000 * 60 * 60 * 24));
+                        } else if (user.createdAt) {
+                          const createdAt = user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt);
+                          daysInactive = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
+                        }
+                        
+                        return (
+                          <div key={user.uid} className="text-xs text-orange-700 bg-orange-100 rounded px-2 py-1">
+                            <span className="font-medium">{user.displayName || user.email}</span> - Inactive for {daysInactive} day{daysInactive !== 1 ? 's' : ''}
+                          </div>
+                        );
+                      })}
+                      {inactiveUsers.length > 5 && (
+                        <div className="text-xs text-orange-700 font-medium">
+                          ...and {inactiveUsers.length - 5} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Search Controls */}
-            <div className="mb-6 flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <input
-                  type="text"
-                  placeholder="Search by name, email, or phone..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+            <div className="mb-6 flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or phone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 bg-white text-gray-900 placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-all duration-300"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
+              
+              {/* User Status Filter Buttons */}
+              <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setSearchTerm('')}
-                  className="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-all duration-300"
+                  onClick={() => setUserStatusFilter('all')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                    userStatusFilter === 'all'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
                 >
-                  Clear
+                  All Users
                 </button>
-          </div>
-        </div>
+                <button
+                  onClick={() => setUserStatusFilter('restricted')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                    userStatusFilter === 'restricted'
+                      ? 'bg-yellow-600 text-white shadow-md'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Restricted
+                </button>
+                <button
+                  onClick={() => setUserStatusFilter('deactivated')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                    userStatusFilter === 'deactivated'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Deactivated
+                </button>
+                <button
+                  onClick={() => setUserStatusFilter('banned')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                    userStatusFilter === 'banned'
+                      ? 'bg-red-800 text-white shadow-md'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Banned
+                </button>
+              </div>
+            </div>
 
             {/* Mobile Card View */}
             <div className="block md:hidden space-y-3">
-              {getFilteredUsers().map((user) => (
-                <div key={user.uid} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
+              {getFilteredUsers.map((user) => {
+                const userInactive = isUserInactive(user);
+                return (
+                <div key={user.uid} className={`bg-white border rounded-lg shadow-sm p-4 space-y-3 ${userInactive ? 'border-orange-300 bg-orange-50' : 'border-gray-200'}`}>
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden">
                       {user.profileImage ? (
@@ -2086,17 +3003,29 @@ const getOwnerProfileImage = (pet) => {
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
-                        {user.displayName || 'Unknown User'}
-                      </h3>
+                      <div className="flex items-center">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {user.displayName || 'Unknown User'}
+                        </h3>
+                        {userInactive && (
+                          <AlertTriangle className="h-4 w-4 text-orange-600 ml-2 flex-shrink-0" title="Inactive for more than 1 month" />
+                        )}
+                      </div>
                       <p className="text-xs text-gray-600 truncate">{user.email || 'No email'}</p>
-                      <div className="mt-1">
+                      <div className="mt-1 flex flex-col gap-1">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          user.status === 'deactivated' 
-                            ? 'bg-red-100 text-red-800' 
-                            : 'bg-green-100 text-green-800'
+                          user.status === 'banned'
+                            ? 'bg-orange-100 text-orange-800'
+                            : user.status === 'deactivated' 
+                              ? 'bg-red-100 text-red-800' 
+                              : 'bg-green-100 text-green-800'
                         }`}>
-                          {user.status === 'deactivated' ? (
+                          {user.status === 'banned' ? (
+                            <>
+                              <UserX className="h-3 w-3 mr-1" />
+                              Banned
+                            </>
+                          ) : user.status === 'deactivated' ? (
                             <>
                               <ShieldOff className="h-3 w-3 mr-1" />
                               Deactivated
@@ -2108,6 +3037,12 @@ const getOwnerProfileImage = (pet) => {
                             </>
                           )}
                         </span>
+                        {isChatRestrictionActive(user) && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <Ban className="h-3 w-3 mr-1" />
+                            Chat Restricted
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2119,20 +3054,96 @@ const getOwnerProfileImage = (pet) => {
                         {registeredPets.filter(pet => pet.userId === user.uid).length} pets
                       </span>
                     </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Last Logged In:</span>
+                      {userInactive ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800" title="Inactive for more than 1 month">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {formatTimestamp(lastLogoutTimes[user.uid])}
+                        </span>
+                      ) : (
+                        <span className="text-gray-900">{formatTimestamp(lastLogoutTimes[user.uid])}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Total Reports:</span>
+                      <button
+                        onClick={() => handleViewUserReports(user)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-red-500 text-white hover:bg-red-600 hover:shadow-lg transition-all duration-200 cursor-pointer shadow-md border-2 border-red-600 hover:border-red-700 transform hover:scale-105 active:scale-95"
+                        title="Click to view all reports for this user"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>View {userReportCounts[user.uid] || 0} Reports</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
                     <button
                       onClick={() => handleViewUser(user)}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                      className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
                     >
                       <User className="h-3 w-3 mr-1" />
                       View
                     </button>
+                    {user.status === 'banned' ? (
+                      <button
+                        onClick={() => handleUnbanUser(user)}
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Unban
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleBanUser(user)}
+                        disabled={checkingBan.has(user.uid)}
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {checkingBan.has(user.uid) ? (
+                          <>
+                            <div className="w-3 h-3 border-2 border-orange-600 border-t-transparent rounded-full animate-spin mr-1"></div>
+                            Checking...
+                          </>
+                        ) : (
+                          <>
+                            <UserX className="h-3 w-3 mr-1" />
+                            Ban
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {isChatRestrictionActive(user) ? (
+                      <button
+                        onClick={() => handleUnrestrictChat(user)}
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Unrestrict
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleRestrictChat(user)}
+                        disabled={checkingRestrict.has(user.uid)}
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-yellow-600 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {checkingRestrict.has(user.uid) ? (
+                          <>
+                            <div className="w-3 h-3 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin mr-1"></div>
+                            Checking...
+                          </>
+                        ) : (
+                          <>
+                            <Ban className="h-3 w-3 mr-1" />
+                            Restrict
+                          </>
+                        )}
+                      </button>
+                    )}
                     {user.status === 'deactivated' ? (
                       <button
                         onClick={() => handleActivateUser(user.uid)}
-                        className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
                       >
                         <ShieldCheck className="h-3 w-3 mr-1" />
                         Activate
@@ -2140,7 +3151,7 @@ const getOwnerProfileImage = (pet) => {
                     ) : (
                       <button
                         onClick={() => handleDeactivateUser(user.uid)}
-                        className="flex-1 flex items-center justify-center px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                        className="flex-1 min-w-[70px] flex items-center justify-center px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
                       >
                         <ShieldOff className="h-3 w-3 mr-1" />
                         Deactivate
@@ -2148,8 +3159,9 @@ const getOwnerProfileImage = (pet) => {
                     )}
                   </div>
                 </div>
-              ))}
-              {getFilteredUsers().length === 0 && (
+                );
+              })}
+              {getFilteredUsers.length === 0 && (
                 <div className="text-center py-8 text-sm text-gray-600 bg-white rounded-lg border border-gray-200">
                   {searchTerm ? 'No users match your search criteria' : 'No users found'}
                 </div>
@@ -2164,12 +3176,16 @@ const getOwnerProfileImage = (pet) => {
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pets Count</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Reports</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Logged In</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {getFilteredUsers().map((user) => (
-                    <tr key={user.uid} className="hover:bg-gray-50 transition-all duration-300">
+                  {getFilteredUsers.map((user) => {
+                    const userInactive = isUserInactive(user);
+                    return (
+                    <tr key={user.uid} className={`hover:bg-gray-50 transition-all duration-300 ${userInactive ? 'bg-orange-50' : ''}`}>
                       <td className="px-4 py-2 text-sm">
                         <div className="flex items-center">
                           <div className="w-10 h-10 rounded-full flex items-center justify-center mr-3 overflow-hidden">
@@ -2191,37 +3207,79 @@ const getOwnerProfileImage = (pet) => {
                             </div>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{user.displayName || 'Unknown User'}</p>
+                            <div className="flex items-center">
+                              <p className="text-sm font-medium text-gray-900">{user.displayName || 'Unknown User'}</p>
+                              {userInactive && (
+                                <AlertTriangle className="h-4 w-4 text-orange-600 ml-2" title="Inactive for more than 1 month" />
+                              )}
+                            </div>
                             <p className="text-xs text-gray-600">{user.email || 'No email'}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-2 text-sm">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.status === 'deactivated' 
-                            ? 'bg-red-100 text-red-800' 
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {user.status === 'deactivated' ? (
-                            <>
-                              <ShieldOff className="h-3 w-3 mr-1" />
-                              Deactivated
-                            </>
-                          ) : (
-                            <>
-                              <ShieldCheck className="h-3 w-3 mr-1" />
-                    Active
-                            </>
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            user.status === 'banned'
+                              ? 'bg-orange-100 text-orange-800'
+                              : user.status === 'deactivated' 
+                                ? 'bg-red-100 text-red-800' 
+                                : 'bg-green-100 text-green-800'
+                          }`}>
+                            {user.status === 'banned' ? (
+                              <>
+                                <UserX className="h-3 w-3 mr-1" />
+                                Banned
+                              </>
+                            ) : user.status === 'deactivated' ? (
+                              <>
+                                <ShieldOff className="h-3 w-3 mr-1" />
+                                Deactivated
+                              </>
+                            ) : (
+                              <>
+                                <ShieldCheck className="h-3 w-3 mr-1" />
+                                Active
+                              </>
+                            )}
+                          </span>
+                          {isChatRestrictionActive(user) && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              <Ban className="h-3 w-3 mr-1" />
+                              Chat Restricted
+                            </span>
                           )}
-                  </span>
+                        </div>
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-700">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {registeredPets.filter(pet => pet.userId === user.uid).length} pets
                   </span>
                       </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <button
+                          onClick={() => handleViewUserReports(user)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 hover:shadow-lg transition-all duration-200 cursor-pointer shadow-md border-2 border-red-600 hover:border-red-700 transform hover:scale-105 active:scale-95"
+                          title="Click to view all reports for this user"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>View {userReportCounts[user.uid] || 0} Reports</span>
+                        </button>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        <div className="flex items-center">
+                          {userInactive ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800" title="Inactive for more than 1 month">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              {formatTimestamp(lastLogoutTimes[user.uid])}
+                            </span>
+                          ) : (
+                            <span>{formatTimestamp(lastLogoutTimes[user.uid])}</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-2 text-right text-sm">
-                        <div className="inline-flex gap-2">
+                        <div className="inline-flex gap-2 flex-wrap justify-end">
                           <button
                             onClick={() => handleViewUser(user)}
                             className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center transition-all duration-300"
@@ -2229,6 +3287,60 @@ const getOwnerProfileImage = (pet) => {
                             <User className="h-3 w-3 mr-1" />
                             View
                           </button>
+                          {user.status === 'banned' ? (
+                            <button
+                              onClick={() => handleUnbanUser(user)}
+                              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Unban
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleBanUser(user)}
+                              disabled={checkingBan.has(user.uid)}
+                              className="px-3 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 flex items-center transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {checkingBan.has(user.uid) ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                                  Checking...
+                                </>
+                              ) : (
+                                <>
+                                  <UserX className="h-3 w-3 mr-1" />
+                                  Ban
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {isChatRestrictionActive(user) ? (
+                            <button
+                              onClick={() => handleUnrestrictChat(user)}
+                              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Unrestrict
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleRestrictChat(user)}
+                              disabled={checkingRestrict.has(user.uid)}
+                              className="px-3 py-1 text-xs rounded bg-yellow-600 text-white hover:bg-yellow-700 flex items-center transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {checkingRestrict.has(user.uid) ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                                  Checking...
+                                </>
+                              ) : (
+                                <>
+                                  <Ban className="h-3 w-3 mr-1" />
+                                  Restrict
+                                </>
+                              )}
+                            </button>
+                          )}
                           {user.status === 'deactivated' ? (
                             <button
                               onClick={() => handleActivateUser(user.uid)}
@@ -2249,10 +3361,11 @@ const getOwnerProfileImage = (pet) => {
                 </div>
                       </td>
                     </tr>
-                  ))}
-                  {getFilteredUsers().length === 0 && (
+                    );
+                  })}
+                  {getFilteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-600">
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-600">
                         {searchTerm ? 'No users match your search criteria' : 'No users found'}
                       </td>
                     </tr>
@@ -2297,7 +3410,7 @@ const getOwnerProfileImage = (pet) => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setActiveTab('registered')}
+                  onClick={() => handleTabChange('registered')}
                   className="flex items-center justify-center p-2 text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-all duration-300 hover:shadow-md"
                   title="Go back to Pet Management"
                 >
@@ -2479,7 +3592,7 @@ const getOwnerProfileImage = (pet) => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setActiveTab('pending')}
+                  onClick={() => handleTabChange('pending')}
                   className="flex items-center justify-center p-2 text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-all duration-300 hover:shadow-md"
                   title="Go back to Pet Registration"
                 >
@@ -3432,6 +4545,222 @@ const getOwnerProfileImage = (pet) => {
         </div>
       )}
 
+      {/* User Report History Modal */}
+      {showReportHistoryModal && selectedUserForReports && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Report History</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {selectedUserForReports.displayName || 'Unknown User'} - {userReports.length} total report{userReports.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowReportHistoryModal(false);
+                  setSelectedUserForReports(null);
+                  setUserReports([]);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingReports ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  <span className="ml-3 text-gray-600">Loading reports...</span>
+                </div>
+              ) : userReports.length === 0 ? (
+                <div className="text-center py-12">
+                  <Flag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No reports found for this user</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Content</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {userReports.map((report) => {
+                        const reportDate = report.date?.toDate 
+                          ? report.date.toDate() 
+                          : (report.date ? new Date(report.date) : new Date());
+                        const formattedDate = reportDate.toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                        
+                        return (
+                          <tr key={report.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                report.type === 'post' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-purple-100 text-purple-800'
+                              }`}>
+                                {report.type === 'post' ? (
+                                  <>
+                                    <FileText className="h-3 w-3 mr-1" />
+                                    Post
+                                  </>
+                                ) : (
+                                  <>
+                                    <MessageSquare className="h-3 w-3 mr-1" />
+                                    Message
+                                  </>
+                                )}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="max-w-md">
+                                <p className="text-sm text-gray-900 truncate mb-2" title={report.content}>
+                                  {report.content || 'No content available'}
+                                </p>
+                                {report.type === 'post' && report.images && report.images.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    {report.images.slice(0, 3).map((image, idx) => (
+                                      <img
+                                        key={idx}
+                                        src={image}
+                                        alt={`Post ${idx + 1}`}
+                                        className="w-16 h-16 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity hover:border-blue-400"
+                                        onClick={() => {
+                                          setSelectedImage(report.images);
+                                          setSelectedImageIndex(idx);
+                                          setShowImageModal(true);
+                                        }}
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                        }}
+                                      />
+                                    ))}
+                                    {report.images.length > 3 && (
+                                      <div 
+                                        className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-xs text-gray-500 font-medium cursor-pointer hover:bg-gray-200 transition-colors"
+                                        onClick={() => {
+                                          setSelectedImage(report.images);
+                                          setSelectedImageIndex(3);
+                                          setShowImageModal(true);
+                                        }}
+                                      >
+                                        +{report.images.length - 3}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="max-w-md">
+                                <p className="text-sm text-gray-700" title={report.reason}>
+                                  {report.reason || 'No reason provided'}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                              {formattedDate}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                report.status === 'resolved' 
+                                  ? 'bg-green-100 text-green-800'
+                                  : report.status === 'dismissed'
+                                  ? 'bg-gray-100 text-gray-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {report.status === 'resolved' ? 'Resolved' : report.status === 'dismissed' ? 'Dismissed' : 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t flex justify-end">
+              <button
+                onClick={() => {
+                  setShowReportHistoryModal(false);
+                  setSelectedUserForReports(null);
+                  setUserReports([]);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Viewer Modal */}
+      {showImageModal && selectedImage && selectedImage.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60] p-4">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <button
+              onClick={() => setShowImageModal(false)}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10"
+            >
+              <X className="h-8 w-8" />
+            </button>
+            
+            {selectedImage.length > 1 && (
+              <>
+                <button
+                  onClick={() => {
+                    setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : selectedImage.length - 1));
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full transition-all z-10"
+                >
+                  <ArrowLeft className="h-6 w-6" />
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedImageIndex((prev) => (prev < selectedImage.length - 1 ? prev + 1 : 0));
+                  }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full transition-all z-10 transform rotate-180"
+                >
+                  <ArrowLeft className="h-6 w-6" />
+                </button>
+              </>
+            )}
+            
+            <div className="max-w-7xl max-h-full flex flex-col items-center">
+              <img
+                src={selectedImage[selectedImageIndex]}
+                alt={`${selectedImageIndex + 1} of ${selectedImage.length}`}
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                onError={(e) => {
+                  e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="20" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3EImage not available%3C/text%3E%3C/svg%3E';
+                }}
+              />
+              {selectedImage.length > 1 && (
+                <div className="mt-4 text-white text-sm">
+                  Image {selectedImageIndex + 1} of {selectedImage.length}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Announcement Modal */}
       {showAnnouncementModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -3452,6 +4781,8 @@ const getOwnerProfileImage = (pet) => {
                     setShowAnnouncementModal(false);
                     setAnnouncementTitle('');
                     setAnnouncementMessage('');
+                    setAnnouncementImage(null);
+                    setAnnouncementImagePreview(null);
                   }}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
@@ -3463,7 +4794,7 @@ const getOwnerProfileImage = (pet) => {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Title <span className="text-red-500">*</span>
+                  Title (Optional)
                 </label>
                 <input
                   type="text"
@@ -3478,7 +4809,7 @@ const getOwnerProfileImage = (pet) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Message <span className="text-red-500">*</span>
+                  Message
                 </label>
                 <textarea
                   value={announcementMessage}
@@ -3491,6 +4822,45 @@ const getOwnerProfileImage = (pet) => {
                 <p className="mt-1 text-xs text-gray-500">{announcementMessage.length}/500 characters</p>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Image (Optional)
+                </label>
+                {announcementImagePreview ? (
+                  <div className="relative">
+                    <img 
+                      src={announcementImagePreview} 
+                      alt="Preview" 
+                      className="w-full h-64 object-cover rounded-lg border border-gray-300"
+                    />
+                    <button
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <svg className="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p className="mb-2 text-sm text-gray-500">
+                        <span className="font-semibold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                    />
+                  </label>
+                )}
+              </div>
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <Bell className="h-5 w-5 text-blue-600 mt-0.5" />
@@ -3498,8 +4868,9 @@ const getOwnerProfileImage = (pet) => {
                     <p className="text-sm font-medium text-blue-900">What happens next?</p>
                     <ul className="mt-2 text-sm text-blue-800 space-y-1 list-disc list-inside">
                       <li>This announcement will be sent to all registered users</li>
-                      <li>Users will receive a notification on their home screen</li>
-                      <li>The announcement will appear in their notifications</li>
+                      <li>It will appear as a post on their home screen (like Facebook posts)</li>
+                      <li>Users will see "Pawsafety" as the author with the app logo</li>
+                      <li>Users will receive a notification about the announcement</li>
                     </ul>
                   </div>
                 </div>
@@ -3512,6 +4883,8 @@ const getOwnerProfileImage = (pet) => {
                   setShowAnnouncementModal(false);
                   setAnnouncementTitle('');
                   setAnnouncementMessage('');
+                  setAnnouncementImage(null);
+                  setAnnouncementImagePreview(null);
                 }}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 disabled={isCreatingAnnouncement}
@@ -3520,7 +4893,7 @@ const getOwnerProfileImage = (pet) => {
               </button>
               <button
                 onClick={handleCreateAnnouncement}
-                disabled={isCreatingAnnouncement || !announcementTitle.trim() || !announcementMessage.trim()}
+                disabled={isCreatingAnnouncement || (!announcementTitle.trim() && !announcementMessage.trim() && !announcementImage)}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isCreatingAnnouncement ? (
@@ -3533,6 +4906,151 @@ const getOwnerProfileImage = (pet) => {
                     <Megaphone className="h-4 w-4" />
                     <span>Send Announcement</span>
                   </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ban User Modal */}
+      {banModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
+            <div className="flex items-center gap-3 mb-4 text-orange-600">
+              <UserX className="w-8 h-8" />
+              <h3 className="text-xl font-bold text-gray-900">Ban User</h3>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              Enter the duration for the ban in days. The user will be automatically logged out and prevented from logging in until the ban expires.
+            </p>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Duration (Days)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={banDuration}
+                onChange={(e) => setBanDuration(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                placeholder="e.g., 3"
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setBanModalOpen(false);
+                  setUserToBan(null);
+                  setBanDuration('');
+                }}
+                className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBanUser}
+                disabled={userToBan && banning.has(userToBan.uid)}
+                className="px-4 py-2 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {userToBan && banning.has(userToBan.uid) ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Banning...</span>
+                  </>
+                ) : (
+                  'Confirm Ban'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restrict Chat Modal */}
+      {restrictModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
+            <div className="flex items-center gap-3 mb-4 text-yellow-600">
+              <Ban className="w-8 h-8" />
+              <h3 className="text-xl font-bold text-gray-900">Restrict Chat</h3>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              Restrict this user from sending messages. Enter the duration and reason for the restriction.
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Duration Type
+              </label>
+              <select
+                value={restrictDurationType}
+                onChange={(e) => setRestrictDurationType(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+              >
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Duration ({restrictDurationType === 'hours' ? 'Hours' : 'Days'})
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={restrictDuration}
+                onChange={(e) => setRestrictDuration(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                placeholder={restrictDurationType === 'hours' ? 'e.g., 24' : 'e.g., 3'}
+                autoFocus
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={restrictReason}
+                onChange={(e) => setRestrictReason(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all resize-none"
+                placeholder="Enter the reason for chat restriction..."
+                rows="3"
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setRestrictModalOpen(false);
+                  setUserToRestrict(null);
+                  setRestrictDuration('');
+                  setRestrictReason('');
+                  setRestrictDurationType('days');
+                }}
+                className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRestrictChat}
+                disabled={userToRestrict && restricting.has(userToRestrict.uid)}
+                className="px-4 py-2 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {userToRestrict && restricting.has(userToRestrict.uid) ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Restricting...</span>
+                  </>
+                ) : (
+                  'Confirm Restriction'
                 )}
               </button>
             </div>

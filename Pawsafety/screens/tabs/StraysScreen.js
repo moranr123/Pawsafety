@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState, useRef } from 'react';
+import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -50,19 +50,37 @@ const StrayPetCard = React.memo(({
   styles,
   COLORS,
 }) => {
-  const imageUri = report?.imageUrl;
-  const location = report?.locationName || 'Unknown location';
-  const reportTime = report?.reportTime?.toDate ? report.reportTime.toDate() : null;
-  const date = reportTime ? reportTime.toLocaleDateString() : 'Unknown';
-  const time = reportTime ? reportTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown';
-  const petType = report?.petType ? (report.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : null;
-  const status = report?.status || 'Stray';
-  const description = report?.description || '';
+  const imageUri = useMemo(() => report?.imageUrl, [report?.imageUrl]);
+  const location = useMemo(() => report?.locationName || 'Unknown location', [report?.locationName]);
+  const reportTime = useMemo(() => report?.reportTime?.toDate ? report.reportTime.toDate() : null, [report?.reportTime]);
+  const date = useMemo(() => reportTime ? reportTime.toLocaleDateString() : 'Unknown', [reportTime]);
+  const time = useMemo(() => reportTime ? reportTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown', [reportTime]);
+  const petType = useMemo(() => report?.petType ? (report.petType === 'dog' ? '🐕 Dog' : '🐱 Cat') : null, [report?.petType]);
+  const status = useMemo(() => report?.status || 'Stray', [report?.status]);
+  const description = useMemo(() => report?.description || '', [report?.description]);
   
-  const onPressReporter = report.userId ? () => navigation.navigate('Profile', { userId: report.userId }) : undefined;
-  const onPressMessage = report.userId && report.userId !== auth.currentUser?.uid && onOpenChat
-    ? () => onOpenChat(report) 
-    : undefined;
+  const onPressReporter = useCallback(() => {
+    if (report.userId) {
+      navigation.navigate('Profile', { userId: report.userId });
+    }
+  }, [report.userId, navigation]);
+  
+  const onPressMessage = useCallback(() => {
+    if (onOpenChat) {
+      onOpenChat(report);
+    }
+  }, [onOpenChat, report]);
+  
+  const onPressComment = useCallback(() => {
+    if (onOpenComments) {
+      onOpenComments(report);
+    }
+  }, [onOpenComments, report]);
+  
+  const showActions = useMemo(() => {
+    const canMessage = report.userId && report.userId !== auth.currentUser?.uid && onOpenChat;
+    return canMessage || onOpenComments;
+  }, [report.userId, onOpenChat, onOpenComments]);
 
   return (
   <View style={styles.reportCard}>
@@ -70,9 +88,9 @@ const StrayPetCard = React.memo(({
     <View style={styles.reportHeader}>
       <TouchableOpacity
         style={styles.reportUserInfo}
-        onPress={onPressReporter}
+        onPress={report.userId ? onPressReporter : undefined}
         activeOpacity={0.8}
-        disabled={!onPressReporter}
+        disabled={!report.userId}
       >
         {reporter?.profileImage ? (
           <Image
@@ -141,24 +159,28 @@ const StrayPetCard = React.memo(({
     </View>
 
     {/* Actions */}
-    {onPressMessage && (
+    {showActions && (
       <View style={styles.reportActions}>
-        <TouchableOpacity
-          style={styles.reportActionButton}
-          onPress={onPressMessage}
-        >
-          <MaterialIcons name="message" size={18} color="#65676b" />
-          <Text style={styles.reportActionText}>Message</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.reportActionButton}
-          onPress={() => onOpenComments && onOpenComments(report)}
-        >
-          <MaterialIcons name="comment" size={18} color="#65676b" />
-          <Text style={styles.reportActionText}>
-            Comment{commentsCount > 0 ? ` (${commentsCount})` : ''}
-          </Text>
-        </TouchableOpacity>
+        {report.userId && report.userId !== auth.currentUser?.uid && onOpenChat && (
+          <TouchableOpacity
+            style={styles.reportActionButton}
+            onPress={onPressMessage}
+          >
+            <MaterialIcons name="message" size={18} color="#65676b" />
+            <Text style={styles.reportActionText}>Message</Text>
+          </TouchableOpacity>
+        )}
+        {onOpenComments && (
+          <TouchableOpacity
+            style={styles.reportActionButton}
+            onPress={onPressComment}
+          >
+            <MaterialIcons name="comment" size={18} color="#65676b" />
+            <Text style={styles.reportActionText}>
+              Comment{commentsCount > 0 ? ` (${commentsCount})` : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     )}
   </View>
@@ -202,12 +224,19 @@ const StraysScreen = ({ navigation }) => {
   const { profileImage } = useProfileImage();
   const user = auth.currentUser;
 
+  // Memoize filter handlers
+  const handleFilterAll = useCallback(() => setFilter('All'), []);
+  const handleFilterStray = useCallback(() => setFilter('Stray'), []);
+  const handleFilterLost = useCallback(() => setFilter('Lost'), []);
+  const handleFilterIncident = useCallback(() => setFilter('Incident'), []);
+  const handleFilterFound = useCallback(() => setFilter('Found'), []);
+
   // Optimized: Use built-in hook instead of Dimensions listener
   const { width: currentWidth, height: currentHeight } = useWindowDimensions();
-  const isSmallDevice = currentWidth < 375 || currentHeight < 667;
-  const isTablet = currentWidth > 768;
-  const wp = (percentage) => (currentWidth * percentage) / 100;
-  const hp = (percentage) => (currentHeight * percentage) / 100;
+  const isSmallDevice = useMemo(() => currentWidth < 375 || currentHeight < 667, [currentWidth, currentHeight]);
+  const isTablet = useMemo(() => currentWidth > 768, [currentWidth]);
+  const wp = useCallback((percentage) => (currentWidth * percentage) / 100, [currentWidth]);
+  const hp = useCallback((percentage) => (currentHeight * percentage) / 100, [currentHeight]);
 
   const handleScroll = React.useCallback((event) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
@@ -325,33 +354,33 @@ const StraysScreen = ({ navigation }) => {
   }, [filter]);
 
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     // The Firebase listener will automatically update the data
     // Just simulate a brief refresh delay
     setTimeout(() => {
       setRefreshing(false);
     }, 1000);
-  };
+  }, []);
 
-  const onOpenChat = (report) => {
+  const onOpenChat = useCallback((report) => {
     setSelectedReport(report);
     setChatModalVisible(true);
-  };
+  }, []);
 
-  const onCloseChat = () => {
+  const onCloseChat = useCallback(() => {
     setChatModalVisible(false);
     setSelectedReport(null);
-  };
+  }, []);
 
-  function isRecent(report) {
+  const isRecent = useCallback((report) => {
     if (!report.reportTime?.toDate) return false;
     const now = new Date();
     const reportDate = report.reportTime.toDate();
     return (now - reportDate) < 24 * 60 * 60 * 1000;
-  }
+  }, []);
 
-  function isNearMe(report) {
+  const isNearMe = useCallback((report) => {
     if (!userLocation || !report.location) return false;
     const toRad = (v) => (v * Math.PI) / 180;
     const R = 6371; // km
@@ -363,7 +392,7 @@ const StraysScreen = ({ navigation }) => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     const d = R * c;
     return d <= 5; // within 5km
-  }
+  }, [userLocation]);
 
   const filteredReports = useMemo(() => {
     let result = reports;
@@ -399,8 +428,8 @@ const StraysScreen = ({ navigation }) => {
     return result;
   }, [reports, filter]);
 
-  // Comment helper functions
-  const extractMentions = (text) => {
+  // Comment helper functions - memoized
+  const extractMentions = useCallback((text) => {
     if (!text || typeof text !== 'string') return [];
     const mentionRegex = /@([a-zA-Z0-9_\s]+)/g;
     const mentions = [];
@@ -412,9 +441,9 @@ const StraysScreen = ({ navigation }) => {
       }
     }
     return mentions;
-  };
+  }, []);
 
-  const findMentionedUserIds = async (usernames) => {
+  const findMentionedUserIds = useCallback(async (usernames) => {
     if (!usernames || usernames.length === 0) return [];
     const userIds = [];
     try {
@@ -430,14 +459,20 @@ const StraysScreen = ({ navigation }) => {
       console.error('Error finding mentioned users:', error);
     }
     return userIds;
-  };
+  }, []);
 
-  const notifyMentionedUsers = async (userIds, text, commentId, isReply) => {
-    if (!userIds || userIds.length === 0) return;
+  const notifyMentionedUsers = useCallback(async (userIds, text, commentId, isReply) => {
+    if (!userIds || userIds.length === 0 || !user?.uid) return;
+    
+    const currentUserIdStr = String(user.uid).trim();
+    
     try {
       const notificationService = NotificationService.getInstance();
       for (const userId of userIds) {
-        if (userId !== user?.uid) {
+        const targetUserIdStr = String(userId).trim();
+        
+        // IMPORTANT: Don't notify the current user (don't notify yourself)
+        if (targetUserIdStr !== currentUserIdStr) {
           await notificationService.createNotification({
             userId: userId,
             type: isReply ? 'comment_reply_mention' : 'comment_mention',
@@ -454,7 +489,7 @@ const StraysScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Error notifying mentioned users:', error);
     }
-  };
+  }, [user, selectedReport?.id]);
 
   // Load comments for a report with real-time updates
   useEffect(() => {
@@ -564,11 +599,11 @@ const StraysScreen = ({ navigation }) => {
   }, [user?.uid]);
 
   // Handle opening comments modal
-  const onOpenComments = (report) => {
+  const onOpenComments = useCallback((report) => {
     setSelectedReport(report);
     setShowComments(true);
-    loadComments(report.id);
-  };
+    // Comments will load automatically via the useEffect when showComments and selectedReport change
+  }, []);
 
   // Handle comment submission
   const handleComment = async () => {
@@ -609,23 +644,44 @@ const StraysScreen = ({ navigation }) => {
         mentionedUsers: mentionedUserIds,
       });
 
-      // Send notification to report owner
-      if (selectedReport.userId && selectedReport.userId !== user.uid && !mentionedUserIds.includes(selectedReport.userId)) {
-        try {
-          const notificationService = NotificationService.getInstance();
-          await notificationService.createNotification({
-            userId: selectedReport.userId,
-            type: 'report_comment',
-            title: 'New Comment',
-            body: `${currentUserName} commented on your report`,
-            data: {
-              reportId: selectedReport.id,
+      // Send notification to report owner ONLY
+      // CRITICAL: Never notify the commenter (current user) - only notify the report owner
+      const reportOwnerId = selectedReport?.userId;
+      const currentUserId = user?.uid;
+      
+      if (reportOwnerId && currentUserId) {
+        // Normalize IDs for comparison
+        const ownerIdStr = String(reportOwnerId).trim();
+        const currentIdStr = String(currentUserId).trim();
+        
+        // Check if the report owner is mentioned
+        // We check both original ID and string format to be safe
+        const isOwnerMentioned = mentionedUserIds.some(id => 
+          String(id).trim() === ownerIdStr
+        );
+
+        // Only proceed if:
+        // 1. Report owner is NOT the current user (commenter)
+        // 2. Report owner is NOT already mentioned (they will get a mention notification instead)
+        if (ownerIdStr !== currentIdStr && !isOwnerMentioned) {
+          try {
+            const notificationService = NotificationService.getInstance();
+            await notificationService.createNotification({
+              userId: reportOwnerId, // Report owner ID - NEVER the commenter's ID
               type: 'report_comment',
-              commentedBy: user.uid,
-            },
-          });
-        } catch (notifError) {
-          // Error handled silently
+              title: 'New Comment',
+              body: `${currentUserName} commented on your report`,
+              data: {
+                reportId: selectedReport.id,
+                type: 'report_comment',
+                commentedBy: currentUserId,
+                commentedByName: currentUserName,
+              },
+            });
+          } catch (notifError) {
+            // Error handled silently
+            console.error('Error sending comment notification:', notifError);
+          }
         }
       }
 
@@ -640,7 +696,7 @@ const StraysScreen = ({ navigation }) => {
       setMentionStartIndex(-1);
       setFilteredFriends([]);
       
-      await loadComments(selectedReport.id);
+      // Comments will update automatically via the real-time listener
     } catch (error) {
       console.error('Error adding comment:', error);
       Alert.alert('Error', 'Failed to add comment. Please try again.');
@@ -649,8 +705,8 @@ const StraysScreen = ({ navigation }) => {
     }
   };
 
-  // Handle comment text change with mention detection
-  const handleCommentTextChange = (text) => {
+  // Handle comment text change with mention detection - memoized
+  const handleCommentTextChange = useCallback((text) => {
     setCommentText(text);
     
     const lastAtIndex = text.lastIndexOf('@');
@@ -703,10 +759,10 @@ const StraysScreen = ({ navigation }) => {
       setMentionQuery('');
       setMentionStartIndex(-1);
     }
-  };
+  }, [friends]);
 
-  // Handle selecting a mention
-  const handleSelectMention = (friend) => {
+  // Handle selecting a mention - memoized
+  const handleSelectMention = useCallback((friend) => {
     const friendName = friend.displayName || friend.name;
     const currentText = commentText;
     const beforeMention = currentText.substring(0, mentionStartIndex);
@@ -718,7 +774,7 @@ const StraysScreen = ({ navigation }) => {
     setMentionQuery('');
     setMentionStartIndex(-1);
     setFilteredFriends([]);
-  };
+  }, [commentText, mentionStartIndex, mentionQuery]);
 
   // Handle editing comment
   const handleEditComment = async (commentId) => {
@@ -753,7 +809,7 @@ const StraysScreen = ({ navigation }) => {
 
       setEditingCommentId(null);
       setEditCommentText('');
-      await loadComments(selectedReport.id);
+      // Comments will update automatically via the real-time listener
     } catch (error) {
       console.error('Error updating comment:', error);
       Alert.alert('Error', 'Failed to update comment. Please try again.');
@@ -783,23 +839,45 @@ const StraysScreen = ({ navigation }) => {
             likes: arrayUnion(user.uid)
           });
           
-          if (commentData.userId && commentData.userId !== user.uid) {
-            try {
-              const notificationService = NotificationService.getInstance();
-              await notificationService.createNotification({
-                userId: commentData.userId,
-                type: 'comment_like',
-                title: 'New Like',
-                body: `${user.displayName || 'Someone'} liked your comment`,
-                data: {
-                  reportId: selectedReport?.id,
-                  commentId: commentId,
+          // IMPORTANT: Don't notify if the current user is the comment owner
+          const commentOwnerId = commentData.userId;
+          const currentUserId = user.uid;
+          
+          if (commentOwnerId && currentUserId) {
+            const ownerIdStr = String(commentOwnerId).trim();
+            const currentIdStr = String(currentUserId).trim();
+            
+            if (ownerIdStr !== currentIdStr) {
+              try {
+                // Fetch current user's display name for notification
+                let likerName = user.displayName || 'Someone';
+                try {
+                  const userDoc = await getDoc(doc(db, 'users', user.uid));
+                  if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    likerName = userData.displayName || userData.name || likerName;
+                  }
+                } catch (error) {
+                  // Use existing value if fetch fails
+                }
+                
+                const notificationService = NotificationService.getInstance();
+                await notificationService.createNotification({
+                  userId: commentOwnerId,
                   type: 'comment_like',
-                  likedBy: user.uid,
-                },
-              });
-            } catch (notifError) {
-              // Error handled silently
+                  title: 'New Like',
+                  body: `${likerName} liked your comment`,
+                  data: {
+                    reportId: selectedReport?.id,
+                    commentId: commentId,
+                    type: 'comment_like',
+                    likedBy: user.uid,
+                    likedByName: likerName,
+                  },
+                });
+              } catch (notifError) {
+                // Error handled silently
+              }
             }
           }
         }
@@ -811,8 +889,8 @@ const StraysScreen = ({ navigation }) => {
     }
   };
 
-  // Handle deleting comment
-  const handleDeleteComment = (commentId) => {
+  // Handle deleting comment - memoized
+  const handleDeleteComment = useCallback((commentId) => {
     Alert.alert(
       'Delete Comment',
       'Are you sure you want to delete this comment?',
@@ -824,7 +902,7 @@ const StraysScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await deleteDoc(doc(db, 'report_comments', commentId));
-              await loadComments(selectedReport.id);
+              // Comments will update automatically via the real-time listener
             } catch (error) {
               Alert.alert('Error', 'Failed to delete comment. Please try again.');
             }
@@ -832,10 +910,10 @@ const StraysScreen = ({ navigation }) => {
         }
       ]
     );
-  };
+  }, []);
 
-  // Format time helper
-  const formatTime = (timestamp) => {
+  // Format time helper - memoized
+  const formatTime = useCallback((timestamp) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
@@ -848,10 +926,10 @@ const StraysScreen = ({ navigation }) => {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+  }, []);
 
-  // Render text with mentions
-  const renderTextWithMentions = (text, mentionedUsers = []) => {
+  // Render text with mentions - memoized
+  const renderTextWithMentions = useCallback((text, mentionedUsers = []) => {
     if (!text) return null;
     
     const parts = [];
@@ -878,7 +956,7 @@ const StraysScreen = ({ navigation }) => {
     }
     
     return <Text style={{ fontSize: 15, color: '#050505', lineHeight: 20 }}>{parts}</Text>;
-  };
+  }, []);
 
   // Create styles using current theme colors and responsive values
   const styles = useMemo(() => StyleSheet.create({
@@ -1040,10 +1118,6 @@ const StraysScreen = ({ navigation }) => {
       marginTop: 4,
       marginBottom: 8,
       fontFamily: FONTS.family,
-    },
-    reportContent: {
-      paddingHorizontal: 12,
-      paddingBottom: 10,
     },
     detailsContainer: {
       marginBottom: 12,
@@ -1547,11 +1621,11 @@ const StraysScreen = ({ navigation }) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersContainer}
         >
-          <FilterButton title="All" active={filter === 'All'} onPress={() => setFilter('All')} styles={styles} />
-          <FilterButton title="Stray" active={filter === 'Stray'} onPress={() => setFilter('Stray')} styles={styles} />
-          <FilterButton title="Lost" active={filter === 'Lost'} onPress={() => setFilter('Lost')} styles={styles} />
-          <FilterButton title="Incident" active={filter === 'Incident'} onPress={() => setFilter('Incident')} styles={styles} />
-          <FilterButton title="Found" active={filter === 'Found'} onPress={() => setFilter('Found')} styles={styles} />
+          <FilterButton title="All" active={filter === 'All'} onPress={handleFilterAll} styles={styles} />
+          <FilterButton title="Stray" active={filter === 'Stray'} onPress={handleFilterStray} styles={styles} />
+          <FilterButton title="Lost" active={filter === 'Lost'} onPress={handleFilterLost} styles={styles} />
+          <FilterButton title="Incident" active={filter === 'Incident'} onPress={handleFilterIncident} styles={styles} />
+          <FilterButton title="Found" active={filter === 'Found'} onPress={handleFilterFound} styles={styles} />
         </ScrollView>
         </SafeAreaView>
       </View>
@@ -1559,7 +1633,7 @@ const StraysScreen = ({ navigation }) => {
       {/* Stray Pets List - virtualized for performance */}
       <FlatList
         data={filteredReports}
-        keyExtractor={(item) => item.id}
+        keyExtractor={useCallback((item) => item.id, [])}
         contentContainerStyle={[
           styles.scrollViewContent,
           { paddingTop: SPACING.lg },
@@ -1570,7 +1644,7 @@ const StraysScreen = ({ navigation }) => {
             No stray reports yet.
           </Text>
         }
-        renderItem={({ item }) => (
+        renderItem={useCallback(({ item }) => (
           <StrayPetCard
             report={item}
             reporter={reportUsers[item.userId]}
@@ -1581,7 +1655,7 @@ const StraysScreen = ({ navigation }) => {
             styles={styles}
             COLORS={COLORS}
           />
-        )}
+        ), [reportUsers, navigation, onOpenChat, onOpenComments, commentsCount, styles, COLORS])}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={
