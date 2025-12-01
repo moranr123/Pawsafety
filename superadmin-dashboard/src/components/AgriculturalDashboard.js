@@ -138,6 +138,8 @@ const AgriculturalDashboard = () => {
   const [lastLogoutTimes, setLastLogoutTimes] = useState({});
   const [inactiveUsers, setInactiveUsers] = useState([]);
   const [chartData, setChartData] = useState([]);
+  const [userChartData, setUserChartData] = useState([]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [userReportCounts, setUserReportCounts] = useState({});
   const notificationsRef = useRef([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,17 +157,18 @@ const AgriculturalDashboard = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
 
-  const generateChartData = useCallback((pets) => {
+  const generateChartData = useCallback((pets, year = null) => {
     // Filter only registered pets
     const registeredPets = pets.filter(pet => 
       pet.registrationStatus === 'registered' && !pet.archived
     );
     
-    const now = new Date();
+    const targetYear = year || new Date().getFullYear();
     const months = [];
     
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    // Generate data for all 12 months of the selected year
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(targetYear, i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
       const monthPets = registeredPets.filter(pet => {
@@ -195,11 +198,45 @@ const AgriculturalDashboard = () => {
     return months;
   }, []);
 
+  const generateUserChartData = useCallback((users, year = null) => {
+    const targetYear = year || new Date().getFullYear();
+    const months = [];
+    
+    // Generate data for all 12 months of the selected year
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(targetYear, i, 1);
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      const monthUsers = users.filter(user => {
+        let userDate;
+        if (user.createdAt?.toDate) {
+          userDate = user.createdAt.toDate();
+        } else if (user.createdAt) {
+          userDate = new Date(user.createdAt);
+        } else {
+          userDate = new Date(user.createdAt || 0);
+        }
+        
+        return userDate.getMonth() === date.getMonth() && 
+               userDate.getFullYear() === date.getFullYear();
+      });
+      
+      months.push({
+        month: monthName,
+        count: monthUsers.length,
+        date: date
+      });
+    }
+    
+    return months;
+  }, []);
+
 
   const generateChartPath = useCallback((data, maxValue = 10) => {
     if (!data || data.length === 0) return "M 20,180 L 20,180";
+    const spacing = 360 / Math.max(data.length, 1);
     const points = data.map((d, i) => {
-      const x = 20 + (i * 80);
+      const x = 20 + (i * spacing);
       const y = 180 - Math.min((d.count / maxValue) * 160, 160);
       return `${x},${y}`;
     });
@@ -211,8 +248,9 @@ const AgriculturalDashboard = () => {
 
   const generateChartAreaPath = useCallback((data, maxValue = 10) => {
     if (!data || data.length === 0) return "M 20,180 L 20,180 L 20,180 Z";
+    const spacing = 360 / Math.max(data.length, 1);
     const points = data.map((d, i) => {
-      const x = 20 + (i * 80);
+      const x = 20 + (i * spacing);
       const y = 180 - Math.min((d.count / maxValue) * 160, 160);
       return `${x},${y}`;
     });
@@ -341,7 +379,7 @@ const AgriculturalDashboard = () => {
       setArchivedRegisteredPets(archivedRegistered);
       
       // Use only registered pets for chart data
-      setChartData(generateChartData(registered));
+      setChartData(generateChartData(registered, selectedYear));
     });
 
     const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -399,6 +437,9 @@ const AgriculturalDashboard = () => {
       
       setUsers(regularUsers);
       setDeactivatedUsers(regularUsers.filter(user => user.status === 'deactivated'));
+      
+      // Generate user chart data
+      setUserChartData(generateUserChartData(regularUsers, selectedYear));
       
       setIsLoading(false);
     });
@@ -555,6 +596,16 @@ const AgriculturalDashboard = () => {
       if (unsubscribeMessageReports) unsubscribeMessageReports();
     };
   }, [generateChartData]);
+
+  // Update chart data when year changes
+  useEffect(() => {
+    if (registeredPets.length > 0) {
+      setChartData(generateChartData(registeredPets, selectedYear));
+    }
+    if (users.length > 0) {
+      setUserChartData(generateUserChartData(users, selectedYear));
+    }
+  }, [selectedYear, registeredPets, users, generateChartData, generateUserChartData]);
 
 
   // Function to get owner's profile image - memoized
@@ -2292,43 +2343,73 @@ const AgriculturalDashboard = () => {
 
             {/* Chart Layout */}
             <div className="grid grid-cols-1 gap-6">
-              {/* Registered Pets Line Chart - Minimal Design */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+              {/* Year Filter */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Filter by Year:</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    {(() => {
+                      const currentYear = new Date().getFullYear();
+                      const years = [];
+                      for (let i = currentYear; i >= currentYear - 5; i--) {
+                        years.push(i);
+                      }
+                      return years.map(year => (
+                        <button
+                          key={year}
+                          onClick={() => setSelectedYear(year)}
+                          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                            selectedYear === year
+                              ? 'bg-indigo-600 text-white shadow-md'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {year}
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Registered Pets Line Chart */}
+              <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Registered Pets Trend (Last 6 Months)</h3>
-                  <span className="text-xs text-gray-500">Total: {registeredPets.length}</span>
+                  <h3 className="text-base sm:text-lg font-semibold text-white">Registered Pets Trend ({selectedYear})</h3>
+                  <span className="text-xs text-gray-300">Total: {registeredPets.length}</span>
                 </div>
                 <div className="h-48 sm:h-64">
                   <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
-                    {/* Simple grid lines */}
+                    {/* Dark grid lines */}
                     <defs>
-                      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
+                      <pattern id="gridDark" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
                       </pattern>
                     </defs>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
+                    <rect width="100%" height="100%" fill="url(#gridDark)" />
                     
-                    {/* Simple chart area fill */}
+                    {/* Chart area fill */}
                     <path
                       d={generateChartAreaPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
                       fill="#3b82f6"
-                      fillOpacity="0.1"
+                      fillOpacity="0.2"
                     />
                     
-                    {/* Simple chart line */}
+                    {/* Chart line */}
                     <path
                       d={generateChartPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
                       fill="none"
                       stroke="#3b82f6"
-                      strokeWidth="2"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                     
-                    {/* Simple data points */}
+                    {/* Data points */}
                     {chartData.map((data, index) => {
                       const maxValue = Math.max(...chartData.map(d => d.count), 1);
-                      const x = 20 + (index * 80);
+                      const spacing = 360 / Math.max(chartData.length, 1);
+                      const x = 20 + (index * spacing);
                       const y = 180 - Math.min((data.count / maxValue) * 160, 160);
                       return (
                         <circle 
@@ -2337,7 +2418,7 @@ const AgriculturalDashboard = () => {
                           cy={y} 
                           r="4" 
                           fill="#3b82f6" 
-                          stroke="#ffffff"
+                          stroke="#1e293b"
                           strokeWidth="2"
                         />
                       );
@@ -2345,14 +2426,15 @@ const AgriculturalDashboard = () => {
                     
                     {/* Month labels */}
                     {chartData.map((data, index) => {
-                      const x = 20 + (index * 80);
+                      const spacing = 360 / Math.max(chartData.length, 1);
+                      const x = 20 + (index * spacing);
                       return (
                         <text 
                           key={index}
                           x={x} 
                           y="195" 
                           textAnchor="middle" 
-                          className="text-xs fill-gray-600"
+                          className="text-xs fill-gray-300"
                         >
                           {data.month}
                         </text>
@@ -2373,7 +2455,7 @@ const AgriculturalDashboard = () => {
                             x="15" 
                             y={y + 4} 
                             textAnchor="end" 
-                            className="text-xs fill-gray-500"
+                            className="text-xs fill-gray-300"
                           >
                             {label}
                           </text>
@@ -2382,9 +2464,107 @@ const AgriculturalDashboard = () => {
                     })()}
                   </svg>
                 </div>
-                <div className="mt-3 flex justify-between text-xs text-gray-600">
+                <div className="mt-3 flex justify-between text-xs text-gray-300">
                   <span>Period Total: {chartData.reduce((sum, d) => sum + d.count, 0)}</span>
                   <span>Peak: {Math.max(...chartData.map(d => d.count), 0)}</span>
+                </div>
+              </div>
+
+              {/* Total Users Line Chart */}
+              <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-white">Total Users Trend ({selectedYear})</h3>
+                  <span className="text-xs text-gray-300">Total: {users.length}</span>
+                </div>
+                <div className="h-48 sm:h-64">
+                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                    {/* Dark grid lines */}
+                    <defs>
+                      <pattern id="gridDarkUsers" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#gridDarkUsers)" />
+                    
+                    {/* Chart area fill */}
+                    <path
+                      d={generateChartAreaPath(userChartData, Math.max(...userChartData.map(d => d.count), 1))}
+                      fill="#10b981"
+                      fillOpacity="0.2"
+                    />
+                    
+                    {/* Chart line */}
+                    <path
+                      d={generateChartPath(userChartData, Math.max(...userChartData.map(d => d.count), 1))}
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    
+                    {/* Data points */}
+                    {userChartData.map((data, index) => {
+                      const maxValue = Math.max(...userChartData.map(d => d.count), 1);
+                      const spacing = 360 / Math.max(userChartData.length, 1);
+                      const x = 20 + (index * spacing);
+                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
+                      return (
+                        <circle 
+                          key={index}
+                          cx={x} 
+                          cy={y} 
+                          r="4" 
+                          fill="#10b981" 
+                          stroke="#1e293b"
+                          strokeWidth="2"
+                        />
+                      );
+                    })}
+                    
+                    {/* Month labels */}
+                    {userChartData.map((data, index) => {
+                      const spacing = 360 / Math.max(userChartData.length, 1);
+                      const x = 20 + (index * spacing);
+                      return (
+                        <text 
+                          key={index}
+                          x={x} 
+                          y="195" 
+                          textAnchor="middle" 
+                          className="text-xs fill-gray-300"
+                        >
+                          {data.month}
+                        </text>
+                      );
+                    })}
+                    
+                    {/* Y-axis labels */}
+                    {(() => {
+                      const maxValue = Math.max(...userChartData.map(d => d.count), 1);
+                      const tickMax = Math.max(5, Math.ceil(maxValue / 5) * 5);
+                      const ticks = [0, tickMax * 0.25, tickMax * 0.5, tickMax * 0.75, tickMax];
+                      return ticks.map((t, i) => {
+                        const y = 180 - Math.min((t / tickMax) * 160, 160);
+                        const label = t % 1 === 0 ? t : t.toFixed(0);
+                        return (
+                          <text 
+                            key={i}
+                            x="15" 
+                            y={y + 4} 
+                            textAnchor="end" 
+                            className="text-xs fill-gray-300"
+                          >
+                            {label}
+                          </text>
+                        );
+                      });
+                    })()}
+                  </svg>
+                </div>
+                <div className="mt-3 flex justify-between text-xs text-gray-300">
+                  <span>Period Total: {userChartData.reduce((sum, d) => sum + d.count, 0)}</span>
+                  <span>Peak: {Math.max(...userChartData.map(d => d.count), 0)}</span>
                 </div>
               </div>
 
