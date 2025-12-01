@@ -2360,15 +2360,15 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
             </ScrollView>
             <View style={styles.commentInputContainer}>
                 <View style={{ flex: 1, position: 'relative' }}>
-                  <TextInput
+                <TextInput
                     ref={(ref) => setCommentInputRef(ref)}
-                    style={styles.commentInput}
-                    placeholder="Write a comment..."
-                    value={commentText}
+                  style={styles.commentInput}
+                  placeholder="Write a comment..."
+                  value={commentText}
                     onChangeText={handleCommentTextChange}
-                    multiline
-                    editable={!isSubmittingComment}
-                  />
+                  multiline
+                  editable={!isSubmittingComment}
+                />
                   {showMentionSuggestions && filteredFriends.length > 0 && (
                     <View style={styles.mentionSuggestionsContainer}>
                       <ScrollView nestedScrollEnabled>

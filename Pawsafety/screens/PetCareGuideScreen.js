@@ -12,6 +12,15 @@ const PetCareGuideScreen = ({ navigation }) => {
   const [favoritesSections, setFavoritesSections] = useState(new Set());
   const [expandedSections, setExpandedSections] = useState(new Set(['essentials']));
 
+  // Facebook color scheme
+  const facebookBlue = '#1877F2';
+  const facebookBackground = '#F0F2F5';
+  const facebookCardBg = '#FFFFFF';
+  const facebookText = '#050505';
+  const facebookSecondaryText = '#65676B';
+  const facebookBorder = '#E4E6EB';
+  const facebookInputBg = '#F0F2F5';
+
   const toggleFavorite = (sectionId) => {
     setFavoritesSections(prev => {
       const newSet = new Set(prev);
@@ -107,7 +116,7 @@ const PetCareGuideScreen = ({ navigation }) => {
       id: 'vaccination',
       title: 'Vaccination Timing',
       icon: 'event-available',
-      color: '#3498DB',
+      color: facebookBlue,
       content: [
         'Dogs (puppies): start core vaccines at 6–8 weeks; boosters every 3–4 weeks until 16 weeks.',
         'Cats (kittens): start at 6–8 weeks; boosters every 3–4 weeks until 16–20 weeks.',
@@ -162,15 +171,15 @@ const PetCareGuideScreen = ({ navigation }) => {
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: COLORS.background,
+      backgroundColor: facebookBackground,
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: 50,
-      paddingBottom: SPACING.md,
+      backgroundColor: '#ffffff',
+      paddingHorizontal: SPACING.md,
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+      borderBottomColor: '#e4e6eb',
       ...SHADOWS.light,
     },
     headerContent: {
@@ -181,56 +190,66 @@ const PetCareGuideScreen = ({ navigation }) => {
     headerTitle: {
       fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
+      fontWeight: '700',
+      color: '#050505',
       flex: 1,
+      textAlign: 'center',
     },
     backButton: {
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      borderRadius: 20,
       width: 40,
       height: 40,
+      borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: SPACING.md,
+      backgroundColor: '#e4e6eb',
     },
     scroll: {
       flex: 1,
-      backgroundColor: COLORS.background,
+      backgroundColor: facebookBackground,
     },
     scrollContent: {
-      padding: SPACING.lg,
+      padding: SPACING.md,
       paddingBottom: SPACING.xxl,
     },
     searchContainer: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      padding: SPACING.md,
-      marginBottom: SPACING.lg,
+      backgroundColor: facebookCardBg,
+      borderRadius: 20,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      marginBottom: SPACING.md,
       flexDirection: 'row',
       alignItems: 'center',
-      ...SHADOWS.light,
+      borderWidth: 0,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 1,
     },
     searchInput: {
       flex: 1,
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
+      color: facebookText,
       marginLeft: SPACING.sm,
       padding: 0,
     },
     preferencesSection: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      padding: SPACING.lg,
-      marginBottom: SPACING.lg,
-      ...SHADOWS.light,
+      backgroundColor: facebookCardBg,
+      borderRadius: 10,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     preferencesTitle: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 17,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.md,
       textAlign: 'center',
     },
@@ -238,55 +257,57 @@ const PetCareGuideScreen = ({ navigation }) => {
       marginBottom: SPACING.md,
     },
     toggleLabel: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 13,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       marginBottom: SPACING.xs,
-      fontWeight: FONTS.weights.medium,
+      fontWeight: '600',
     },
     toggleRow: {
       flexDirection: 'row',
-      borderRadius: RADIUS.medium,
-      backgroundColor: COLORS.inputBackground,
+      borderRadius: 8,
+      backgroundColor: facebookInputBg,
       padding: 4,
     },
     toggleButton: {
       flex: 1,
-      paddingVertical: SPACING.md,
-      borderRadius: RADIUS.small,
+      paddingVertical: SPACING.sm,
+      borderRadius: 6,
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'center',
     },
     toggleActive: {
-      backgroundColor: COLORS.darkPurple,
-      ...SHADOWS.light,
+      backgroundColor: facebookBlue,
     },
     toggleIcon: {
       marginRight: SPACING.xs,
     },
     toggleText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
-      fontWeight: FONTS.weights.medium,
+      color: facebookText,
+      fontWeight: '600',
     },
     toggleTextActive: {
-      color: COLORS.white,
-      fontWeight: FONTS.weights.bold,
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
     section: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
+      backgroundColor: facebookCardBg,
+      borderRadius: 10,
       marginBottom: SPACING.md,
       overflow: 'hidden',
-      ...SHADOWS.light,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     sectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: SPACING.lg,
-      paddingBottom: SPACING.md,
+      padding: SPACING.md,
     },
     sectionIconContainer: {
       width: 40,
@@ -295,20 +316,21 @@ const PetCareGuideScreen = ({ navigation }) => {
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: SPACING.md,
+      backgroundColor: facebookInputBg,
     },
     sectionTitleContainer: {
       flex: 1,
     },
     sectionTitle: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 17,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
     },
     sectionItemCount: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 13,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       marginTop: 2,
     },
     sectionActions: {
@@ -316,33 +338,35 @@ const PetCareGuideScreen = ({ navigation }) => {
       alignItems: 'center',
     },
     actionButton: {
-      padding: SPACING.sm,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      justifyContent: 'center',
+      alignItems: 'center',
       marginLeft: SPACING.xs,
-      borderRadius: 20,
-      backgroundColor: COLORS.inputBackground,
+      backgroundColor: facebookInputBg,
     },
     sectionContent: {
-      paddingHorizontal: SPACING.lg,
-      paddingBottom: SPACING.lg,
+      paddingHorizontal: SPACING.md,
+      paddingBottom: SPACING.md,
+      borderTopWidth: 1,
+      borderTopColor: facebookBorder,
     },
     bulletContainer: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      marginBottom: SPACING.sm,
-      paddingHorizontal: SPACING.sm,
+      marginTop: SPACING.sm,
       paddingVertical: SPACING.xs,
-      borderRadius: RADIUS.small,
-      backgroundColor: COLORS.inputBackground,
     },
     bulletIcon: {
       marginRight: SPACING.sm,
-      marginTop: 2,
+      marginTop: 6,
     },
     bulletText: {
       flex: 1,
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
+      color: facebookText,
       lineHeight: 22,
     },
     emptyState: {
@@ -351,9 +375,9 @@ const PetCareGuideScreen = ({ navigation }) => {
       marginTop: SPACING.xxl,
     },
     emptyStateText: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 17,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       textAlign: 'center',
       marginTop: SPACING.md,
     },
@@ -361,82 +385,83 @@ const PetCareGuideScreen = ({ navigation }) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-      backgroundColor: COLORS.inputBackground,
-      marginBottom: SPACING.lg,
-      borderRadius: RADIUS.medium,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      backgroundColor: facebookCardBg,
+      marginBottom: SPACING.md,
+      borderRadius: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 1,
     },
     favoritesTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
     },
     favoritesCount: {
-      backgroundColor: COLORS.darkPurple,
-      borderRadius: 10,
-      paddingHorizontal: SPACING.sm,
-      paddingVertical: 2,
+      backgroundColor: facebookBlue,
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      minWidth: 24,
+      alignItems: 'center',
     },
     favoritesCountText: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 12,
       fontFamily: FONTS.family,
-      color: COLORS.white,
-      fontWeight: FONTS.weights.bold,
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
-    // Source Section Styles
     sourceSection: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      padding: SPACING.lg,
-      marginTop: SPACING.xl,
-      marginBottom: SPACING.lg,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      ...SHADOWS.light,
+      backgroundColor: facebookCardBg,
+      borderRadius: 10,
+      padding: SPACING.md,
+      marginTop: SPACING.md,
+      marginBottom: SPACING.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     sourceTitleContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: SPACING.md,
+      marginBottom: SPACING.sm,
     },
     sourceSectionTitle: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 17,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginLeft: SPACING.sm,
+      fontWeight: '600',
+      color: facebookText,
+      marginLeft: SPACING.xs,
     },
     sourceText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 14,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 22,
-      marginBottom: SPACING.lg,
+      color: facebookSecondaryText,
+      lineHeight: 20,
+      marginBottom: SPACING.md,
       textAlign: 'center',
     },
     sourceLinksContainer: {
-      marginBottom: SPACING.md,
+      marginBottom: SPACING.sm,
     },
     sourceLink: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'rgba(138, 43, 226, 0.05)',
-      borderRadius: RADIUS.medium,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
       padding: SPACING.md,
       marginVertical: SPACING.xs,
-      borderWidth: 1,
-      borderColor: 'rgba(138, 43, 226, 0.15)',
-      elevation: 1,
-      shadowColor: COLORS.darkPurple,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
     },
     sourceLinkIconContainer: {
-      backgroundColor: 'rgba(138, 43, 226, 0.1)',
+      backgroundColor: facebookBlue + '15',
       borderRadius: 20,
       padding: SPACING.sm,
       marginRight: SPACING.md,
@@ -445,16 +470,16 @@ const PetCareGuideScreen = ({ navigation }) => {
       flex: 1,
     },
     sourceLinkTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
-      fontWeight: FONTS.weights.semiBold,
+      color: facebookText,
+      fontWeight: '600',
       marginBottom: 2,
     },
     sourceLinkSubtitle: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 13,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
     },
     lastUpdatedContainer: {
       flexDirection: 'row',
@@ -463,20 +488,20 @@ const PetCareGuideScreen = ({ navigation }) => {
       marginTop: SPACING.md,
       paddingTop: SPACING.md,
       borderTopWidth: 1,
-      borderTopColor: COLORS.border,
+      borderTopColor: facebookBorder,
     },
     lastUpdated: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 12,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       marginLeft: SPACING.xs,
       fontStyle: 'italic',
     },
-  }), [COLORS]);
+  }), []);
 
-  const BulletPoint = ({ children, icon = 'fiber-manual-record' }) => (
+  const BulletPoint = ({ children }) => (
     <View style={styles.bulletContainer}>
-      <MaterialIcons name={icon} size={8} color={COLORS.darkPurple} style={styles.bulletIcon} />
+      <MaterialIcons name="fiber-manual-record" size={6} color={facebookBlue} style={styles.bulletIcon} />
       <Text style={styles.bulletText}>{children}</Text>
     </View>
   );
@@ -492,7 +517,7 @@ const PetCareGuideScreen = ({ navigation }) => {
           onPress={() => toggleSection(section.id)}
           activeOpacity={0.7}
         >
-          <View style={[styles.sectionIconContainer, { backgroundColor: section.color + '20' }]}>
+          <View style={styles.sectionIconContainer}>
             <MaterialIcons name={section.icon} size={22} color={section.color} />
           </View>
           <View style={styles.sectionTitleContainer}>
@@ -502,20 +527,30 @@ const PetCareGuideScreen = ({ navigation }) => {
           <View style={styles.sectionActions}>
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => toggleFavorite(section.id)}
+              onPress={(e) => {
+                e.stopPropagation();
+                toggleFavorite(section.id);
+              }}
               activeOpacity={0.7}
             >
               <Ionicons 
                 name={isFavorite ? 'heart' : 'heart-outline'} 
                 size={18} 
-                color={isFavorite ? '#E74C3C' : COLORS.secondaryText} 
+                color={isFavorite ? '#E74C3C' : facebookSecondaryText} 
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              activeOpacity={0.7}
+              onPress={(e) => {
+                e.stopPropagation();
+                toggleSection(section.id);
+              }}
+            >
               <Ionicons 
                 name={isExpanded ? 'chevron-up' : 'chevron-down'} 
                 size={18} 
-                color={COLORS.secondaryText} 
+                color={facebookSecondaryText} 
               />
             </TouchableOpacity>
           </View>
@@ -534,13 +569,14 @@ const PetCareGuideScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+            <MaterialIcons name="arrow-back" size={24} color="#050505" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Pet Care Guide</Text>
-          <View style={{ width: 32 }} />
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -551,18 +587,18 @@ const PetCareGuideScreen = ({ navigation }) => {
       >
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={COLORS.secondaryText} />
+          <Ionicons name="search" size={20} color={facebookSecondaryText} />
           <TextInput
             style={styles.searchInput}
             placeholder={`Search ${species === 'dog' ? 'dog' : 'cat'} care tips...`}
-            placeholderTextColor={COLORS.secondaryText}
+            placeholderTextColor={facebookSecondaryText}
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
           />
           {searchQuery !== '' && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={COLORS.secondaryText} />
+              <Ionicons name="close-circle" size={20} color={facebookSecondaryText} />
             </TouchableOpacity>
           )}
         </View>
@@ -639,7 +675,7 @@ const PetCareGuideScreen = ({ navigation }) => {
             <Text style={styles.emptyStateText}>
               No results found for "{searchQuery}"
             </Text>
-            <Text style={[styles.emptyStateText, { fontSize: FONTS.sizes.small, marginTop: SPACING.xs }]}>
+            <Text style={[styles.emptyStateText, { fontSize: 13, marginTop: SPACING.xs }]}>
               Try searching for specific care topics like "feeding", "grooming", or "health"
             </Text>
           </View>
@@ -648,7 +684,7 @@ const PetCareGuideScreen = ({ navigation }) => {
         {/* Source Information */}
         <View style={styles.sourceSection}>
           <View style={styles.sourceTitleContainer}>
-            <MaterialIcons name="verified" size={24} color={COLORS.darkPurple} />
+            <MaterialIcons name="verified" size={24} color={facebookBlue} />
             <Text style={styles.sourceSectionTitle}>Sources & References</Text>
           </View>
           <Text style={styles.sourceText}>
@@ -662,13 +698,13 @@ const PetCareGuideScreen = ({ navigation }) => {
               activeOpacity={0.7}
             >
               <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
+                <Ionicons name="link" size={18} color={facebookBlue} />
               </View>
               <View style={styles.sourceLinkTextContainer}>
                 <Text style={styles.sourceLinkTitle}>American Veterinary Medical Association</Text>
                 <Text style={styles.sourceLinkSubtitle}>AVMA - Pet Owner Resources</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
+              <Ionicons name="chevron-forward" size={16} color={facebookSecondaryText} />
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -677,18 +713,18 @@ const PetCareGuideScreen = ({ navigation }) => {
               activeOpacity={0.7}
             >
               <View style={styles.sourceLinkIconContainer}>
-                <Ionicons name="link" size={18} color={COLORS.darkPurple} />
+                <Ionicons name="link" size={18} color={facebookBlue} />
               </View>
               <View style={styles.sourceLinkTextContainer}>
                 <Text style={styles.sourceLinkTitle}>World Small Animal Veterinary Association</Text>
                 <Text style={styles.sourceLinkSubtitle}>WSAVA - Global Standards</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.secondaryText} />
+              <Ionicons name="chevron-forward" size={16} color={facebookSecondaryText} />
             </TouchableOpacity>
           </View>
           
           <View style={styles.lastUpdatedContainer}>
-            <MaterialIcons name="schedule" size={16} color={COLORS.secondaryText} />
+            <MaterialIcons name="schedule" size={16} color={facebookSecondaryText} />
             <Text style={styles.lastUpdated}>Last updated: September 2025</Text>
           </View>
         </View>

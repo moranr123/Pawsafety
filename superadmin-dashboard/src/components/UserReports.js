@@ -23,6 +23,10 @@ const UserReports = () => {
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [selectedHistoryContent, setSelectedHistoryContent] = useState(null);
   const [archiveSearchTerm, setArchiveSearchTerm] = useState('');
+  const [isCheckingRestrict, setIsCheckingRestrict] = useState(false);
+  const [isRestricting, setIsRestricting] = useState(false);
+  const [isCheckingBan, setIsCheckingBan] = useState(false);
+  const [isBanning, setIsBanning] = useState(false);
 
   useEffect(() => {
     // Fetch both post_reports and message_reports
@@ -209,7 +213,49 @@ const UserReports = () => {
     }
   };
 
-  const handleRestrictChat = (content) => {
+  const handleRestrictChat = async (content) => {
+    const userId = content.ownerId;
+    if (!userId) {
+      toast.error('Could not find user to restrict');
+      return;
+    }
+
+    setIsCheckingRestrict(true);
+    // Check if user has active punishment
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const now = new Date();
+        
+        // Check if user is banned
+        if (userData.status === 'banned' && userData.banExpiresAt) {
+          const banExpiry = userData.banExpiresAt.toDate ? userData.banExpiresAt.toDate() : new Date(userData.banExpiresAt);
+          if (banExpiry > now) {
+            toast.error(`This user is already banned until ${banExpiry.toLocaleDateString()}. Please wait for the ban to expire or unban the user first.`);
+            setIsCheckingRestrict(false);
+            return;
+          }
+        }
+        
+        // Check if user is already restricted
+        if (userData.chatRestricted && userData.chatRestrictionExpiresAt) {
+          const restrictExpiry = userData.chatRestrictionExpiresAt.toDate ? userData.chatRestrictionExpiresAt.toDate() : new Date(userData.chatRestrictionExpiresAt);
+          if (restrictExpiry > now) {
+            toast.error(`This user is already restricted until ${restrictExpiry.toLocaleDateString()}. Please wait for the restriction to expire or remove the restriction first.`);
+            setIsCheckingRestrict(false);
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking user status:', error);
+      toast.error('Failed to check user status');
+      setIsCheckingRestrict(false);
+      return;
+    }
+
+    setIsCheckingRestrict(false);
     setContentToRestrict(content);
     setRestrictModalOpen(true);
   };
@@ -231,6 +277,51 @@ const UserReports = () => {
     
     if (!userId) {
       toast.error('Could not find user to restrict');
+      return;
+    }
+
+    // Check if user already has an active punishment
+    setIsRestricting(true);
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const now = new Date();
+        
+        // Check if user is banned
+        if (userData.status === 'banned' && userData.banExpiresAt) {
+          const banExpiry = userData.banExpiresAt.toDate ? userData.banExpiresAt.toDate() : new Date(userData.banExpiresAt);
+          if (banExpiry > now) {
+            toast.error(`This user is already banned until ${banExpiry.toLocaleDateString()}. Please wait for the ban to expire or unban the user first.`);
+            setIsRestricting(false);
+            setRestrictModalOpen(false);
+            setContentToRestrict(null);
+            setRestrictDuration('');
+            setRestrictReason('');
+            setRestrictDurationType('days');
+            return;
+          }
+        }
+        
+        // Check if user is already restricted
+        if (userData.chatRestricted && userData.chatRestrictionExpiresAt) {
+          const restrictExpiry = userData.chatRestrictionExpiresAt.toDate ? userData.chatRestrictionExpiresAt.toDate() : new Date(userData.chatRestrictionExpiresAt);
+          if (restrictExpiry > now) {
+            toast.error(`This user is already restricted until ${restrictExpiry.toLocaleDateString()}. Please wait for the restriction to expire or remove the restriction first.`);
+            setIsRestricting(false);
+            setRestrictModalOpen(false);
+            setContentToRestrict(null);
+            setRestrictDuration('');
+            setRestrictReason('');
+            setRestrictDurationType('days');
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking user status:', error);
+      toast.error('Failed to check user status');
+      setIsRestricting(false);
       return;
     }
 
@@ -281,6 +372,7 @@ const UserReports = () => {
       });
       
       toast.success(`Chat restricted for ${content.ownerName} for ${durationText}. ${pendingReports.length} report(s) resolved.`);
+      setIsRestricting(false);
       setRestrictModalOpen(false);
       setContentToRestrict(null);
       setRestrictDuration('');
@@ -290,6 +382,7 @@ const UserReports = () => {
     } catch (error) {
       console.error('Error restricting chat:', error);
       toast.error('Failed to restrict chat');
+      setIsRestricting(false);
     }
   };
 
@@ -305,6 +398,34 @@ const UserReports = () => {
     
     if (!userIdToBan) {
        toast.error('Could not find user to ban');
+       return;
+    }
+
+    // Check if user already has an active ban
+    setIsBanning(true);
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userIdToBan));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const now = new Date();
+        
+        // Check if user is already banned
+        if (userData.status === 'banned' && userData.banExpiresAt) {
+          const banExpiry = userData.banExpiresAt.toDate ? userData.banExpiresAt.toDate() : new Date(userData.banExpiresAt);
+          if (banExpiry > now) {
+            toast.error(`This user is already banned until ${banExpiry.toLocaleDateString()}. Please wait for the ban to expire or unban the user first.`);
+            setIsBanning(false);
+            setBanModalOpen(false);
+            setContentToBan(null);
+            setBanDuration('');
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking user ban status:', error);
+      toast.error('Failed to check user ban status');
+      setIsBanning(false);
        return;
     }
 
@@ -392,6 +513,7 @@ const UserReports = () => {
       });
       
       toast.success(`User banned for ${days} days. ${resolveCount} report(s) resolved.`);
+      setIsBanning(false);
       setBanModalOpen(false);
       setContentToBan(null);
       setBanDuration('');
@@ -402,6 +524,7 @@ const UserReports = () => {
     } catch (error) {
       console.error('Error banning user:', error);
       toast.error('Failed to ban user');
+      setIsBanning(false);
     }
   };
 
@@ -960,17 +1083,37 @@ const UserReports = () => {
                         </button>
                   <button 
                     onClick={() => handleRestrictChat(content)}
-                    className="px-2 py-1 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded transition-colors text-xs flex items-center gap-1"
+                    disabled={isCheckingRestrict}
+                    className="px-2 py-1 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded transition-colors text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
+                    {isCheckingRestrict ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Checking...</span>
+                      </>
+                    ) : (
+                      <>
                     <Ban className="w-3 h-3" />
                     Restrict
+                      </>
+                    )}
                   </button>
                   <button 
                     onClick={() => { setContentToBan(content); setBanModalOpen(true); }}
-                    className="px-2 py-1 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded transition-colors text-xs flex items-center gap-1"
+                    disabled={isCheckingBan}
+                    className="px-2 py-1 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded transition-colors text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
+                    {isCheckingBan ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Checking...</span>
+                      </>
+                    ) : (
+                      <>
                     <UserX className="w-3 h-3" />
                     Ban
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1405,13 +1548,39 @@ const UserReports = () => {
                 <Trash2 className="w-4 h-4" />
                 Remove Post
               </button>
-              <button onClick={() => handleRestrictChat(selectedContent)} className="px-4 py-2 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded-lg transition-colors shadow-sm flex items-center gap-2">
+              <button 
+                onClick={() => handleRestrictChat(selectedContent)} 
+                disabled={isCheckingRestrict}
+                className="px-4 py-2 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded-lg transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCheckingRestrict ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Checking...</span>
+                  </>
+                ) : (
+                  <>
                 <Ban className="w-4 h-4" />
                 Restrict Chat
+                  </>
+                )}
               </button>
-              <button onClick={() => { setContentToBan(selectedContent); setBanModalOpen(true); }} className="px-4 py-2 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded-lg transition-colors shadow-sm flex items-center gap-2">
+              <button 
+                onClick={() => { setContentToBan(selectedContent); setBanModalOpen(true); }} 
+                disabled={isCheckingBan}
+                className="px-4 py-2 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded-lg transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCheckingBan ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Checking...</span>
+                  </>
+                ) : (
+                  <>
                       <UserX className="w-4 h-4" />
                       Ban User & Resolve All
+                  </>
+                )}
                     </button>
             </div>
           </div>
@@ -1458,9 +1627,17 @@ const UserReports = () => {
               </button>
               <button
                 onClick={confirmBan}
-                className="px-4 py-2 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded-lg transition-colors shadow-sm"
+                disabled={isBanning}
+                className="px-4 py-2 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Confirm Ban
+                {isBanning ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Banning...</span>
+                  </>
+                ) : (
+                  'Confirm Ban'
+                )}
               </button>
             </div>
           </div>
@@ -1536,9 +1713,17 @@ const UserReports = () => {
               </button>
               <button
                 onClick={confirmRestrictChat}
-                className="px-4 py-2 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded-lg transition-colors shadow-sm"
+                disabled={isRestricting}
+                className="px-4 py-2 bg-yellow-600 text-white font-medium hover:bg-yellow-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Confirm Restriction
+                {isRestricting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Restricting...</span>
+                  </>
+                ) : (
+                  'Confirm Restriction'
+                )}
               </button>
             </div>
           </div>

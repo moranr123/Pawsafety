@@ -8,7 +8,9 @@ import {
   ScrollView,
   Alert,
   Modal,
-  RefreshControl
+  RefreshControl,
+  Platform,
+  StatusBar
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -158,55 +160,64 @@ const MyReportsScreen = ({ navigation }) => {
     });
   };
 
+  // Facebook color scheme
+  const facebookBlue = '#1877F2';
+  const facebookBackground = '#F0F2F5';
+  const facebookCardBg = '#FFFFFF';
+  const facebookText = '#050505';
+  const facebookSecondaryText = '#65676B';
+  const facebookBorder = '#E4E6EB';
+  const facebookInputBg = '#F0F2F5';
+
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#F8FAFC',
+      backgroundColor: facebookBackground,
     },
-          header: {
-        backgroundColor: COLORS.darkPurple,
-        paddingHorizontal: SPACING.lg,
-        paddingTop: 50,
-        paddingBottom: SPACING.md,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-        ...SHADOWS.light,
-      },
-      headerContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      },
-      backButton: {
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-        borderRadius: 20,
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: SPACING.md,
-      },
-      headerTitle: {
-        fontSize: 20,
-        fontFamily: 'SF Pro Display',
-        fontWeight: '700',
-        color: COLORS.white,
-        flex: 1,
-      },
-      statsContainer: {
-        marginLeft: 'auto',
-      },
+    header: {
+      backgroundColor: '#ffffff',
+      paddingHorizontal: SPACING.md,
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+      ...SHADOWS.light,
+    },
+    headerContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#e4e6eb',
+      marginRight: SPACING.md,
+    },
+    headerTitle: {
+      fontSize: 20,
+      fontFamily: FONTS.family,
+      fontWeight: '700',
+      color: '#050505',
+      flex: 1,
+    },
+    statsContainer: {
+      marginLeft: 'auto',
+    },
     statsText: {
-      color: COLORS.lightBlue,
+      color: facebookSecondaryText,
       fontSize: 14,
-      fontFamily: 'SF Pro Display',
-      fontWeight: '500',
+      fontFamily: FONTS.family,
+      fontWeight: '600',
     },
     tabContainer: {
       flexDirection: 'row',
-      backgroundColor: '#F1F5F9',
-      borderRadius: 12,
-      marginHorizontal: SPACING.lg,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
+      marginHorizontal: SPACING.md,
       marginTop: SPACING.md,
       marginBottom: SPACING.sm,
       padding: 4,
@@ -215,29 +226,28 @@ const MyReportsScreen = ({ navigation }) => {
       flex: 1,
       paddingVertical: SPACING.sm,
       paddingHorizontal: SPACING.md,
-      borderRadius: 8,
+      borderRadius: 6,
       alignItems: 'center',
     },
     activeTab: {
-      backgroundColor: COLORS.white,
-      ...SHADOWS.light,
+      backgroundColor: facebookBlue,
     },
     inactiveTab: {
       backgroundColor: 'transparent',
     },
     tabText: {
-      fontSize: 14,
-      fontFamily: 'SF Pro Display',
+      fontSize: 15,
+      fontFamily: FONTS.family,
       fontWeight: '600',
     },
     activeTabText: {
-      color: COLORS.darkPurple,
+      color: '#FFFFFF',
     },
     inactiveTabText: {
-      color: '#64748B',
+      color: facebookSecondaryText,
     },
     tabBadge: {
-      backgroundColor: COLORS.mediumBlue,
+      backgroundColor: 'rgba(255, 255, 255, 0.3)',
       borderRadius: 10,
       paddingHorizontal: 6,
       paddingVertical: 2,
@@ -246,23 +256,26 @@ const MyReportsScreen = ({ navigation }) => {
       alignItems: 'center',
     },
     tabBadgeText: {
-      color: COLORS.white,
-      fontSize: 10,
-      fontFamily: 'SF Pro Display',
-      fontWeight: '600',
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontFamily: FONTS.family,
+      fontWeight: '700',
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,
+      paddingHorizontal: SPACING.md,
+      paddingTop: SPACING.md,
     },
     reportCard: {
-      backgroundColor: COLORS.white,
-      borderRadius: 20,
-      marginBottom: SPACING.lg,
+      backgroundColor: facebookCardBg,
+      borderRadius: 10,
+      marginBottom: SPACING.md,
       overflow: 'hidden',
-      ...SHADOWS.medium,
-      elevation: 5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     cardHeader: {
       position: 'relative',
@@ -276,7 +289,7 @@ const MyReportsScreen = ({ navigation }) => {
     imagePlaceholder: {
       width: '100%',
       height: '100%',
-      backgroundColor: '#E2E8F0',
+      backgroundColor: facebookInputBg,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -284,34 +297,34 @@ const MyReportsScreen = ({ navigation }) => {
       marginBottom: 8,
     },
     placeholderText: {
-      color: '#64748B',
+      color: facebookSecondaryText,
       fontSize: 14,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '500',
     },
     statusBadge: {
       position: 'absolute',
       top: 12,
       left: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 15,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 12,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
     },
     statusText: {
-      color: COLORS.white,
+      color: '#FFFFFF',
       fontSize: 12,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '600',
     },
     cardContent: {
-      padding: SPACING.lg,
+      padding: SPACING.md,
     },
     cardTitle: {
-      fontSize: 18,
-      fontFamily: 'SF Pro Display',
-      fontWeight: '700',
-      color: '#1E293B',
+      fontSize: 17,
+      fontFamily: FONTS.family,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.sm,
     },
     locationContainer: {
@@ -320,59 +333,59 @@ const MyReportsScreen = ({ navigation }) => {
       marginBottom: SPACING.xs,
     },
     locationText: {
-      fontSize: 14,
-      fontFamily: 'SF Pro Display',
-      color: '#64748B',
+      fontSize: 15,
+      fontFamily: FONTS.family,
+      color: facebookSecondaryText,
       marginLeft: 6,
       flex: 1,
     },
     timeText: {
-      fontSize: 12,
-      fontFamily: 'SF Pro Display',
-      color: '#94A3B8',
-      marginBottom: SPACING.md,
+      fontSize: 13,
+      fontFamily: FONTS.family,
+      color: facebookSecondaryText,
+      marginBottom: SPACING.sm,
     },
     descriptionText: {
-      fontSize: 14,
-      fontFamily: 'SF Pro Display',
-      color: '#475569',
-      lineHeight: 20,
-      marginBottom: SPACING.lg,
+      fontSize: 15,
+      fontFamily: FONTS.family,
+      color: facebookText,
+      lineHeight: 22,
+      marginBottom: SPACING.md,
     },
     actionButtons: {
       flexDirection: 'row',
       gap: SPACING.sm,
+      borderTopWidth: 1,
+      borderTopColor: facebookBorder,
+      paddingTop: SPACING.sm,
+      marginTop: SPACING.sm,
     },
     actionButton: {
       flex: 1,
-      borderRadius: 12,
-      paddingVertical: 12,
+      borderRadius: 8,
+      paddingVertical: 10,
       alignItems: 'center',
       justifyContent: 'center',
     },
     viewButton: {
-      backgroundColor: '#F1F5F9',
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
+      backgroundColor: facebookInputBg,
     },
     editButton: {
-      backgroundColor: COLORS.mediumBlue,
+      backgroundColor: facebookBlue,
     },
     deleteButton: {
       backgroundColor: '#FEF2F2',
-      borderWidth: 1,
-      borderColor: '#FECACA',
     },
     buttonText: {
-      fontSize: 14,
-      fontFamily: 'SF Pro Display',
+      fontSize: 15,
+      fontFamily: FONTS.family,
       fontWeight: '600',
     },
     viewButtonText: {
-      color: '#475569',
+      color: facebookText,
     },
     editButtonText: {
-      color: COLORS.white,
+      color: '#FFFFFF',
     },
     deleteButtonText: {
       color: '#DC2626',
@@ -389,31 +402,35 @@ const MyReportsScreen = ({ navigation }) => {
     },
     emptyTitle: {
       fontSize: 20,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '700',
-      color: '#1E293B',
+      color: facebookText,
       marginBottom: SPACING.sm,
       textAlign: 'center',
     },
     emptyDescription: {
-      fontSize: 16,
-      fontFamily: 'SF Pro Display',
-      color: '#64748B',
+      fontSize: 15,
+      fontFamily: FONTS.family,
+      color: facebookSecondaryText,
       textAlign: 'center',
-      lineHeight: 24,
+      lineHeight: 22,
       marginBottom: SPACING.lg,
     },
     createButton: {
-      backgroundColor: COLORS.darkPurple,
+      backgroundColor: facebookBlue,
       paddingHorizontal: SPACING.lg,
       paddingVertical: SPACING.md,
-      borderRadius: 25,
-      ...SHADOWS.medium,
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     createButtonText: {
-      color: COLORS.white,
-      fontSize: 16,
-      fontFamily: 'SF Pro Display',
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontFamily: FONTS.family,
       fontWeight: '600',
     },
     // Modal styles
@@ -423,11 +440,11 @@ const MyReportsScreen = ({ navigation }) => {
       justifyContent: 'flex-end',
     },
     modalContent: {
-      backgroundColor: COLORS.white,
-      borderTopLeftRadius: 25,
-      borderTopRightRadius: 25,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,
+      backgroundColor: facebookCardBg,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: SPACING.md,
+      paddingTop: SPACING.md,
       paddingBottom: SPACING.xl,
       maxHeight: '80%',
     },
@@ -435,21 +452,25 @@ const MyReportsScreen = ({ navigation }) => {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: SPACING.lg,
+      marginBottom: SPACING.md,
       paddingBottom: SPACING.md,
       borderBottomWidth: 1,
-      borderBottomColor: '#E2E8F0',
+      borderBottomColor: facebookBorder,
     },
     modalTitle: {
       fontSize: 20,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '700',
-      color: '#1E293B',
+      color: facebookText,
     },
     closeButton: {
-      backgroundColor: '#F1F5F9',
+      backgroundColor: facebookInputBg,
       borderRadius: 20,
       padding: SPACING.sm,
+      width: 36,
+      height: 36,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     modalImage: {
       width: '100%',
@@ -462,16 +483,16 @@ const MyReportsScreen = ({ navigation }) => {
     },
     modalSectionTitle: {
       fontSize: 16,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '600',
-      color: '#1E293B',
+      color: facebookText,
       marginBottom: SPACING.sm,
     },
     modalText: {
-      fontSize: 14,
-      fontFamily: 'SF Pro Display',
-      color: '#475569',
-      lineHeight: 20,
+      fontSize: 15,
+      fontFamily: FONTS.family,
+      color: facebookText,
+      lineHeight: 22,
     },
     modalMapContainer: {
       width: '100%',
@@ -574,13 +595,14 @@ const MyReportsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => navigation.goBack()}
           >
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+            <MaterialIcons name="arrow-back" size={24} color="#050505" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Reports</Text>
           <View style={styles.statsContainer}>
@@ -681,7 +703,7 @@ const MyReportsScreen = ({ navigation }) => {
                 style={styles.closeButton}
                 onPress={() => setModalVisible(false)}
               >
-                <MaterialIcons name="close" size={20} color="#64748B" />
+                <MaterialIcons name="close" size={20} color={facebookSecondaryText} />
               </TouchableOpacity>
             </View>
 

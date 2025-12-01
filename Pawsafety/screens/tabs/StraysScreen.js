@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   SafeAreaView,
   ScrollView,
@@ -10,17 +11,25 @@ import {
   Platform,
   useWindowDimensions,
   FlatList,
+  Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  StatusBar,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTabBarVisibility } from '../../contexts/TabBarVisibilityContext';
 import { db } from '../../services/firebase';
-import { collection, onSnapshot, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, getDoc, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import ReportChatModal from '../../components/ReportChatModal';
 import { auth } from '../../services/firebase';
+import { useProfileImage } from '../../contexts/ProfileImageContext';
+import NotificationService from '../../services/NotificationService';
 
 const FilterButton = React.memo(({ title, active = false, onPress, styles }) => (
   <TouchableOpacity 
@@ -36,6 +45,8 @@ const StrayPetCard = React.memo(({
   reporter,
   navigation,
   onOpenChat,
+  onOpenComments,
+  commentsCount = 0,
   styles,
   COLORS,
 }) => {
@@ -141,13 +152,12 @@ const StrayPetCard = React.memo(({
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.reportActionButton}
-          onPress={() => {
-            // Navigate to Messages screen with reports filter to view comments
-            navigation.navigate('Messages', { initialFilter: 'reports' });
-          }}
+          onPress={() => onOpenComments && onOpenComments(report)}
         >
           <MaterialIcons name="comment" size={18} color="#65676b" />
-          <Text style={styles.reportActionText}>Comment</Text>
+          <Text style={styles.reportActionText}>
+            Comment{commentsCount > 0 ? ` (${commentsCount})` : ''}
+          </Text>
         </TouchableOpacity>
       </View>
     )}
@@ -168,6 +178,29 @@ const StraysScreen = ({ navigation }) => {
   const [selectedReport, setSelectedReport] = useState(null);
   const lastScrollY = useRef(0);
   const scrollTimeout = useRef(null);
+  
+  // Comment state
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [commentsCount, setCommentsCount] = useState({}); // { reportId: count }
+  const [commentText, setCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [commentMenuId, setCommentMenuId] = useState(null);
+  const [commentLikes, setCommentLikes] = useState({});
+  const [isLikingComment, setIsLikingComment] = useState({});
+  const [replyingToCommentId, setReplyingToCommentId] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState({});
+  const [expandedReplies, setExpandedReplies] = useState({});
+  const [friends, setFriends] = useState([]);
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [filteredFriends, setFilteredFriends] = useState([]);
+  const { profileImage } = useProfileImage();
+  const user = auth.currentUser;
 
   // Optimized: Use built-in hook instead of Dimensions listener
   const { width: currentWidth, height: currentHeight } = useWindowDimensions();
@@ -365,6 +398,487 @@ const StraysScreen = ({ navigation }) => {
 
     return result;
   }, [reports, filter]);
+
+  // Comment helper functions
+  const extractMentions = (text) => {
+    if (!text || typeof text !== 'string') return [];
+    const mentionRegex = /@([a-zA-Z0-9_\s]+)/g;
+    const mentions = [];
+    let match;
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const username = match[1].trim();
+      if (username && !mentions.includes(username)) {
+        mentions.push(username);
+      }
+    }
+    return mentions;
+  };
+
+  const findMentionedUserIds = async (usernames) => {
+    if (!usernames || usernames.length === 0) return [];
+    const userIds = [];
+    try {
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      usersSnapshot.forEach((doc) => {
+        const userData = doc.data();
+        const displayName = userData.displayName || userData.name || '';
+        if (usernames.some(username => displayName.toLowerCase().includes(username.toLowerCase()))) {
+          userIds.push(doc.id);
+        }
+      });
+    } catch (error) {
+      console.error('Error finding mentioned users:', error);
+    }
+    return userIds;
+  };
+
+  const notifyMentionedUsers = async (userIds, text, commentId, isReply) => {
+    if (!userIds || userIds.length === 0) return;
+    try {
+      const notificationService = NotificationService.getInstance();
+      for (const userId of userIds) {
+        if (userId !== user?.uid) {
+          await notificationService.createNotification({
+            userId: userId,
+            type: isReply ? 'comment_reply_mention' : 'comment_mention',
+            title: 'You were mentioned',
+            body: `${user?.displayName || 'Someone'} mentioned you in a ${isReply ? 'reply' : 'comment'}`,
+            data: {
+              reportId: selectedReport?.id,
+              commentId: commentId,
+              type: isReply ? 'comment_reply_mention' : 'comment_mention',
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error notifying mentioned users:', error);
+    }
+  };
+
+  // Load comments for a report with real-time updates
+  useEffect(() => {
+    if (!showComments || !selectedReport?.id) {
+      setComments([]);
+      return;
+    }
+
+    const commentsRef = collection(db, 'report_comments');
+    const q = query(
+      commentsRef,
+      where('reportId', '==', selectedReport.id),
+      where('parentCommentId', '==', null),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const commentsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setComments(commentsData);
+      
+      // Update comment likes
+      const likesMap = {};
+      for (const comment of commentsData) {
+        const likes = comment.likes || [];
+        likesMap[comment.id] = {
+          count: likes.length,
+          isLiked: user?.uid ? likes.includes(user.uid) : false,
+        };
+      }
+      setCommentLikes(likesMap);
+    }, (error) => {
+      console.error('Error loading comments:', error);
+    });
+
+    return () => unsubscribe();
+  }, [showComments, selectedReport?.id, user?.uid]);
+
+  // Load comment count for all reports
+  useEffect(() => {
+    if (reports.length === 0) return;
+    
+    const unsubscribes = reports.map(report => {
+      const commentsRef = collection(db, 'report_comments');
+      const q = query(
+        commentsRef,
+        where('reportId', '==', report.id),
+        where('parentCommentId', '==', null)
+      );
+      return onSnapshot(q, (snapshot) => {
+        setCommentsCount(prev => ({
+          ...prev,
+          [report.id]: snapshot.size,
+        }));
+      });
+    });
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [reports]);
+
+  // Load friends for mentions
+  useEffect(() => {
+    if (!user?.uid) return;
+    const loadFriends = async () => {
+      try {
+        const friendsRef = collection(db, 'friends');
+        const q = query(
+          friendsRef,
+          where('userId', '==', user.uid)
+        );
+        const snapshot = await getDocs(q);
+        const friendIds = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return data.friendId;
+        });
+        
+        // Load friend user data
+        const friendData = await Promise.all(
+          friendIds.map(async (friendId) => {
+            try {
+              const friendDoc = await getDoc(doc(db, 'users', friendId));
+              if (friendDoc.exists()) {
+                const friendUserData = friendDoc.data();
+                return {
+                  id: friendId,
+                  displayName: friendUserData.displayName || friendUserData.name || '',
+                  name: friendUserData.displayName || friendUserData.name || '',
+                  profileImage: friendUserData.profileImage || null,
+                };
+              }
+            } catch (error) {
+              console.error('Error loading friend:', error);
+            }
+            return null;
+          })
+        );
+        setFriends(friendData.filter(f => f !== null));
+      } catch (error) {
+        console.error('Error loading friends:', error);
+      }
+    };
+    loadFriends();
+  }, [user?.uid]);
+
+  // Handle opening comments modal
+  const onOpenComments = (report) => {
+    setSelectedReport(report);
+    setShowComments(true);
+    loadComments(report.id);
+  };
+
+  // Handle comment submission
+  const handleComment = async () => {
+    if (!commentText.trim() || !user?.uid || !selectedReport) return;
+
+    setIsSubmittingComment(true);
+    try {
+      let currentUserName = user.displayName || 'Pet Lover';
+      let currentUserProfileImage = profileImage || null;
+      
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          currentUserName = userData.displayName || userData.name || currentUserName;
+          currentUserProfileImage = userData.profileImage || currentUserProfileImage;
+        }
+      } catch (error) {
+        // Error handled silently
+      }
+
+      const mentionedUsernames = extractMentions(commentText.trim());
+      let mentionedUserIds = [];
+      
+      if (mentionedUsernames.length > 0) {
+        mentionedUserIds = await findMentionedUserIds(mentionedUsernames);
+      }
+
+      const commentRef = await addDoc(collection(db, 'report_comments'), {
+        reportId: selectedReport.id,
+        userId: user.uid,
+        userName: currentUserName,
+        userProfileImage: currentUserProfileImage,
+        text: commentText.trim(),
+        createdAt: serverTimestamp(),
+        likes: [],
+        parentCommentId: null,
+        mentionedUsers: mentionedUserIds,
+      });
+
+      // Send notification to report owner
+      if (selectedReport.userId && selectedReport.userId !== user.uid && !mentionedUserIds.includes(selectedReport.userId)) {
+        try {
+          const notificationService = NotificationService.getInstance();
+          await notificationService.createNotification({
+            userId: selectedReport.userId,
+            type: 'report_comment',
+            title: 'New Comment',
+            body: `${currentUserName} commented on your report`,
+            data: {
+              reportId: selectedReport.id,
+              type: 'report_comment',
+              commentedBy: user.uid,
+            },
+          });
+        } catch (notifError) {
+          // Error handled silently
+        }
+      }
+
+      // Send notifications to mentioned users
+      if (mentionedUserIds.length > 0) {
+        await notifyMentionedUsers(mentionedUserIds, commentText.trim(), commentRef.id, false);
+      }
+
+      setCommentText('');
+      setShowMentionSuggestions(false);
+      setMentionQuery('');
+      setMentionStartIndex(-1);
+      setFilteredFriends([]);
+      
+      await loadComments(selectedReport.id);
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Alert.alert('Error', 'Failed to add comment. Please try again.');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  // Handle comment text change with mention detection
+  const handleCommentTextChange = (text) => {
+    setCommentText(text);
+    
+    const lastAtIndex = text.lastIndexOf('@');
+    
+    if (lastAtIndex !== -1) {
+      const textAfterAt = text.substring(lastAtIndex + 1);
+      const spaceIndex = textAfterAt.indexOf(' ');
+      
+      if (spaceIndex === -1) {
+        const query = textAfterAt;
+        if (query.length > 0) {
+          setMentionQuery(query);
+          setMentionStartIndex(lastAtIndex);
+          setShowMentionSuggestions(true);
+          const filtered = friends.filter(friend => {
+            const name = (friend.displayName || friend.name || '').toLowerCase();
+            return name.includes(query.toLowerCase());
+          });
+          setFilteredFriends(filtered.slice(0, 10));
+        } else {
+          setMentionQuery('');
+          setMentionStartIndex(lastAtIndex);
+          setShowMentionSuggestions(true);
+          setFilteredFriends(friends.slice(0, 10));
+        }
+      } else if (spaceIndex > 0) {
+        const query = textAfterAt.substring(0, spaceIndex);
+        const textAfterSpace = textAfterAt.substring(spaceIndex + 1);
+        if (query.trim().length > 0 && textAfterSpace.trim().length === 0) {
+          setMentionQuery(query);
+          setMentionStartIndex(lastAtIndex);
+          setShowMentionSuggestions(true);
+          const filtered = friends.filter(friend => {
+            const name = (friend.displayName || friend.name || '').toLowerCase();
+            return name.includes(query.toLowerCase());
+          });
+          setFilteredFriends(filtered.slice(0, 10));
+        } else {
+          setShowMentionSuggestions(false);
+          setMentionQuery('');
+          setMentionStartIndex(-1);
+        }
+      } else {
+        setShowMentionSuggestions(false);
+        setMentionQuery('');
+        setMentionStartIndex(-1);
+      }
+    } else {
+      setShowMentionSuggestions(false);
+      setMentionQuery('');
+      setMentionStartIndex(-1);
+    }
+  };
+
+  // Handle selecting a mention
+  const handleSelectMention = (friend) => {
+    const friendName = friend.displayName || friend.name;
+    const currentText = commentText;
+    const beforeMention = currentText.substring(0, mentionStartIndex);
+    const afterMention = currentText.substring(mentionStartIndex + 1 + mentionQuery.length);
+    const newText = `${beforeMention}@${friendName} ${afterMention}`;
+    
+    setShowMentionSuggestions(false);
+    setCommentText(newText);
+    setMentionQuery('');
+    setMentionStartIndex(-1);
+    setFilteredFriends([]);
+  };
+
+  // Handle editing comment
+  const handleEditComment = async (commentId) => {
+    if (!editCommentText.trim()) {
+      Alert.alert('Error', 'Comment text cannot be empty.');
+      return;
+    }
+
+    try {
+      const mentionedUsernames = extractMentions(editCommentText.trim());
+      let mentionedUserIds = [];
+      
+      if (mentionedUsernames.length > 0) {
+        mentionedUserIds = await findMentionedUserIds(mentionedUsernames);
+      }
+
+      const commentRef = doc(db, 'report_comments', commentId);
+      await updateDoc(commentRef, {
+        text: editCommentText.trim(),
+        updatedAt: serverTimestamp(),
+        mentionedUsers: mentionedUserIds,
+      });
+
+      const originalCommentDoc = await getDoc(commentRef);
+      const originalCommentData = originalCommentDoc.data();
+      const previousMentions = originalCommentData?.mentionedUsers || [];
+      const newMentions = mentionedUserIds.filter(uid => !previousMentions.includes(uid));
+      
+      if (newMentions.length > 0) {
+        await notifyMentionedUsers(newMentions, editCommentText.trim(), commentId, false);
+      }
+
+      setEditingCommentId(null);
+      setEditCommentText('');
+      await loadComments(selectedReport.id);
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      Alert.alert('Error', 'Failed to update comment. Please try again.');
+    }
+  };
+
+  // Handle liking comment
+  const handleLikeComment = async (commentId) => {
+    if (!user?.uid || isLikingComment[commentId]) return;
+
+    setIsLikingComment(prev => ({ ...prev, [commentId]: true }));
+    try {
+      const commentRef = doc(db, 'report_comments', commentId);
+      const commentDoc = await getDoc(commentRef);
+      
+      if (commentDoc.exists()) {
+        const commentData = commentDoc.data();
+        const currentLikes = commentData.likes || [];
+        const isLiked = currentLikes.includes(user.uid);
+        
+        if (isLiked) {
+          await updateDoc(commentRef, {
+            likes: arrayRemove(user.uid)
+          });
+        } else {
+          await updateDoc(commentRef, {
+            likes: arrayUnion(user.uid)
+          });
+          
+          if (commentData.userId && commentData.userId !== user.uid) {
+            try {
+              const notificationService = NotificationService.getInstance();
+              await notificationService.createNotification({
+                userId: commentData.userId,
+                type: 'comment_like',
+                title: 'New Like',
+                body: `${user.displayName || 'Someone'} liked your comment`,
+                data: {
+                  reportId: selectedReport?.id,
+                  commentId: commentId,
+                  type: 'comment_like',
+                  likedBy: user.uid,
+                },
+              });
+            } catch (notifError) {
+              // Error handled silently
+            }
+          }
+        }
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update like. Please try again.');
+    } finally {
+      setIsLikingComment(prev => ({ ...prev, [commentId]: false }));
+    }
+  };
+
+  // Handle deleting comment
+  const handleDeleteComment = (commentId) => {
+    Alert.alert(
+      'Delete Comment',
+      'Are you sure you want to delete this comment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'report_comments', commentId));
+              await loadComments(selectedReport.id);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete comment. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Format time helper
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  // Render text with mentions
+  const renderTextWithMentions = (text, mentionedUsers = []) => {
+    if (!text) return null;
+    
+    const parts = [];
+    const mentionRegex = /@([a-zA-Z0-9_\s]+)/g;
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = mentionRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      const mentionText = match[0];
+      const username = match[1].trim();
+      parts.push(
+        <Text key={match.index} style={{ color: '#1877f2', fontWeight: '600' }}>
+          {mentionText}
+        </Text>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return <Text style={{ fontSize: 15, color: '#050505', lineHeight: 20 }}>{parts}</Text>;
+  };
 
   // Create styles using current theme colors and responsive values
   const styles = useMemo(() => StyleSheet.create({
@@ -813,6 +1327,210 @@ const StraysScreen = ({ navigation }) => {
       fontWeight: '600',
       color: COLORS.white,
     },
+    // Comment Modal Styles
+    commentModal: {
+      flex: 1,
+      backgroundColor: '#ffffff',
+    },
+    commentModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+    },
+    commentModalTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: '#050505',
+      fontFamily: FONTS.family,
+    },
+    commentList: {
+      flex: 1,
+      paddingHorizontal: SPACING.md,
+      paddingTop: SPACING.sm,
+    },
+    commentItem: {
+      flexDirection: 'row',
+      marginBottom: SPACING.md,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f0f2f5',
+    },
+    commentProfileImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: SPACING.sm,
+      backgroundColor: '#e4e6eb',
+    },
+    commentContent: {
+      flex: 1,
+    },
+    commentHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: SPACING.xs,
+    },
+    commentUserName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      fontFamily: FONTS.family,
+    },
+    commentTime: {
+      fontSize: 12,
+      color: '#65676b',
+      fontFamily: FONTS.family,
+      marginTop: 2,
+    },
+    commentMenuButton: {
+      padding: SPACING.xs,
+    },
+    commentMenu: {
+      position: 'absolute',
+      top: 30,
+      right: 0,
+      backgroundColor: '#ffffff',
+      borderRadius: RADIUS.small,
+      paddingVertical: SPACING.xs,
+      minWidth: 120,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 5,
+      zIndex: 1000,
+    },
+    commentMenuItem: {
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+    },
+    commentMenuItemLast: {
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
+    },
+    commentEditInput: {
+      backgroundColor: '#f0f2f5',
+      borderRadius: RADIUS.small,
+      padding: SPACING.sm,
+      fontSize: 15,
+      color: '#050505',
+      fontFamily: FONTS.family,
+      minHeight: 60,
+      marginBottom: SPACING.sm,
+    },
+    commentEditActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: SPACING.sm,
+    },
+    commentEditButton: {
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.xs,
+      borderRadius: RADIUS.small,
+      backgroundColor: '#f0f2f5',
+    },
+    commentEditButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      fontFamily: FONTS.family,
+    },
+    commentActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: SPACING.xs,
+    },
+    commentActionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingRight: SPACING.md,
+      gap: SPACING.xs,
+    },
+    commentActionText: {
+      fontSize: 13,
+      color: '#65676b',
+      fontFamily: FONTS.family,
+    },
+    commentInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
+      backgroundColor: '#ffffff',
+    },
+    commentInput: {
+      flex: 1,
+      backgroundColor: '#f0f2f5',
+      borderRadius: RADIUS.large,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      fontSize: 15,
+      color: '#050505',
+      fontFamily: FONTS.family,
+      maxHeight: 100,
+      marginRight: SPACING.sm,
+    },
+    mentionSuggestionsContainer: {
+      position: 'absolute',
+      bottom: 50,
+      left: SPACING.md,
+      right: SPACING.md + 40,
+      backgroundColor: '#ffffff',
+      borderRadius: RADIUS.medium,
+      maxHeight: 200,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 5,
+      zIndex: 1000,
+      borderWidth: 1,
+      borderColor: '#e4e6eb',
+    },
+    mentionSuggestionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f0f2f5',
+    },
+    mentionSuggestionItemLast: {
+      borderBottomWidth: 0,
+    },
+    mentionSuggestionImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: SPACING.sm,
+    },
+    mentionSuggestionName: {
+      fontSize: 15,
+      color: '#050505',
+      fontFamily: FONTS.family,
+    },
+    commentMenuOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'transparent',
+      zIndex: 999,
+    },
+    optionsMenuText: {
+      fontSize: 15,
+      color: '#050505',
+      fontFamily: FONTS.family,
+    },
+    optionsMenuTextDanger: {
+      color: '#E74C3C',
+    },
   }), [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight]);
 
 
@@ -858,6 +1576,8 @@ const StraysScreen = ({ navigation }) => {
             reporter={reportUsers[item.userId]}
             navigation={navigation}
             onOpenChat={onOpenChat}
+            onOpenComments={onOpenComments}
+            commentsCount={commentsCount[item.id] || 0}
             styles={styles}
             COLORS={COLORS}
           />
@@ -886,6 +1606,267 @@ const StraysScreen = ({ navigation }) => {
         report={selectedReport}
         reporter={selectedReport ? reportUsers[selectedReport.userId] : null}
       />
+
+      {/* Comments Modal */}
+      <Modal
+        visible={showComments}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowComments(false);
+          setCommentMenuId(null);
+          setEditingCommentId(null);
+          setReplyingToCommentId(null);
+          setReplyText('');
+          setExpandedReplies({});
+          setShowMentionSuggestions(false);
+          setMentionQuery('');
+          setMentionStartIndex(-1);
+          setFilteredFriends([]);
+        }}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
+          <StatusBar barStyle="dark-content" />
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            <View style={styles.commentModal}>
+              <View style={styles.commentModalHeader}>
+                <Text style={styles.commentModalTitle}>Comments</Text>
+                <TouchableOpacity 
+                  onPress={() => {
+                    setShowComments(false);
+                    setCommentMenuId(null);
+                    setEditingCommentId(null);
+                    setReplyingToCommentId(null);
+                    setReplyText('');
+                    setExpandedReplies({});
+                    setShowMentionSuggestions(false);
+                    setMentionQuery('');
+                    setMentionStartIndex(-1);
+                    setFilteredFriends([]);
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <MaterialIcons name="close" size={24} color="#050505" />
+                </TouchableOpacity>
+              </View>
+            {commentMenuId && (
+              <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
+                <View style={styles.commentMenuOverlay} />
+              </TouchableWithoutFeedback>
+            )}
+            <ScrollView 
+              style={styles.commentList}
+              onScrollBeginDrag={() => setCommentMenuId(null)}
+            >
+                {comments.map((comment) => {
+                const isCommentOwner = user?.uid === comment.userId;
+                const isReportOwner = user?.uid === selectedReport?.userId;
+                const canDelete = isCommentOwner || isReportOwner;
+                const canEdit = isCommentOwner;
+
+                return (
+                  <View key={comment.id} style={styles.commentItem}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (comment.userId && comment.userId !== user?.uid) {
+                          navigation.navigate('Profile', { userId: comment.userId });
+                        } else {
+                          navigation.navigate('Profile');
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                    {comment.userProfileImage ? (
+                      <Image source={{ uri: comment.userProfileImage }} style={styles.commentProfileImage} />
+                    ) : (
+                      <View style={[styles.commentProfileImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center' }]}>
+                        <MaterialIcons name="account-circle" size={32} color="#65676b" />
+                      </View>
+                    )}
+                    </TouchableOpacity>
+                    <View style={styles.commentContent}>
+                      <View style={styles.commentHeader}>
+                        <TouchableOpacity 
+                          style={{ flex: 1 }}
+                          onPress={() => {
+                            if (comment.userId && comment.userId !== user?.uid) {
+                              navigation.navigate('Profile', { userId: comment.userId });
+                            } else {
+                              navigation.navigate('Profile');
+                            }
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.commentUserName} numberOfLines={1} ellipsizeMode="tail">
+                            {comment.userName || 'Pet Lover'}
+                          </Text>
+                          {comment.createdAt && (
+                            <Text style={styles.commentTime}>
+                              {formatTime(comment.createdAt)}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                        {(canEdit || canDelete) && (
+                          <TouchableOpacity
+                            style={styles.commentMenuButton}
+                            onPress={() => setCommentMenuId(commentMenuId === comment.id ? null : comment.id)}
+                          >
+                            <MaterialIcons name="more-vert" size={18} color="#65676b" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      
+                      {commentMenuId === comment.id && (canEdit || canDelete) && (
+                        <>
+                          <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
+                            <View style={styles.commentMenuOverlay} />
+                          </TouchableWithoutFeedback>
+                          <View style={styles.commentMenu}>
+                            {canEdit && (
+                              <TouchableOpacity
+                                style={styles.commentMenuItem}
+                                onPress={() => {
+                                  setEditingCommentId(comment.id);
+                                  setEditCommentText(comment.text);
+                                  setCommentMenuId(null);
+                                }}
+                              >
+                                <Text style={styles.optionsMenuText}>Edit</Text>
+                              </TouchableOpacity>
+                            )}
+                            {canDelete && (
+                              <TouchableOpacity
+                                style={[styles.commentMenuItem, styles.commentMenuItemLast]}
+                                onPress={() => {
+                                  setCommentMenuId(null);
+                                  handleDeleteComment(comment.id);
+                                }}
+                              >
+                                <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </>
+                      )}
+
+                      {editingCommentId === comment.id ? (
+                        <View>
+                          <TextInput
+                            style={styles.commentEditInput}
+                            value={editCommentText}
+                            onChangeText={setEditCommentText}
+                            multiline
+                            autoFocus
+                          />
+                          <View style={styles.commentEditActions}>
+                            <TouchableOpacity
+                              style={styles.commentEditButton}
+                              onPress={() => {
+                                setEditingCommentId(null);
+                                setEditCommentText('');
+                              }}
+                            >
+                              <Text style={[styles.commentEditButtonText, { color: '#65676b' }]}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.commentEditButton, { backgroundColor: '#1877f2' }]}
+                              onPress={() => handleEditComment(comment.id)}
+                            >
+                              <Text style={[styles.commentEditButtonText, { color: '#ffffff' }]}>Save</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        renderTextWithMentions(comment.text, comment.mentionedUsers)
+                      )}
+                      
+                      {/* Comment Actions (Like) */}
+                      <View style={styles.commentActions}>
+                        <TouchableOpacity
+                          style={styles.commentActionButton}
+                          onPress={() => handleLikeComment(comment.id)}
+                          disabled={isLikingComment[comment.id]}
+                        >
+                          <MaterialIcons
+                            name="thumb-up"
+                            size={16}
+                            color={commentLikes[comment.id]?.isLiked ? '#1877f2' : '#65676b'}
+                            style={{ opacity: commentLikes[comment.id]?.isLiked ? 1 : 0.5 }}
+                          />
+                          {commentLikes[comment.id]?.count > 0 && (
+                            <Text style={[styles.commentActionText, commentLikes[comment.id]?.isLiked && { color: '#1877f2' }]}>
+                              {commentLikes[comment.id].count}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.commentInputContainer}>
+                <View style={{ flex: 1, position: 'relative' }}>
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder="Write a comment..."
+                  value={commentText}
+                  onChangeText={handleCommentTextChange}
+                  multiline
+                  editable={!isSubmittingComment}
+                />
+                  {showMentionSuggestions && filteredFriends.length > 0 && (
+                    <View style={styles.mentionSuggestionsContainer}>
+                      <ScrollView nestedScrollEnabled>
+                        {filteredFriends.map((friend, index) => (
+                          <TouchableOpacity
+                            key={friend.id}
+                            style={[
+                              styles.mentionSuggestionItem,
+                              index === filteredFriends.length - 1 && styles.mentionSuggestionItemLast
+                            ]}
+                            onPress={() => handleSelectMention(friend)}
+                            activeOpacity={0.7}
+                          >
+                            {friend.profileImage ? (
+                              <Image 
+                                source={{ uri: friend.profileImage }} 
+                                style={styles.mentionSuggestionImage} 
+                              />
+                            ) : (
+                              <View style={[styles.mentionSuggestionImage, { backgroundColor: '#e4e6eb', justifyContent: 'center', alignItems: 'center' }]}>
+                                <MaterialIcons name="account-circle" size={40} color="#65676b" />
+                              </View>
+                            )}
+                            <Text style={styles.mentionSuggestionName}>
+                              {friend.displayName || friend.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity 
+                  onPress={handleComment} 
+                  disabled={isSubmittingComment || !commentText.trim()}
+                  style={{ opacity: isSubmittingComment ? 0.6 : 1 }}
+                >
+                  {isSubmittingComment ? (
+                    <ActivityIndicator color="#1877f2" size="small" />
+                  ) : (
+                    <MaterialIcons name="send" size={24} color={commentText.trim() ? '#1877f2' : '#bcc0c4'} />
+                  )}
+                </TouchableOpacity>
+              </View>
+          </View>
+        </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 };

@@ -37,7 +37,10 @@ import {
   ShieldOff,
   Archive,
   ArrowLeft,
-  Flag
+  Flag,
+  Megaphone,
+  Plus,
+  X
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 import UserReports from './UserReports';
@@ -118,8 +121,17 @@ const AgriculturalDashboard = () => {
   const [recentActivity, setRecentActivity] = useState([]);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [isCreatingAnnouncement, setIsCreatingAnnouncement] = useState(false);
 
   const generateChartData = (pets) => {
+    // Filter only registered pets
+    const registeredPets = pets.filter(pet => 
+      pet.registrationStatus === 'registered' && !pet.archived
+    );
+    
     const now = new Date();
     const months = [];
     
@@ -127,8 +139,19 @@ const AgriculturalDashboard = () => {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
-      const monthPets = pets.filter(pet => {
-        const petDate = pet.createdAt?.toDate ? pet.createdAt.toDate() : new Date(pet.createdAt);
+      const monthPets = registeredPets.filter(pet => {
+        // Use registeredAt date if available, otherwise fall back to createdAt
+        let petDate;
+        if (pet.registeredAt?.toDate) {
+          petDate = pet.registeredAt.toDate();
+        } else if (pet.registeredAt) {
+          petDate = new Date(pet.registeredAt);
+        } else if (pet.createdAt?.toDate) {
+          petDate = pet.createdAt.toDate();
+        } else {
+          petDate = new Date(pet.createdAt || 0);
+        }
+        
         return petDate.getMonth() === date.getMonth() && 
                petDate.getFullYear() === date.getFullYear();
       });
@@ -319,7 +342,8 @@ const AgriculturalDashboard = () => {
       setArchivedPets(archived);
       setArchivedRegisteredPets(archivedRegistered);
       
-      setChartData(generateChartData(allPets));
+      // Use only registered pets for chart data
+      setChartData(generateChartData(registered));
     });
 
     const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -552,6 +576,71 @@ const getOwnerProfileImage = (pet) => {
     } catch (error) {
       console.error('Error rejecting registration:', error);
       toast.error('Failed to reject registration');
+    }
+  };
+
+  const handleCreateAnnouncement = async () => {
+    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+      toast.error('Please fill in both title and message');
+      return;
+    }
+
+    setIsCreatingAnnouncement(true);
+    try {
+      // Get all users
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const userIds = [];
+      usersSnapshot.forEach((userDoc) => {
+        userIds.push(userDoc.id);
+      });
+
+      // Create announcement document
+      const announcementRef = await addDoc(collection(db, 'announcements'), {
+        title: announcementTitle.trim(),
+        message: announcementMessage.trim(),
+        createdBy: currentUser?.email || 'agricultural_admin',
+        createdById: currentUser?.uid || '',
+        createdAt: serverTimestamp(),
+        targetUsers: 'all', // All users
+        isActive: true
+      });
+
+      // Create notifications for all users
+      const batch = writeBatch(db);
+      const notificationPromises = [];
+
+      userIds.forEach((userId) => {
+        const notificationRef = doc(collection(db, 'notifications'));
+        batch.set(notificationRef, {
+          userId: userId,
+          title: announcementTitle.trim(),
+          body: announcementMessage.trim(),
+          type: 'announcement',
+          announcementId: announcementRef.id,
+          read: false,
+          createdAt: serverTimestamp()
+        });
+        notificationPromises.push(notificationRef);
+      });
+
+      await batch.commit();
+
+      // Log activity
+      await logActivity(
+        `Created announcement: "${announcementTitle.trim()}"`,
+        'create',
+        `Sent announcement to ${userIds.length} users`
+      );
+
+      toast.success(`Announcement sent to ${userIds.length} users!`);
+      setShowAnnouncementModal(false);
+      setAnnouncementTitle('');
+      setAnnouncementMessage('');
+    } catch (error) {
+      console.error('Error creating announcement:', error);
+      toast.error('Failed to create announcement');
+    } finally {
+      setIsCreatingAnnouncement(false);
     }
   };
 
@@ -1303,6 +1392,18 @@ const getOwnerProfileImage = (pet) => {
         {/* Dashboard Content */}
         {!isLoading && activeTab === 'dashboard' && (
           <div className="space-y-6">
+            {/* Header with Create Announcement Button */}
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+              <button
+                onClick={() => setShowAnnouncementModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                <Megaphone className="h-5 w-5" />
+                <span>Create Announcement</span>
+              </button>
+            </div>
+
             {/* Overview Cards (match Impound UI) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
               <div className="bg-gradient-to-br from-blue-50 to-purple-100 border border-blue-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
@@ -1372,41 +1473,40 @@ const getOwnerProfileImage = (pet) => {
 
             {/* Chart Layout */}
             <div className="grid grid-cols-1 gap-6">
-              {/* Registered Pets Line Chart */}
-              <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 rounded-xl shadow-lg p-4 sm:p-6">
-                <h3 className="text-base sm:text-lg font-medium text-white mb-3 sm:mb-4">Registered Pets Trend</h3>
+              {/* Registered Pets Line Chart - Minimal Design */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Registered Pets Trend (Last 6 Months)</h3>
+                  <span className="text-xs text-gray-500">Total: {registeredPets.length}</span>
+                </div>
                 <div className="h-48 sm:h-64">
                   <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
-                    {/* Grid lines */}
+                    {/* Simple grid lines */}
                     <defs>
                       <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
                       </pattern>
-                      <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.4"/>
-                        <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/>
-                      </linearGradient>
                     </defs>
                     <rect width="100%" height="100%" fill="url(#grid)" />
                     
-                    {/* Chart area fill (dynamic) */}
+                    {/* Simple chart area fill */}
                     <path
                       d={generateChartAreaPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
-                      fill="url(#chartGradient)"
+                      fill="#3b82f6"
+                      fillOpacity="0.1"
                     />
                     
-                    {/* Chart line (dynamic) */}
+                    {/* Simple chart line */}
                     <path
                       d={generateChartPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
                       fill="none"
-                      stroke="#ffffff"
-                      strokeWidth="4"
+                      stroke="#3b82f6"
+                      strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
                     />
                     
-                    {/* Data points (dynamic) */}
+                    {/* Simple data points */}
                     {chartData.map((data, index) => {
                       const maxValue = Math.max(...chartData.map(d => d.count), 1);
                       const x = 20 + (index * 80);
@@ -1416,24 +1516,31 @@ const getOwnerProfileImage = (pet) => {
                           key={index}
                           cx={x} 
                           cy={y} 
-                          r="6" 
-                          fill="#ffffff" 
-                          stroke="#10b981" 
-                          strokeWidth="3" 
-                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                          r="4" 
+                          fill="#3b82f6" 
+                          stroke="#ffffff"
+                          strokeWidth="2"
                         />
                       );
                     })}
                     
-                    {/* Labels */}
-                    <text x="20" y="195" textAnchor="middle" className="text-xs fill-white">Jan</text>
-                    <text x="80" y="195" textAnchor="middle" className="text-xs fill-white">Feb</text>
-                    <text x="120" y="195" textAnchor="middle" className="text-xs fill-white">Mar</text>
-                    <text x="200" y="195" textAnchor="middle" className="text-xs fill-white">Apr</text>
-                    <text x="280" y="195" textAnchor="middle" className="text-xs fill-white">May</text>
-                    <text x="360" y="195" textAnchor="middle" className="text-xs fill-white">Jun</text>
+                    {/* Month labels */}
+                    {chartData.map((data, index) => {
+                      const x = 20 + (index * 80);
+                      return (
+                        <text 
+                          key={index}
+                          x={x} 
+                          y="195" 
+                          textAnchor="middle" 
+                          className="text-xs fill-gray-600"
+                        >
+                          {data.month}
+                        </text>
+                      );
+                    })}
                     
-                    {/* Y-axis labels (dynamic ticks) */}
+                    {/* Y-axis labels */}
                     {(() => {
                       const maxValue = Math.max(...chartData.map(d => d.count), 1);
                       const tickMax = Math.max(5, Math.ceil(maxValue / 5) * 5);
@@ -1442,15 +1549,23 @@ const getOwnerProfileImage = (pet) => {
                         const y = 180 - Math.min((t / tickMax) * 160, 160);
                         const label = t % 1 === 0 ? t : t.toFixed(0);
                         return (
-                          <text key={i} x="10" y={y + 5} textAnchor="end" className="text-xs fill-white">{label}</text>
+                          <text 
+                            key={i}
+                            x="15" 
+                            y={y + 4} 
+                            textAnchor="end" 
+                            className="text-xs fill-gray-500"
+                          >
+                            {label}
+                          </text>
                         );
                       });
                     })()}
                   </svg>
                 </div>
-                <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 text-xs sm:text-sm text-white">
-                  <span>Total Registered: {pets.length}</span>
-                  <span>Max (6mo): {Math.max(...chartData.map(d => d.count), 0)}</span>
+                <div className="mt-3 flex justify-between text-xs text-gray-600">
+                  <span>Period Total: {chartData.reduce((sum, d) => sum + d.count, 0)}</span>
+                  <span>Peak: {Math.max(...chartData.map(d => d.count), 0)}</span>
                 </div>
               </div>
 
@@ -3312,6 +3427,114 @@ const getOwnerProfileImage = (pet) => {
                   Deactivate User
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Announcement Modal */}
+      {showAnnouncementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <Megaphone className="h-6 w-6 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Create Announcement</h2>
+                    <p className="text-sm text-gray-500">Send an announcement to all users</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowAnnouncementModal(false);
+                    setAnnouncementTitle('');
+                    setAnnouncementMessage('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  placeholder="Enter announcement title..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  maxLength={100}
+                />
+                <p className="mt-1 text-xs text-gray-500">{announcementTitle.length}/100 characters</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Message <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={announcementMessage}
+                  onChange={(e) => setAnnouncementMessage(e.target.value)}
+                  placeholder="Enter announcement message..."
+                  rows={6}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  maxLength={500}
+                />
+                <p className="mt-1 text-xs text-gray-500">{announcementMessage.length}/500 characters</p>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Bell className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">What happens next?</p>
+                    <ul className="mt-2 text-sm text-blue-800 space-y-1 list-disc list-inside">
+                      <li>This announcement will be sent to all registered users</li>
+                      <li>Users will receive a notification on their home screen</li>
+                      <li>The announcement will appear in their notifications</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAnnouncementModal(false);
+                  setAnnouncementTitle('');
+                  setAnnouncementMessage('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                disabled={isCreatingAnnouncement}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateAnnouncement}
+                disabled={isCreatingAnnouncement || !announcementTitle.trim() || !announcementMessage.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isCreatingAnnouncement ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Megaphone className="h-4 w-4" />
+                    <span>Send Announcement</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

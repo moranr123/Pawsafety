@@ -9,7 +9,9 @@ import {
   Image,
   Alert,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform,
+  StatusBar
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -196,18 +198,27 @@ const EditReportScreen = ({ navigation, route }) => {
     }
   };
 
+  // Facebook color scheme
+  const facebookBlue = '#1877F2';
+  const facebookBackground = '#F0F2F5';
+  const facebookCardBg = '#FFFFFF';
+  const facebookText = '#050505';
+  const facebookSecondaryText = '#65676B';
+  const facebookBorder = '#E4E6EB';
+  const facebookInputBg = '#F0F2F5';
+
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#F8FAFC',
+      backgroundColor: facebookBackground,
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: 50,
-      paddingBottom: SPACING.md,
+      backgroundColor: '#ffffff',
+      paddingHorizontal: SPACING.md,
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+      borderBottomColor: '#e4e6eb',
       ...SHADOWS.light,
     },
     headerContent: {
@@ -215,40 +226,43 @@ const EditReportScreen = ({ navigation, route }) => {
       alignItems: 'center',
     },
     backButton: {
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      borderRadius: 20,
       width: 40,
       height: 40,
+      borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: '#e4e6eb',
       marginRight: SPACING.md,
     },
     headerTitle: {
       fontSize: 20,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '700',
-      color: COLORS.white,
+      color: '#050505',
       flex: 1,
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,
+      paddingHorizontal: SPACING.md,
+      paddingTop: SPACING.md,
     },
     formCard: {
-      backgroundColor: COLORS.white,
-      borderRadius: 20,
-      padding: SPACING.lg,
-      marginBottom: SPACING.lg,
-      ...SHADOWS.medium,
-      elevation: 5,
+      backgroundColor: facebookCardBg,
+      borderRadius: 10,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     sectionTitle: {
-      fontSize: 18,
-      fontFamily: 'SF Pro Display',
-      fontWeight: '700',
-      color: '#1E293B',
-      marginBottom: SPACING.md,
+      fontSize: 17,
+      fontFamily: FONTS.family,
+      fontWeight: '600',
+      color: facebookText,
+      marginBottom: SPACING.sm,
     },
     imageSection: {
       marginBottom: SPACING.xl,
@@ -256,19 +270,19 @@ const EditReportScreen = ({ navigation, route }) => {
     imageContainer: {
       width: '100%',
       height: 220,
-      backgroundColor: '#F1F5F9',
-      borderRadius: 15,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: SPACING.md,
       overflow: 'hidden',
-      borderWidth: 2,
-      borderColor: '#E2E8F0',
+      borderWidth: 1,
+      borderColor: facebookBorder,
       borderStyle: 'dashed',
     },
     imageContainerWithPhoto: {
       borderStyle: 'solid',
-      borderColor: COLORS.mediumBlue,
+      borderColor: facebookBlue,
     },
     image: {
       width: '100%',
@@ -283,16 +297,16 @@ const EditReportScreen = ({ navigation, route }) => {
       marginBottom: SPACING.sm,
     },
     placeholderText: {
-      fontSize: 16,
-      fontFamily: 'SF Pro Display',
+      fontSize: 15,
+      fontFamily: FONTS.family,
       fontWeight: '500',
-      color: '#64748B',
+      color: facebookSecondaryText,
       textAlign: 'center',
     },
     placeholderSubtext: {
       fontSize: 14,
-      fontFamily: 'SF Pro Display',
-      color: '#94A3B8',
+      fontFamily: FONTS.family,
+      color: facebookSecondaryText,
       textAlign: 'center',
       marginTop: 4,
     },
@@ -301,29 +315,28 @@ const EditReportScreen = ({ navigation, route }) => {
       gap: SPACING.sm,
     },
     imageButton: {
-      backgroundColor: COLORS.mediumBlue,
-      paddingVertical: SPACING.md,
-      borderRadius: 12,
+      backgroundColor: facebookBlue,
+      paddingVertical: SPACING.sm,
+      borderRadius: 8,
       flex: 1,
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'center',
-      ...SHADOWS.light,
     },
     imageButtonSecondary: {
-      backgroundColor: '#F1F5F9',
+      backgroundColor: facebookInputBg,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: facebookBorder,
     },
     imageButtonText: {
-      color: COLORS.white,
+      color: '#FFFFFF',
       fontSize: 15,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '600',
       marginLeft: SPACING.xs,
     },
     imageButtonTextSecondary: {
-      color: '#475569',
+      color: facebookText,
     },
     inputSection: {
       marginBottom: SPACING.xl,
@@ -424,12 +437,12 @@ const EditReportScreen = ({ navigation, route }) => {
       backgroundColor: '#F8FAFC',
     },
     modalHeader: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: 50,
-      paddingBottom: SPACING.md,
+      backgroundColor: '#ffffff',
+      paddingHorizontal: SPACING.md,
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+      borderBottomColor: '#e4e6eb',
       ...SHADOWS.light,
     },
     modalHeaderContent: {
@@ -439,9 +452,9 @@ const EditReportScreen = ({ navigation, route }) => {
     },
     modalTitle: {
       fontSize: 20,
-      fontFamily: 'SF Pro Display',
+      fontFamily: FONTS.family,
       fontWeight: '700',
-      color: COLORS.white,
+      color: '#050505',
     },
     closeButton: {
       backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -463,31 +476,32 @@ const EditReportScreen = ({ navigation, route }) => {
       zIndex: 1000,
     },
     loadingContent: {
-      backgroundColor: COLORS.white,
-      borderRadius: 15,
+      backgroundColor: facebookCardBg,
+      borderRadius: 12,
       padding: SPACING.xl,
       alignItems: 'center',
       minWidth: 150,
     },
     loadingText: {
       marginTop: SPACING.md,
-      fontSize: 16,
-      fontFamily: 'SF Pro Display',
+      fontSize: 15,
+      fontFamily: FONTS.family,
       fontWeight: '600',
-      color: '#1E293B',
+      color: facebookText,
     },
-  }), [COLORS]);
+  }), []);
 
   return (
     <View style={styles.container}>
       {/* Header */}
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => navigation.goBack()}
           >
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+            <MaterialIcons name="arrow-back" size={24} color="#050505" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Report</Text>
         </View>
@@ -509,7 +523,7 @@ const EditReportScreen = ({ navigation, route }) => {
                   <MaterialIcons 
                     name="add-a-photo" 
                     size={48} 
-                    color="#94A3B8" 
+                    color={facebookSecondaryText} 
                     style={styles.placeholderIcon}
                   />
                   <Text style={styles.placeholderText}>Add a photo</Text>
@@ -524,14 +538,14 @@ const EditReportScreen = ({ navigation, route }) => {
                 style={styles.imageButton} 
                 onPress={takePhoto}
               >
-                <MaterialIcons name="camera-alt" size={20} color={COLORS.white} />
+                <MaterialIcons name="camera-alt" size={20} color="#FFFFFF" />
                 <Text style={styles.imageButtonText}>Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.imageButton, styles.imageButtonSecondary]} 
                 onPress={pickImage}
               >
-                <MaterialIcons name="photo-library" size={20} color="#475569" />
+                <MaterialIcons name="photo-library" size={20} color={facebookText} />
                 <Text style={[styles.imageButtonText, styles.imageButtonTextSecondary]}>
                   Gallery
                 </Text>
@@ -550,7 +564,7 @@ const EditReportScreen = ({ navigation, route }) => {
               value={description}
               onChangeText={setDescription}
               placeholder="Describe the pet's appearance, behavior, condition..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={facebookSecondaryText}
               multiline
               textAlignVertical="top"
             />
@@ -575,7 +589,7 @@ const EditReportScreen = ({ navigation, route }) => {
               ]}>
                 {locationName || 'Tap to set location'}
               </Text>
-              <MaterialIcons name="my-location" size={24} color={COLORS.mediumBlue} />
+              <MaterialIcons name="my-location" size={24} color={facebookBlue} />
             </TouchableOpacity>
           </View>
         </View>
@@ -639,7 +653,7 @@ const EditReportScreen = ({ navigation, route }) => {
                 style={styles.closeButton}
                 onPress={() => setLocationModalVisible(false)}
               >
-                <MaterialIcons name="close" size={20} color={COLORS.white} />
+                <MaterialIcons name="close" size={20} color={facebookSecondaryText} />
               </TouchableOpacity>
             </View>
           </View>
@@ -668,7 +682,7 @@ const EditReportScreen = ({ navigation, route }) => {
       {loading && (
         <View style={styles.loadingContainer}>
           <View style={styles.loadingContent}>
-            <ActivityIndicator size="large" color={COLORS.darkPurple} />
+            <ActivityIndicator size="large" color={facebookBlue} />
             <Text style={styles.loadingText}>Updating...</Text>
           </View>
         </View>

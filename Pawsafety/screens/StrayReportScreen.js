@@ -4,13 +4,14 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   Image,
   TextInput,
   Modal,
-  Dimensions
+  Dimensions,
+  Platform,
+  StatusBar
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -335,28 +336,65 @@ const StrayReportScreen = ({ navigation, route }) => {
     }
   };
 
+  // Facebook color scheme
+  const facebookBlue = '#1877F2';
+  const facebookBackground = '#F0F2F5';
+  const facebookCardBg = '#FFFFFF';
+  const facebookText = '#050505';
+  const facebookSecondaryText = '#65676B';
+  const facebookBorder = '#E4E6EB';
+  const facebookInputBg = '#F0F2F5';
+
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: COLORS.background,
+      backgroundColor: facebookBackground,
+    },
+    header: {
+      backgroundColor: '#ffffff',
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+      ...SHADOWS.light,
+    },
+    headerContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.md,
     },
     backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#e4e6eb',
       marginRight: SPACING.md,
     },
     helpButton: {
-      marginLeft: SPACING.md,
-      padding: SPACING.sm,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#e4e6eb',
     },
     scrollView: {
       flex: 1,
-      padding: SPACING.lg,
+      padding: SPACING.md,
     },
     formContainer: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      padding: SPACING.lg,
-      marginBottom: SPACING.lg,
-      ...SHADOWS.medium,
+      backgroundColor: facebookCardBg,
+      borderRadius: 10,
+      padding: SPACING.md,
+      marginBottom: SPACING.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     formHeader: {
       flexDirection: 'row',
@@ -364,22 +402,22 @@ const StrayReportScreen = ({ navigation, route }) => {
       marginBottom: SPACING.xl,
     },
     formTitle: {
-      fontSize: FONTS.sizes.xlarge,
+      fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '700',
+      color: '#050505',
       flex: 1,
       textAlign: 'center',
     },
     section: {
-      marginBottom: SPACING.xl,
+      marginBottom: SPACING.lg,
     },
     sectionTitle: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 17,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginBottom: SPACING.md,
+      fontWeight: '600',
+      color: facebookText,
+      marginBottom: SPACING.sm,
     },
     reportTypeContainer: {
       flexDirection: 'row',
@@ -389,36 +427,36 @@ const StrayReportScreen = ({ navigation, route }) => {
     reportTypeButton: {
       flex: 1,
       minWidth: '30%',
-      paddingVertical: SPACING.md,
+      paddingVertical: SPACING.sm,
       paddingHorizontal: SPACING.sm,
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: RADIUS.medium,
-      borderWidth: 2,
-      borderColor: COLORS.lightBlue,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: facebookBorder,
       alignItems: 'center',
       justifyContent: 'center',
     },
     reportTypeButtonActive: {
-      backgroundColor: COLORS.mediumBlue,
-      borderColor: COLORS.darkPurple,
+      backgroundColor: facebookBlue,
+      borderColor: facebookBlue,
     },
     reportTypeText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
-      color: COLORS.secondaryText,
+      fontWeight: '600',
+      color: facebookText,
       textAlign: 'center',
     },
     reportTypeTextActive: {
-      color: COLORS.white,
-      fontWeight: FONTS.weights.bold,
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
     photoContainer: {
       minHeight: 150,
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: RADIUS.medium,
-      borderWidth: 2,
-      borderColor: COLORS.lightBlue,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: facebookBorder,
       borderStyle: 'dashed',
       justifyContent: 'center',
       alignItems: 'center',
@@ -426,7 +464,7 @@ const StrayReportScreen = ({ navigation, route }) => {
     },
     photoContainerWithImages: {
       borderStyle: 'solid',
-      borderColor: COLORS.mediumBlue,
+      borderColor: facebookBlue,
       minHeight: 120,
       padding: SPACING.sm,
     },
@@ -435,9 +473,9 @@ const StrayReportScreen = ({ navigation, route }) => {
       padding: SPACING.lg,
     },
     addPhotoText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       marginTop: SPACING.sm,
     },
     imagesGrid: {
@@ -469,29 +507,24 @@ const StrayReportScreen = ({ navigation, route }) => {
       alignItems: 'center',
     },
     inputContainer: {
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
       marginBottom: SPACING.md,
-      borderWidth: 1,
-      borderColor: COLORS.lightGray,
     },
     inputLabel: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
-      color: COLORS.text,
-      marginBottom: SPACING.sm,
+      fontWeight: '600',
+      color: facebookText,
+      marginBottom: SPACING.xs,
     },
     textInput: {
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
+      borderColor: facebookBorder,
+      borderRadius: 8,
       padding: SPACING.md,
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
-      backgroundColor: COLORS.white,
+      color: facebookText,
+      backgroundColor: facebookCardBg,
     },
     textArea: {
       height: 100,
@@ -500,47 +533,51 @@ const StrayReportScreen = ({ navigation, route }) => {
     locationButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: COLORS.white,
+      backgroundColor: facebookCardBg,
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
+      borderColor: facebookBorder,
+      borderRadius: 8,
       padding: SPACING.md,
       justifyContent: 'space-between',
     },
     locationButtonText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: location ? COLORS.text : COLORS.secondaryText,
+      color: location ? facebookText : facebookSecondaryText,
       flex: 1,
     },
     timeContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: COLORS.white,
+      backgroundColor: facebookCardBg,
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
+      borderColor: facebookBorder,
+      borderRadius: 8,
       padding: SPACING.md,
     },
     timeText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
+      color: facebookText,
       flex: 1,
     },
     submitButton: {
-      backgroundColor: COLORS.darkPurple,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.lg,
+      backgroundColor: facebookBlue,
+      borderRadius: 8,
+      padding: SPACING.md,
       alignItems: 'center',
-      marginTop: SPACING.xl,
-      ...SHADOWS.medium,
+      marginTop: SPACING.lg,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     submitButtonText: {
-      color: COLORS.white,
-      fontSize: FONTS.sizes.large,
+      color: '#FFFFFF',
+      fontSize: 17,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
+      fontWeight: '700',
     },
     modal: {
       flex: 1,
@@ -549,55 +586,58 @@ const StrayReportScreen = ({ navigation, route }) => {
       alignItems: 'center',
     },
     modalContent: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      padding: SPACING.xl,
-      width: width - SPACING.lg * 2,
+      backgroundColor: facebookCardBg,
+      borderRadius: 20,
+      padding: SPACING.md,
+      width: width - SPACING.md * 2,
       maxHeight: '80%',
     },
     modalHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: SPACING.lg,
+      marginBottom: SPACING.md,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: facebookBorder,
     },
     modalTitle: {
-      fontSize: FONTS.sizes.xlarge,
+      fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '700',
+      color: facebookText,
     },
     locationInfo: {
-      backgroundColor: COLORS.lightBlue,
-      borderRadius: RADIUS.medium,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
       padding: SPACING.md,
       marginTop: SPACING.md,
     },
     locationInfoTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.xs,
     },
     locationInfoText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       lineHeight: 20,
     },
     modalButton: {
-      backgroundColor: COLORS.mediumBlue,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.lg,
+      backgroundColor: facebookBlue,
+      borderRadius: 8,
+      padding: SPACING.md,
       alignItems: 'center',
       marginBottom: SPACING.md,
     },
     modalButtonText: {
-      color: COLORS.white,
-      fontSize: FONTS.sizes.medium,
+      color: '#FFFFFF',
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
+      fontWeight: '700',
     },
     mapContainer: {
       width: '100%',
@@ -620,10 +660,10 @@ const StrayReportScreen = ({ navigation, route }) => {
       padding: SPACING.lg,
     },
     instructionModalContent: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      padding: SPACING.lg,
-      marginHorizontal: SPACING.lg,
+      backgroundColor: facebookCardBg,
+      borderRadius: 20,
+      padding: SPACING.md,
+      marginHorizontal: SPACING.md,
       maxHeight: '90%',
       width: '90%',
       maxWidth: 500,
@@ -633,16 +673,16 @@ const StrayReportScreen = ({ navigation, route }) => {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: SPACING.lg,
+      marginBottom: SPACING.md,
       paddingBottom: SPACING.md,
       borderBottomWidth: 1,
-      borderBottomColor: COLORS.lightBlue,
+      borderBottomColor: facebookBorder,
     },
     instructionModalTitle: {
-      fontSize: FONTS.sizes.xlarge,
+      fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '700',
+      color: facebookText,
       flex: 1,
     },
     instructionCloseButton: {
@@ -655,20 +695,20 @@ const StrayReportScreen = ({ navigation, route }) => {
       paddingBottom: SPACING.md,
     },
     instructionSubtitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       textAlign: 'center',
-      marginBottom: SPACING.lg,
+      marginBottom: SPACING.md,
       lineHeight: 22,
     },
     stepContainer: {
       flexDirection: 'row',
-      marginBottom: SPACING.lg,
+      marginBottom: SPACING.md,
       alignItems: 'flex-start',
     },
     stepNumber: {
-      backgroundColor: COLORS.darkPurple,
+      backgroundColor: facebookBlue,
       borderRadius: 20,
       width: 40,
       height: 40,
@@ -677,78 +717,78 @@ const StrayReportScreen = ({ navigation, route }) => {
       marginRight: SPACING.md,
     },
     stepNumberText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
+      fontWeight: '700',
+      color: '#FFFFFF',
     },
     stepContent: {
       flex: 1,
     },
     stepTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.xs,
     },
     stepDescription: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 14,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       lineHeight: 20,
     },
     tipContainer: {
-      backgroundColor: COLORS.lightBlue,
-      borderRadius: RADIUS.medium,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
       padding: SPACING.md,
       marginBottom: SPACING.md,
     },
     tipTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.xs,
     },
     tipText: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 14,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       lineHeight: 20,
     },
     noteContainer: {
-      backgroundColor: COLORS.background,
-      borderRadius: RADIUS.medium,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
       padding: SPACING.md,
       borderLeftWidth: 4,
-      borderLeftColor: COLORS.golden,
+      borderLeftColor: '#F9CE69',
       marginBottom: SPACING.md,
     },
     noteTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.xs,
     },
     noteText: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 14,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       lineHeight: 20,
     },
     reportTypesContainer: {
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: RADIUS.medium,
+      backgroundColor: facebookInputBg,
+      borderRadius: 8,
       padding: SPACING.md,
       marginBottom: SPACING.md,
     },
     reportTypesTitle: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.md,
     },
     reportTypeItem: {
@@ -765,56 +805,63 @@ const StrayReportScreen = ({ navigation, route }) => {
       flex: 1,
     },
     reportTypeName: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
+      fontWeight: '600',
+      color: facebookText,
       marginBottom: SPACING.xs,
     },
     reportTypeDesc: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 14,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: facebookSecondaryText,
       lineHeight: 18,
     },
     instructionGotItButton: {
-      backgroundColor: COLORS.darkPurple,
-      borderRadius: RADIUS.medium,
+      backgroundColor: facebookBlue,
+      borderRadius: 8,
       paddingVertical: SPACING.md,
       paddingHorizontal: SPACING.xl,
       alignItems: 'center',
-      marginTop: SPACING.lg,
-      ...SHADOWS.medium,
+      marginTop: SPACING.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     instructionGotItButtonText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
+      fontWeight: '700',
+      color: '#FFFFFF',
     },
 
   }), [COLORS, width, location, selectedImages.length]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#050505" />
+          </TouchableOpacity>
+          <Text style={styles.formTitle}>Report Form</Text>
+          <TouchableOpacity 
+            style={styles.helpButton}
+            onPress={() => setShowInstructionModal(true)}
+          >
+            <MaterialIcons name="help-outline" size={24} color="#050505" />
+          </TouchableOpacity>
+        </View>
+      </View>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Stray Pet Report Form */}
         <View style={styles.formContainer}>
-          <View style={styles.formHeader}>
-            <TouchableOpacity 
-              style={styles.backButton} 
-              onPress={() => navigation.goBack()}
-            >
-              <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.formTitle}>Report Form</Text>
-            <TouchableOpacity 
-              style={styles.helpButton}
-              onPress={() => setShowInstructionModal(true)}
-            >
-              <MaterialIcons name="help-outline" size={24} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
           
           {/* Report Type Selection */}
           <View style={styles.section}>
@@ -877,7 +924,7 @@ const StrayReportScreen = ({ navigation, route }) => {
             >
               {selectedImages.length === 0 ? (
                 <View style={styles.addPhotoButton}>
-                  <MaterialIcons name="camera-alt" size={40} color={COLORS.secondaryText} />
+                  <MaterialIcons name="camera-alt" size={40} color={facebookSecondaryText} />
                   <Text style={styles.addPhotoText}>Tap to add photos</Text>
                 </View>
               ) : (
@@ -889,16 +936,16 @@ const StrayReportScreen = ({ navigation, route }) => {
                         style={styles.removeImageButton}
                         onPress={() => removeImage(index)}
                       >
-                        <MaterialIcons name="close" size={16} color={COLORS.white} />
+                        <MaterialIcons name="close" size={16} color="#FFFFFF" />
                       </TouchableOpacity>
                     </View>
                   ))}
                   {selectedImages.length < 6 && (
                     <TouchableOpacity
-                      style={[styles.imageContainer, { backgroundColor: COLORS.lightBlue, justifyContent: 'center', alignItems: 'center' }]}
+                      style={[styles.imageContainer, { backgroundColor: facebookInputBg, justifyContent: 'center', alignItems: 'center' }]}
                       onPress={showImagePickerOptions}
                     >
-                      <MaterialIcons name="add" size={30} color={COLORS.secondaryText} />
+                      <MaterialIcons name="add" size={30} color={facebookSecondaryText} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -916,7 +963,7 @@ const StrayReportScreen = ({ navigation, route }) => {
               <Text style={styles.locationButtonText}>
                 {locationName || 'Tap to set location'}
               </Text>
-              <MaterialIcons name="location-pin" size={24} color={COLORS.mediumBlue} />
+              <MaterialIcons name="location-pin" size={24} color={facebookBlue} />
             </TouchableOpacity>
           </View>
 
@@ -927,7 +974,7 @@ const StrayReportScreen = ({ navigation, route }) => {
               <Text style={styles.timeText}>
                 {reportTime.toLocaleDateString()} at {reportTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
               </Text>
-              <MaterialIcons name="access-time" size={24} color={COLORS.mediumBlue} />
+              <MaterialIcons name="access-time" size={24} color={facebookBlue} />
             </View>
           </View>
 
@@ -942,7 +989,7 @@ const StrayReportScreen = ({ navigation, route }) => {
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Describe the pet's appearance, condition, behavior, size, color, type, any visible injuries..."
-                placeholderTextColor={COLORS.secondaryText}
+                placeholderTextColor={facebookSecondaryText}
                 multiline
               />
             </View>
@@ -967,7 +1014,7 @@ const StrayReportScreen = ({ navigation, route }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pin Location</Text>
               <TouchableOpacity onPress={() => setShowLocationModal(false)}>
-                <MaterialIcons name="close" size={24} color={COLORS.text} />
+                <MaterialIcons name="close" size={24} color={facebookText} />
               </TouchableOpacity>
             </View>
             <View style={styles.mapContainer}>
@@ -1020,7 +1067,7 @@ const StrayReportScreen = ({ navigation, route }) => {
                     }}
                     title="Selected Location"
                     description={locationName}
-                    pinColor={COLORS.mediumBlue}
+                    pinColor={facebookBlue}
                   />
                 )}
               </MapView>
@@ -1030,7 +1077,7 @@ const StrayReportScreen = ({ navigation, route }) => {
               <Text style={styles.locationInfoText}>{locationName || 'Tap on the map to select a location'}</Text>
             </View>
             <TouchableOpacity
-              style={[styles.modalButton, { marginTop: 10, backgroundColor: COLORS.darkPurple }]}
+              style={[styles.modalButton, { marginTop: 10 }]}
               onPress={() => setShowLocationModal(false)}
               disabled={!location}
             >
@@ -1055,7 +1102,7 @@ const StrayReportScreen = ({ navigation, route }) => {
                 style={styles.instructionCloseButton}
                 onPress={handleInstructionClose}
               >
-                <MaterialIcons name="close" size={24} color={COLORS.secondaryText} />
+                <MaterialIcons name="close" size={24} color={facebookSecondaryText} />
               </TouchableOpacity>
             </View>
 
@@ -1198,7 +1245,7 @@ const StrayReportScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

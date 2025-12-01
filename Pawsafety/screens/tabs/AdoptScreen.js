@@ -14,6 +14,8 @@ import {
   Platform,
   useWindowDimensions,
   SafeAreaView,
+  StatusBar,
+  Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -42,6 +44,9 @@ const AdoptScreen = () => {
   const [selectedPet, setSelectedPet] = useState(null);
   const [applyVisible, setApplyVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(null); // { petId: string } | null
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState({ hour: 9, minute: 0, period: 'AM' });
   const [appForm, setAppForm] = useState({
     fullName: '',
     phone: '',
@@ -111,10 +116,55 @@ const AdoptScreen = () => {
     }
   };
 
+  // Helper functions for date picker
+  const getDaysInMonth = (year, month) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const formatSelectedDateTime = () => {
+    if (!appForm.preferredDate) return 'Tap to select date and time';
+    return appForm.preferredDate;
+  };
+
+  const handleDateConfirm = () => {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    const day = selectedDate.getDate();
+    
+    let hour = selectedTime.hour;
+    if (selectedTime.period === 'PM' && hour !== 12) {
+      hour += 12;
+    } else if (selectedTime.period === 'AM' && hour === 12) {
+      hour = 0;
+    }
+    
+    const dateTime = new Date(year, month, day, hour, selectedTime.minute);
+    const formattedDate = dateTime.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const formattedTime = dateTime.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    setAppForm({ ...appForm, preferredDate: `${formattedDate} at ${formattedTime}` });
+    setShowDatePicker(false);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 800);
   };
+
+  // Close date picker when adopt form closes
+  useEffect(() => {
+    if (!applyVisible) {
+      setShowDatePicker(false);
+    }
+  }, [applyVisible]);
 
   const handleScroll = React.useCallback((event) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
@@ -355,114 +405,388 @@ const AdoptScreen = () => {
       marginLeft: 8,
       fontFamily: FONTS.family,
     },
-    ctaCard: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      marginBottom: SPACING.md,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      borderWidth: 1,
-      borderColor: COLORS.lightBlue,
-      ...SHADOWS.light,
+    bottomSpacing: {
+      height: 20,
     },
-    ctaIcon: {
-      fontSize: FONTS.sizes.xlarge,
+    // Adoption Application Modal Styles
+    applyModalOverlay: {
+      flex: 1,
+      backgroundColor: '#FFFFFF',
+    },
+    applyModalContainer: {
+      flex: 1,
+      backgroundColor: '#FFFFFF',
+    },
+    applyModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingHorizontal: SPACING.lg,
+      paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight + SPACING.md,
+      paddingBottom: SPACING.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E4E6EB',
+    },
+    applyModalTitleContainer: {
+      flex: 1,
       marginRight: SPACING.md,
     },
-    ctaContent: {
-      flex: 1,
+    applyModalTitle: {
+      fontSize: FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#050505',
     },
-    ctaTitle: {
+    applyModalSubtitle: {
       fontSize: FONTS.sizes.medium,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginBottom: SPACING.xs,
+      color: '#65676B',
+      marginTop: SPACING.xs,
     },
-    ctaText: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 18,
-      marginBottom: SPACING.sm,
+    applyModalCloseButton: {
+      padding: SPACING.xs,
+      minWidth: 40,
+      minHeight: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
-    ctaButton: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.small,
-      alignSelf: 'flex-start',
-    },
-    ctaButtonText: {
-      color: '#FFFFFF',
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-    },
-    bottomSpacing: {
-      height: 100,
+    applyModalContent: {
+      padding: SPACING.lg,
+      maxHeight: '80%',
     },
     input: {
       borderWidth: 1,
-      borderColor: '#e5e7eb',
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      marginTop: 8,
-      marginBottom: 8,
-      backgroundColor: '#fff'
+      borderColor: '#E4E6EB',
+      borderRadius: 8,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      marginTop: SPACING.xs,
+      marginBottom: SPACING.sm,
+      backgroundColor: '#F0F2F5',
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: '#050505',
+    },
+    inputFocused: {
+      borderColor: '#1877F2',
+      backgroundColor: '#FFFFFF',
     },
     label: {
       fontSize: FONTS.sizes.small,
-      color: '#334155',
-      marginTop: 8
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semibold,
+      color: '#050505',
+      marginTop: SPACING.sm,
+      marginBottom: SPACING.xs,
     },
     sectionHeader: {
       fontSize: FONTS.sizes.medium,
-      fontWeight: '700',
-      color: '#0f172a',
-      marginTop: 8,
-      marginBottom: 6
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#050505',
+      marginTop: SPACING.md,
+      marginBottom: SPACING.sm
     },
     sectionCard: {
-      backgroundColor: '#f8fafc',
-      borderRadius: 12,
-      padding: 12,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 10,
+      padding: SPACING.md,
       borderWidth: 1,
-      borderColor: '#e2e8f0',
-      marginTop: 8,
-      marginBottom: 8
+      borderColor: '#E4E6EB',
+      marginTop: SPACING.sm,
+      marginBottom: SPACING.sm,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     chipRow: {
       flexDirection: 'row',
-      gap: 8,
-      marginTop: 8,
-      marginBottom: 8
+      gap: SPACING.sm,
+      marginTop: SPACING.sm,
+      marginBottom: SPACING.sm,
+      flexWrap: 'wrap',
     },
     chipChoice: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 999,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderRadius: 20,
       borderWidth: 1,
-      borderColor: '#cbd5e1',
-      backgroundColor: '#fff'
+      borderColor: '#E4E6EB',
+      backgroundColor: '#F0F2F5',
     },
     chipChoiceActive: {
-      backgroundColor: COLORS.darkPurple,
-      borderColor: COLORS.darkPurple
+      backgroundColor: '#1877F2',
+      borderColor: '#1877F2'
+    },
+    chipChoiceText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.medium,
+      color: '#65676B',
+    },
+    chipChoiceTextActive: {
+      color: '#FFFFFF',
+      fontWeight: FONTS.weights.semibold,
     },
     checkbox: {
-      width: 18,
-      height: 18,
+      width: 20,
+      height: 20,
       borderRadius: 4,
-      borderWidth: 1,
-      borderColor: '#94a3b8',
-      backgroundColor: '#fff'
+      borderWidth: 2,
+      borderColor: '#E4E6EB',
+      backgroundColor: '#FFFFFF',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     checkboxChecked: {
-      backgroundColor: COLORS.darkPurple,
-      borderColor: COLORS.darkPurple
+      backgroundColor: '#1877F2',
+      borderColor: '#1877F2'
+    },
+    checkboxText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: '#050505',
+      lineHeight: 20,
+    },
+    applyModalButtons: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginTop: SPACING.lg,
+      gap: SPACING.sm,
+      paddingTop: SPACING.md,
+      borderTopWidth: 1,
+      borderTopColor: '#E4E6EB',
+    },
+    applyModalCancelButton: {
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.xl,
+      backgroundColor: '#F0F2F5',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: '#E4E6EB',
+    },
+    applyModalCancelText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semibold,
+      color: '#050505',
+    },
+    applyModalSubmitButton: {
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.xl,
+      backgroundColor: '#1877F2',
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    applyModalSubmitButtonDisabled: {
+      backgroundColor: '#BCC0C4',
+      shadowOpacity: 0,
+      elevation: 0,
+      opacity: 0.6,
+    },
+    applyModalSubmitText: {
+      fontSize: FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#FFFFFF',
+    },
+    applyModalSubmitTextDisabled: {
+      color: '#FFFFFF',
+      opacity: 0.8,
+    },
+    // Date Picker Styles
+    datePickerButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderColor: '#E4E6EB',
+      borderRadius: 8,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      marginTop: SPACING.xs,
+      marginBottom: SPACING.sm,
+      backgroundColor: '#F0F2F5',
+    },
+    datePickerText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: '#050505',
+      flex: 1,
+    },
+    datePickerPlaceholder: {
+      color: '#65676B',
+    },
+    datePickerOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: SPACING.lg,
+    },
+    datePickerOverlayInside: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+      padding: isSmallDevice ? SPACING.sm : SPACING.lg,
+    },
+    datePickerOverlayTouchable: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+    datePickerContainer: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: isSmallDevice ? 15 : 20,
+      width: isSmallDevice ? '95%' : isTablet ? '70%' : '90%',
+      maxWidth: isTablet ? 600 : 500,
+      maxHeight: isSmallDevice ? '90%' : '85%',
+      minHeight: isSmallDevice ? 350 : 400,
+      overflow: 'hidden',
+      elevation: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+    },
+    datePickerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: isSmallDevice ? SPACING.md : SPACING.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E4E6EB',
+    },
+    datePickerTitle: {
+      fontSize: isSmallDevice ? FONTS.sizes.large : FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#050505',
+      flex: 1,
+    },
+    datePickerCloseButton: {
+      padding: SPACING.xs,
+      minWidth: isSmallDevice ? 36 : 40,
+      minHeight: isSmallDevice ? 36 : 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    datePickerContent: {
+      flexGrow: 0,
+      maxHeight: isSmallDevice ? 300 : 400,
+    },
+    datePickerSection: {
+      padding: isSmallDevice ? SPACING.md : SPACING.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E4E6EB',
+    },
+    datePickerSectionTitle: {
+      fontSize: isSmallDevice ? FONTS.sizes.small + 1 : FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#050505',
+      marginBottom: SPACING.md,
+    },
+    datePickerRow: {
+      flexDirection: isSmallDevice ? 'row' : 'row',
+      gap: isSmallDevice ? SPACING.xs : SPACING.sm,
+      flexWrap: 'nowrap',
+    },
+    datePickerColumn: {
+      flex: 1,
+    },
+    datePickerLabel: {
+      fontSize: isSmallDevice ? FONTS.sizes.xsmall : FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semibold,
+      color: '#65676B',
+      marginBottom: SPACING.xs,
+      textAlign: 'center',
+    },
+    datePickerScroll: {
+      height: isSmallDevice ? 150 : isTablet ? 220 : 200,
+      flexGrow: 0,
+    },
+    datePickerOption: {
+      paddingVertical: isSmallDevice ? SPACING.xs : SPACING.sm,
+      paddingHorizontal: isSmallDevice ? SPACING.xs / 2 : SPACING.xs,
+      borderRadius: 8,
+      marginBottom: SPACING.xs,
+      backgroundColor: '#F0F2F5',
+      alignItems: 'center',
+    },
+    datePickerOptionActive: {
+      backgroundColor: '#1877F2',
+    },
+    datePickerOptionText: {
+      fontSize: isSmallDevice ? FONTS.sizes.xsmall : FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: '#65676B',
+      fontWeight: FONTS.weights.medium,
+    },
+    datePickerOptionTextActive: {
+      color: '#FFFFFF',
+      fontWeight: FONTS.weights.bold,
+    },
+    datePickerFooter: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      padding: isSmallDevice ? SPACING.md : SPACING.lg,
+      gap: isSmallDevice ? SPACING.xs : SPACING.sm,
+      borderTopWidth: 1,
+      borderTopColor: '#E4E6EB',
+    },
+    datePickerCancelButton: {
+      paddingVertical: isSmallDevice ? SPACING.sm : SPACING.md,
+      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.xl,
+      backgroundColor: '#F0F2F5',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: '#E4E6EB',
+      minWidth: isSmallDevice ? 70 : 100,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    datePickerCancelText: {
+      fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.semibold,
+      color: '#050505',
+    },
+    datePickerConfirmButton: {
+      paddingVertical: isSmallDevice ? SPACING.sm : SPACING.md,
+      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.xl,
+      backgroundColor: '#1877F2',
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      minWidth: isSmallDevice ? 70 : 100,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    datePickerConfirmText: {
+      fontSize: isSmallDevice ? FONTS.sizes.small : FONTS.sizes.medium,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#FFFFFF',
     },
     menuButton: {
       position: 'absolute',
@@ -502,21 +826,178 @@ const AdoptScreen = () => {
       fontWeight: FONTS.weights.medium,
       color: '#374151',
     },
+    // Applications History Modal Styles
+    applicationsModalOverlay: {
+      flex: 1,
+      backgroundColor: '#FFFFFF',
+    },
+    applicationsModalContainer: {
+      flex: 1,
+      backgroundColor: '#FFFFFF',
+    },
+    applicationsModalHeader: {
+      backgroundColor: '#FFFFFF',
+      paddingHorizontal: SPACING.lg,
+      paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight + SPACING.md,
+      paddingBottom: SPACING.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E4E6EB',
+    },
+    applicationsModalHeaderContent: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    applicationsModalTitleContainer: {
+      flex: 1,
+      marginRight: SPACING.md,
+    },
+    applicationsModalTitle: {
+      fontSize: FONTS.sizes.xlarge,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#050505',
+    },
+    applicationsModalSubtitle: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: '#65676B',
+      marginTop: SPACING.xs,
+    },
+    applicationsModalCloseButton: {
+      backgroundColor: '#F0F2F5',
+      borderRadius: RADIUS.full,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    applicationsModalContent: {
+      flex: 1,
+      backgroundColor: '#F0F2F5',
+      paddingHorizontal: SPACING.md,
+    },
+    applicationsModalScrollContent: {
+      padding: SPACING.lg,
+      paddingBottom: SPACING.xl,
+    },
+    // Application Card Styles
+    applicationCard: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: RADIUS.medium,
+      padding: SPACING.lg,
+      marginBottom: SPACING.md,
+      borderWidth: 1,
+      borderColor: '#E4E6EB',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      position: 'relative',
+    },
+    applicationPetName: {
+      fontSize: FONTS.sizes.large,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#050505',
+      marginBottom: SPACING.sm,
+    },
+    applicationInfoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: SPACING.md,
+      gap: SPACING.xs,
+    },
+    applicationInfoText: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: '#65676B',
+    },
+    applicationFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: SPACING.sm,
+    },
+    applicationStatusBadge: {
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.xs,
+      borderRadius: RADIUS.small,
+    },
+    applicationStatusBadgeApproved: {
+      backgroundColor: '#D4EDDA',
+    },
+    applicationStatusBadgeDeclined: {
+      backgroundColor: '#F8D7DA',
+    },
+    applicationStatusBadgeReview: {
+      backgroundColor: '#FFF3CD',
+    },
+    applicationStatusBadgeSubmitted: {
+      backgroundColor: '#E7E3FF',
+    },
+    applicationStatusText: {
+      fontSize: FONTS.sizes.xsmall,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+    },
+    applicationStatusTextApproved: {
+      color: '#155724',
+    },
+    applicationStatusTextDeclined: {
+      color: '#721C24',
+    },
+    applicationStatusTextReview: {
+      color: '#856404',
+    },
+    applicationStatusTextSubmitted: {
+      color: '#4C3A99',
+    },
+    applicationDate: {
+      fontSize: FONTS.sizes.xsmall,
+      fontFamily: FONTS.family,
+      color: '#65676B',
+    },
+    applicationsEmptyState: {
+      paddingVertical: SPACING.xxl * 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    applicationsEmptyTitle: {
+      fontSize: FONTS.sizes.large,
+      fontFamily: FONTS.family,
+      fontWeight: FONTS.weights.bold,
+      color: '#050505',
+      marginTop: SPACING.md,
+      marginBottom: SPACING.xs,
+    },
+    applicationsEmptyDescription: {
+      fontSize: FONTS.sizes.small,
+      fontFamily: FONTS.family,
+      color: '#65676B',
+      textAlign: 'center',
+      paddingHorizontal: SPACING.xl,
+      lineHeight: 20,
+    },
     appMenuButton: {
       position: 'absolute',
-      top: SPACING.sm,
-      right: SPACING.sm,
-      backgroundColor: '#f9fafb',
-      borderRadius: RADIUS.small,
-      padding: SPACING.xs,
+      top: SPACING.md,
+      right: SPACING.md,
+      backgroundColor: '#F0F2F5',
+      borderRadius: RADIUS.full,
+      width: 32,
+      height: 32,
+      justifyContent: 'center',
+      alignItems: 'center',
       zIndex: 10,
     },
     appMenuDropdown: {
       position: 'absolute',
-      top: 40,
-      right: SPACING.sm,
-      backgroundColor: '#ffffff',
-      borderRadius: RADIUS.small,
+      top: 50,
+      right: SPACING.md,
+      backgroundColor: '#FFFFFF',
+      borderRadius: RADIUS.medium,
       padding: SPACING.xs,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
@@ -524,7 +1005,9 @@ const AdoptScreen = () => {
       shadowRadius: 4,
       elevation: 5,
       zIndex: 20,
-      minWidth: 120,
+      minWidth: 140,
+      borderWidth: 1,
+      borderColor: '#E4E6EB',
     },
     appMenuItem: {
       flexDirection: 'row',
@@ -532,13 +1015,13 @@ const AdoptScreen = () => {
       paddingVertical: SPACING.sm,
       paddingHorizontal: SPACING.md,
       borderRadius: RADIUS.small,
+      gap: SPACING.sm,
     },
     appMenuItemText: {
-      marginLeft: SPACING.xs,
       fontSize: FONTS.sizes.small,
       fontFamily: FONTS.family,
       fontWeight: FONTS.weights.medium,
-      color: '#374151',
+      color: '#050505',
     },
     // Modern Modal Styles
     modalOverlay: {
@@ -1176,48 +1659,60 @@ const AdoptScreen = () => {
             />
           ))}
 
-        {/* Call to Action */}
-        <View style={styles.ctaCard}>
-          <Text style={styles.ctaIcon}>🏠</Text>
-          <View style={styles.ctaContent}>
-            <Text style={styles.ctaTitle}>Can't Adopt Right Now?</Text>
-            <Text style={styles.ctaText}>Consider fostering or volunteering at local shelters. Every bit of help makes a difference!</Text>
-            <TouchableOpacity style={styles.ctaButton}>
-              <Text style={styles.ctaButtonText}>Learn More</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
       {/* My Applications Modal */}
       <Modal
         visible={myAppsVisible}
-        transparent
+        transparent={false}
         animationType="slide"
         onRequestClose={() => setMyAppsVisible(false)}
+        statusBarTranslucent={true}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 16 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', maxHeight: '85%' }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
-              <Text style={{ fontSize: FONTS.sizes.large, fontWeight: '700' }}>My Applications</Text>
-              <Text style={{ color: '#64748b', marginTop: 4 }}>Track your application status</Text>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.applicationsModalOverlay}>
+          <View style={styles.applicationsModalContainer}>
+            {/* Header */}
+            <View style={styles.applicationsModalHeader}>
+              <View style={styles.applicationsModalHeaderContent}>
+                <View style={styles.applicationsModalTitleContainer}>
+                  <Text style={styles.applicationsModalTitle}>My Applications</Text>
+                  <Text style={styles.applicationsModalSubtitle}>Track your application status</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.applicationsModalCloseButton}
+                  onPress={() => setMyAppsVisible(false)}
+                >
+                  <MaterialIcons name="close" size={24} color="#050505" />
+                </TouchableOpacity>
+              </View>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+
+            {/* Content */}
+            <View style={styles.applicationsModalContent}>
+              <ScrollView 
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.applicationsModalScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
               {myApplications.length === 0 ? (
-                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                  <Text style={{ color: '#64748b' }}>You have not submitted any applications yet.</Text>
+                <View style={styles.applicationsEmptyState}>
+                  <MaterialIcons name="description" size={64} color="#65676B" />
+                  <Text style={styles.applicationsEmptyTitle}>No Applications Yet</Text>
+                  <Text style={styles.applicationsEmptyDescription}>
+                    You have not submitted any applications yet. Browse available pets and apply to adopt!
+                  </Text>
                 </View>
               ) : (
                 myApplications.map((app) => (
-                  <View key={app.id} style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 12, marginBottom: 10, position: 'relative' }}>
+                  <View key={app.id} style={styles.applicationCard}>
                     {/* Three-dot menu */}
                     <TouchableOpacity 
                       style={styles.appMenuButton}
                       onPress={() => setMenuVisible(menuVisible === app.id ? null : app.id)}
                     >
-                      <MaterialIcons name="more-horiz" size={20} color="#6b7280" />
+                      <MaterialIcons name="more-horiz" size={20} color="#65676B" />
                     </TouchableOpacity>
                     
                     {/* Menu dropdown */}
@@ -1243,35 +1738,63 @@ const AdoptScreen = () => {
                             );
                           }}
                         >
-                          <MaterialIcons name="delete" size={16} color="#dc2626" />
-                          <Text style={styles.appMenuItemText}>Delete</Text>
+                          <MaterialIcons name="delete" size={18} color="#E74C3C" />
+                          <Text style={[styles.appMenuItemText, { color: '#E74C3C' }]}>Delete</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           style={styles.appMenuItem}
                           onPress={() => setMenuVisible(null)}
                         >
-                          <MaterialIcons name="close" size={16} color="#6b7280" />
+                          <MaterialIcons name="close" size={18} color="#65676B" />
                           <Text style={styles.appMenuItemText}>Cancel</Text>
                         </TouchableOpacity>
                       </View>
                     )}
                     
-                    <Text style={{ fontWeight: '700', fontSize: 16 }}>{app.petName || app.petBreed || 'Pet'}</Text>
-                    <Text style={{ marginTop: 2, color: '#475569' }}>Preferred: {app.preferredDate || 'N/A'}</Text>
-                    <View style={{ marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: app.status === 'Approved' ? '#dcfce7' : app.status === 'Declined' ? '#fee2e2' : app.status === 'Under Review' ? '#fef3c7' : '#ede9fe' }}>
-                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 12 }}>{app.status || 'Submitted'}</Text>
+                    {/* Pet Name */}
+                    <Text style={styles.applicationPetName}>
+                      {app.petName || app.petBreed || 'Pet'}
+                    </Text>
+                    
+                    {/* Preferred Date */}
+                    <View style={styles.applicationInfoRow}>
+                      <MaterialIcons name="calendar-today" size={16} color="#65676B" />
+                      <Text style={styles.applicationInfoText}>
+                        Preferred Date: {app.preferredDate || 'N/A'}
+                      </Text>
+                    </View>
+                    
+                    {/* Status and Date */}
+                    <View style={styles.applicationFooter}>
+                      <View style={[
+                        styles.applicationStatusBadge,
+                        app.status === 'Approved' && styles.applicationStatusBadgeApproved,
+                        app.status === 'Declined' && styles.applicationStatusBadgeDeclined,
+                        app.status === 'Under Review' && styles.applicationStatusBadgeReview,
+                        (!app.status || app.status === 'Submitted') && styles.applicationStatusBadgeSubmitted
+                      ]}>
+                        <Text style={[
+                          styles.applicationStatusText,
+                          app.status === 'Approved' && styles.applicationStatusTextApproved,
+                          app.status === 'Declined' && styles.applicationStatusTextDeclined,
+                          app.status === 'Under Review' && styles.applicationStatusTextReview,
+                          (!app.status || app.status === 'Submitted') && styles.applicationStatusTextSubmitted
+                        ]}>
+                          {app.status || 'Submitted'}
+                        </Text>
                       </View>
-                      <Text style={{ color: '#64748b', fontSize: 12 }}>{app.createdAt?.toDate ? app.createdAt.toDate().toLocaleString() : ''}</Text>
+                      <Text style={styles.applicationDate}>
+                        {app.createdAt?.toDate ? app.createdAt.toDate().toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        }) : ''}
+                      </Text>
                     </View>
                   </View>
                 ))
               )}
-            </ScrollView>
-            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', alignItems: 'flex-end' }}>
-              <TouchableOpacity onPress={() => setMyAppsVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#ef4444', borderRadius: 8 }}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Close</Text>
-              </TouchableOpacity>
+              </ScrollView>
             </View>
           </View>
         </View>
@@ -1282,23 +1805,319 @@ const AdoptScreen = () => {
         transparent
         animationType="slide"
         onRequestClose={() => setApplyVisible(false)}
+        statusBarTranslucent={true}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 16 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', maxHeight: '90%' }}>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
-              <Text style={{ fontSize: FONTS.sizes.large, fontWeight: '700', marginBottom: 10 }}>Apply to Adopt</Text>
-              <Text style={{ marginBottom: 16, color: '#555' }}>{selectedPet?.petName || 'This pet'}</Text>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.applyModalOverlay}>
+          <View style={styles.applyModalContainer}>
+            <View style={styles.applyModalHeader}>
+              <View style={styles.applyModalTitleContainer}>
+                <Text style={styles.applyModalTitle}>Apply to Adopt</Text>
+                <Text style={styles.applyModalSubtitle} numberOfLines={2}>
+                  {selectedPet?.petName || 'This pet'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.applyModalCloseButton}
+                onPress={() => setApplyVisible(false)}
+              >
+                <MaterialIcons name="close" size={24} color="#65676B" />
+              </TouchableOpacity>
+            </View>
+            {showDatePicker && (
+              <View style={styles.datePickerOverlayInside}>
+                <TouchableOpacity 
+                  activeOpacity={1}
+                  style={styles.datePickerOverlayTouchable}
+                  onPress={() => setShowDatePicker(false)}
+                />
+                <View style={styles.datePickerContainer}>
+                  <View style={styles.datePickerHeader}>
+                    <Text style={styles.datePickerTitle}>Select Date & Time</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={styles.datePickerCloseButton}
+                      onPress={() => setShowDatePicker(false)}
+                    >
+                      <MaterialIcons name="close" size={24} color="#65676B" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.datePickerContent} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+                    {/* Date Selection */}
+                    <View style={styles.datePickerSection}>
+                      <Text style={styles.datePickerSectionTitle}>Date</Text>
+                      <View style={styles.datePickerRow}>
+                        {/* Month Selector */}
+                        <View style={styles.datePickerColumn}>
+                          <Text style={styles.datePickerLabel}>Month</Text>
+                          <ScrollView 
+                            style={styles.datePickerScroll} 
+                            showsVerticalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ paddingVertical: SPACING.xs }}
+                          >
+                            {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((month, index) => (
+                              <TouchableOpacity
+                                key={index}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.datePickerOption,
+                                  selectedDate.getMonth() === index && styles.datePickerOptionActive
+                                ]}
+                                onPress={() => {
+                                  const newDate = new Date(selectedDate);
+                                  newDate.setMonth(index);
+                                  const daysInMonth = getDaysInMonth(newDate.getFullYear(), index);
+                                  if (newDate.getDate() > daysInMonth) {
+                                    newDate.setDate(daysInMonth);
+                                  }
+                                  setSelectedDate(newDate);
+                                }}
+                              >
+                                <Text style={[
+                                  styles.datePickerOptionText,
+                                  selectedDate.getMonth() === index && styles.datePickerOptionTextActive
+                                ]}>
+                                  {month.substring(0, 3)}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+
+                        {/* Day Selector */}
+                        <View style={styles.datePickerColumn}>
+                          <Text style={styles.datePickerLabel}>Day</Text>
+                          <ScrollView 
+                            style={styles.datePickerScroll} 
+                            showsVerticalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ paddingVertical: SPACING.xs }}
+                          >
+                            {Array.from({ length: getDaysInMonth(selectedDate.getFullYear(), selectedDate.getMonth()) }, (_, i) => i + 1).map((day) => (
+                              <TouchableOpacity
+                                key={day}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.datePickerOption,
+                                  selectedDate.getDate() === day && styles.datePickerOptionActive
+                                ]}
+                                onPress={() => {
+                                  const newDate = new Date(selectedDate);
+                                  newDate.setDate(day);
+                                  setSelectedDate(newDate);
+                                }}
+                              >
+                                <Text style={[
+                                  styles.datePickerOptionText,
+                                  selectedDate.getDate() === day && styles.datePickerOptionTextActive
+                                ]}>
+                                  {day}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+
+                        {/* Year Selector */}
+                        <View style={styles.datePickerColumn}>
+                          <Text style={styles.datePickerLabel}>Year</Text>
+                          <ScrollView 
+                            style={styles.datePickerScroll} 
+                            showsVerticalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ paddingVertical: SPACING.xs }}
+                          >
+                            {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map((year) => (
+                              <TouchableOpacity
+                                key={year}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.datePickerOption,
+                                  selectedDate.getFullYear() === year && styles.datePickerOptionActive
+                                ]}
+                                onPress={() => {
+                                  const newDate = new Date(selectedDate);
+                                  newDate.setFullYear(year);
+                                  const daysInMonth = getDaysInMonth(year, newDate.getMonth());
+                                  if (newDate.getDate() > daysInMonth) {
+                                    newDate.setDate(daysInMonth);
+                                  }
+                                  setSelectedDate(newDate);
+                                }}
+                              >
+                                <Text style={[
+                                  styles.datePickerOptionText,
+                                  selectedDate.getFullYear() === year && styles.datePickerOptionTextActive
+                                ]}>
+                                  {year}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Time Selection */}
+                    <View style={styles.datePickerSection}>
+                      <Text style={styles.datePickerSectionTitle}>Time</Text>
+                      <View style={styles.datePickerRow}>
+                        {/* Hour Selector */}
+                        <View style={styles.datePickerColumn}>
+                          <Text style={styles.datePickerLabel}>Hour</Text>
+                          <ScrollView 
+                            style={styles.datePickerScroll} 
+                            showsVerticalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ paddingVertical: SPACING.xs }}
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
+                              <TouchableOpacity
+                                key={hour}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.datePickerOption,
+                                  selectedTime.hour === hour && styles.datePickerOptionActive
+                                ]}
+                                onPress={() => setSelectedTime({ ...selectedTime, hour })}
+                              >
+                                <Text style={[
+                                  styles.datePickerOptionText,
+                                  selectedTime.hour === hour && styles.datePickerOptionTextActive
+                                ]}>
+                                  {hour}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+
+                        {/* Minute Selector */}
+                        <View style={styles.datePickerColumn}>
+                          <Text style={styles.datePickerLabel}>Minute</Text>
+                          <ScrollView 
+                            style={styles.datePickerScroll} 
+                            showsVerticalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ paddingVertical: SPACING.xs }}
+                          >
+                            {[0, 15, 30, 45].map((minute) => (
+                              <TouchableOpacity
+                                key={minute}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.datePickerOption,
+                                  selectedTime.minute === minute && styles.datePickerOptionActive
+                                ]}
+                                onPress={() => setSelectedTime({ ...selectedTime, minute })}
+                              >
+                                <Text style={[
+                                  styles.datePickerOptionText,
+                                  selectedTime.minute === minute && styles.datePickerOptionTextActive
+                                ]}>
+                                  {minute.toString().padStart(2, '0')}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+
+                        {/* AM/PM Selector */}
+                        <View style={styles.datePickerColumn}>
+                          <Text style={styles.datePickerLabel}>Period</Text>
+                          <ScrollView 
+                            style={styles.datePickerScroll} 
+                            showsVerticalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ paddingVertical: SPACING.xs }}
+                          >
+                            {['AM', 'PM'].map((period) => (
+                              <TouchableOpacity
+                                key={period}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.datePickerOption,
+                                  selectedTime.period === period && styles.datePickerOptionActive
+                                ]}
+                                onPress={() => setSelectedTime({ ...selectedTime, period })}
+                              >
+                                <Text style={[
+                                  styles.datePickerOptionText,
+                                  selectedTime.period === period && styles.datePickerOptionTextActive
+                                ]}>
+                                  {period}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      </View>
+                    </View>
+                  </ScrollView>
+
+                  <View style={styles.datePickerFooter}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={styles.datePickerCancelButton}
+                      onPress={() => setShowDatePicker(false)}
+                    >
+                      <Text style={styles.datePickerCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={styles.datePickerConfirmButton}
+                      onPress={handleDateConfirm}
+                    >
+                      <Text style={styles.datePickerConfirmText}>Confirm</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+            <ScrollView 
+              style={styles.applyModalContent}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: SPACING.lg }}
+            >
 
               <Text style={styles.sectionHeader}>Contact</Text>
               <View style={styles.sectionCard}>
                 <Text style={styles.label}>Full Name</Text>
-                <TextInput value={appForm.fullName} onChangeText={(t) => setAppForm({ ...appForm, fullName: t })} style={styles.input} />
+                <TextInput 
+                  value={appForm.fullName} 
+                  onChangeText={(t) => setAppForm({ ...appForm, fullName: t })} 
+                  style={styles.input}
+                  placeholder="Enter your full name (e.g., Juan Dela Cruz)"
+                  placeholderTextColor="#65676B"
+                />
                 <Text style={styles.label}>Phone</Text>
-                <TextInput keyboardType="phone-pad" value={appForm.phone} onChangeText={(t) => setAppForm({ ...appForm, phone: t })} style={styles.input} />
+                <TextInput 
+                  keyboardType="phone-pad" 
+                  value={appForm.phone} 
+                  onChangeText={(t) => setAppForm({ ...appForm, phone: t })} 
+                  style={styles.input}
+                  placeholder="Enter your phone number (e.g., 09123456789)"
+                  placeholderTextColor="#65676B"
+                />
                 <Text style={styles.label}>Email</Text>
-                <TextInput keyboardType="email-address" value={appForm.email} onChangeText={(t) => setAppForm({ ...appForm, email: t })} style={styles.input} />
+                <TextInput 
+                  keyboardType="email-address" 
+                  value={appForm.email} 
+                  onChangeText={(t) => setAppForm({ ...appForm, email: t })} 
+                  style={styles.input}
+                  placeholder="Enter your email address (e.g., name@example.com)"
+                  placeholderTextColor="#65676B"
+                />
                 <Text style={styles.label}>Address</Text>
-                <TextInput value={appForm.address} onChangeText={(t) => setAppForm({ ...appForm, address: t })} style={styles.input} />
+                <TextInput 
+                  value={appForm.address} 
+                  onChangeText={(t) => setAppForm({ ...appForm, address: t })} 
+                  style={styles.input}
+                  placeholder="Enter your complete address (street, city, province)"
+                  placeholderTextColor="#65676B"
+                />
               </View>
 
               <Text style={styles.sectionHeader}>Household</Text>
@@ -1306,18 +2125,34 @@ const AdoptScreen = () => {
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.label}># Adults</Text>
-                    <TextInput keyboardType="numeric" value={appForm.adults} onChangeText={(t) => setAppForm({ ...appForm, adults: t })} style={styles.input} />
+                    <TextInput 
+                      keyboardType="numeric" 
+                      value={appForm.adults} 
+                      onChangeText={(t) => setAppForm({ ...appForm, adults: t })} 
+                      style={styles.input}
+                      placeholder="Number of adults (e.g., 2)"
+                      placeholderTextColor="#65676B"
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.label}># Children</Text>
-                    <TextInput keyboardType="numeric" value={appForm.children} onChangeText={(t) => setAppForm({ ...appForm, children: t })} style={styles.input} />
+                    <TextInput 
+                      keyboardType="numeric" 
+                      value={appForm.children} 
+                      onChangeText={(t) => setAppForm({ ...appForm, children: t })} 
+                      style={styles.input}
+                      placeholder="Number of children (e.g., 1)"
+                      placeholderTextColor="#65676B"
+                    />
                   </View>
                 </View>
                 <Text style={styles.label}>Residence Type</Text>
                 <View style={styles.chipRow}>
                   {['house', 'apartment', 'other'].map((opt) => (
                     <TouchableOpacity key={opt} onPress={() => setAppForm({ ...appForm, residenceType: opt })} style={[styles.chipChoice, appForm.residenceType === opt && styles.chipChoiceActive]}>
-                      <Text style={{ color: appForm.residenceType === opt ? '#fff' : '#0f172a' }}>{opt}</Text>
+                      <Text style={[styles.chipChoiceText, appForm.residenceType === opt && styles.chipChoiceTextActive]}>
+                        {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1328,7 +2163,7 @@ const AdoptScreen = () => {
                     { k: false, label: 'No' }
                   ].map(({ k, label }) => (
                     <TouchableOpacity key={label} onPress={() => setAppForm({ ...appForm, landlordApproval: k })} style={[styles.chipChoice, appForm.landlordApproval === k && styles.chipChoiceActive]}>
-                      <Text style={{ color: appForm.landlordApproval === k ? '#fff' : '#0f172a' }}>{label}</Text>
+                      <Text style={[styles.chipChoiceText, appForm.landlordApproval === k && styles.chipChoiceTextActive]}>{label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1337,44 +2172,133 @@ const AdoptScreen = () => {
               <Text style={styles.sectionHeader}>Experience</Text>
               <View style={styles.sectionCard}>
                 <Text style={styles.label}>Past pets / training experience</Text>
-                <TextInput multiline value={appForm.experience} onChangeText={(t) => setAppForm({ ...appForm, experience: t })} style={[styles.input, { height: 80 }]} />
+                <TextInput 
+                  multiline 
+                  value={appForm.experience} 
+                  onChangeText={(t) => setAppForm({ ...appForm, experience: t })} 
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                  placeholder="Describe your experience with pets, training, or care (e.g., I had 2 dogs for 5 years, completed basic obedience training...)"
+                  placeholderTextColor="#65676B"
+                />
                 <Text style={styles.label}>Current pets</Text>
-                <TextInput multiline value={appForm.currentPets} onChangeText={(t) => setAppForm({ ...appForm, currentPets: t })} style={[styles.input, { height: 60 }]} />
+                <TextInput 
+                  multiline 
+                  value={appForm.currentPets} 
+                  onChangeText={(t) => setAppForm({ ...appForm, currentPets: t })} 
+                  style={[styles.input, { height: 60, textAlignVertical: 'top' }]}
+                  placeholder="List any current pets you have (e.g., 1 cat, 2 dogs)"
+                  placeholderTextColor="#65676B"
+                />
                 <Text style={styles.label}>Lifestyle (time at home, travel, budget)</Text>
-                <TextInput multiline value={appForm.lifestyle} onChangeText={(t) => setAppForm({ ...appForm, lifestyle: t })} style={[styles.input, { height: 80 }]} />
+                <TextInput 
+                  multiline 
+                  value={appForm.lifestyle} 
+                  onChangeText={(t) => setAppForm({ ...appForm, lifestyle: t })} 
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                  placeholder="Describe your lifestyle: time spent at home, travel frequency, monthly budget for pet care (e.g., Work from home, travel 2x/year, budget ₱3000/month)"
+                  placeholderTextColor="#65676B"
+                />
               </View>
 
               <Text style={styles.sectionHeader}>Vet & References</Text>
               <View style={styles.sectionCard}>
                 <Text style={styles.label}>Vet Clinic Name</Text>
-                <TextInput value={appForm.vetName} onChangeText={(t) => setAppForm({ ...appForm, vetName: t })} style={styles.input} />
+                <TextInput 
+                  value={appForm.vetName} 
+                  onChangeText={(t) => setAppForm({ ...appForm, vetName: t })} 
+                  style={styles.input}
+                  placeholder="Enter your veterinarian's clinic name (e.g., Animal Care Clinic)"
+                  placeholderTextColor="#65676B"
+                />
                 <Text style={styles.label}>Vet Phone</Text>
-                <TextInput keyboardType="phone-pad" value={appForm.vetPhone} onChangeText={(t) => setAppForm({ ...appForm, vetPhone: t })} style={styles.input} />
+                <TextInput 
+                  keyboardType="phone-pad" 
+                  value={appForm.vetPhone} 
+                  onChangeText={(t) => setAppForm({ ...appForm, vetPhone: t })} 
+                  style={styles.input}
+                  placeholder="Enter veterinarian's phone number (e.g., 09123456789)"
+                  placeholderTextColor="#65676B"
+                />
                 <Text style={styles.label}>References (names/phones)</Text>
-                <TextInput multiline value={appForm.references} onChangeText={(t) => setAppForm({ ...appForm, references: t })} style={[styles.input, { height: 80 }]} />
+                <TextInput 
+                  multiline 
+                  value={appForm.references} 
+                  onChangeText={(t) => setAppForm({ ...appForm, references: t })} 
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                  placeholder="Enter 2-3 references with names and phone numbers (e.g., Maria Santos - 09123456789, John Doe - 09987654321)"
+                  placeholderTextColor="#65676B"
+                />
               </View>
 
               <Text style={styles.sectionHeader}>Scheduling</Text>
               <View style={styles.sectionCard}>
                 <Text style={styles.label}>Preferred date/time</Text>
-                <TextInput value={appForm.preferredDate} onChangeText={(t) => setAppForm({ ...appForm, preferredDate: t })} style={styles.input} />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.datePickerButton}
+                  onPress={() => {
+                    // Initialize date/time from existing preferredDate if available
+                    if (appForm.preferredDate) {
+                      try {
+                        const dateMatch = appForm.preferredDate.match(/(\w+)\s+(\d+),?\s+(\d+)/);
+                        const timeMatch = appForm.preferredDate.match(/(\d+):(\d+)\s+(AM|PM)/i);
+                        if (dateMatch && timeMatch) {
+                          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                          const month = monthNames.indexOf(dateMatch[1]);
+                          const day = parseInt(dateMatch[2]);
+                          const year = parseInt(dateMatch[3]);
+                          let hour = parseInt(timeMatch[1]);
+                          const minute = parseInt(timeMatch[2]);
+                          const period = timeMatch[3].toUpperCase();
+                          
+                          if (period === 'PM' && hour !== 12) hour += 12;
+                          if (period === 'AM' && hour === 12) hour = 0;
+                          
+                          setSelectedDate(new Date(year, month, day));
+                          setSelectedTime({ hour: hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour), minute, period });
+                        }
+                      } catch (e) {
+                        // If parsing fails, use current date/time
+                        setSelectedDate(new Date());
+                        setSelectedTime({ hour: 9, minute: 0, period: 'AM' });
+                      }
+                    } else {
+                      setSelectedDate(new Date());
+                      setSelectedTime({ hour: 9, minute: 0, period: 'AM' });
+                    }
+                    // Ensure modal opens
+                    setShowDatePicker(true);
+                  }}
+                >
+                  <Text style={[
+                    styles.datePickerText,
+                    !appForm.preferredDate && styles.datePickerPlaceholder
+                  ]}>
+                    {formatSelectedDateTime()}
+                  </Text>
+                  <MaterialIcons name="calendar-today" size={20} color="#1877F2" />
+                </TouchableOpacity>
               </View>
 
               <Text style={styles.sectionHeader}>Acknowledgements</Text>
               <View style={styles.sectionCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                  <TouchableOpacity onPress={() => setAppForm({ ...appForm, agreeTerms: !appForm.agreeTerms })} style={[styles.checkbox, appForm.agreeTerms && styles.checkboxChecked]} />
-                  <Text style={{ marginLeft: 8, flex: 1 }}>I understand adoption responsibilities and agree to the terms.</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: SPACING.xs }}>
+                  <TouchableOpacity onPress={() => setAppForm({ ...appForm, agreeTerms: !appForm.agreeTerms })} style={[styles.checkbox, appForm.agreeTerms && styles.checkboxChecked]}>
+                    {appForm.agreeTerms && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
+                  </TouchableOpacity>
+                  <Text style={[styles.checkboxText, { marginLeft: SPACING.sm, flex: 1 }]}>I understand adoption responsibilities and agree to the terms.</Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                  <TouchableOpacity onPress={() => setAppForm({ ...appForm, agreeData: !appForm.agreeData })} style={[styles.checkbox, appForm.agreeData && styles.checkboxChecked]} />
-                  <Text style={{ marginLeft: 8, flex: 1 }}>I consent to the processing of my data for this application.</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: SPACING.md }}>
+                  <TouchableOpacity onPress={() => setAppForm({ ...appForm, agreeData: !appForm.agreeData })} style={[styles.checkbox, appForm.agreeData && styles.checkboxChecked]}>
+                    {appForm.agreeData && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
+                  </TouchableOpacity>
+                  <Text style={[styles.checkboxText, { marginLeft: SPACING.sm, flex: 1 }]}>I consent to the processing of my data for this application.</Text>
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8, gap: 8 }}>
-                <TouchableOpacity onPress={() => setApplyVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#f1f5f9', borderRadius: 8 }}>
-                  <Text>Cancel</Text>
+              <View style={styles.applyModalButtons}>
+                <TouchableOpacity onPress={() => setApplyVisible(false)} style={styles.applyModalCancelButton}>
+                  <Text style={styles.applyModalCancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={async () => {
@@ -1422,9 +2346,18 @@ const AdoptScreen = () => {
                       Alert.alert('Error', 'Failed to submit application. Please try again later.');
                     }
                   }}
-                  style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: COLORS.darkPurple, borderRadius: 8 }}
+                  style={[
+                    styles.applyModalSubmitButton,
+                    (!appForm.agreeTerms || !appForm.agreeData) && styles.applyModalSubmitButtonDisabled
+                  ]}
+                  disabled={!appForm.agreeTerms || !appForm.agreeData}
                 >
-                  <Text style={{ color: '#fff' }}>Submit</Text>
+                  <Text style={[
+                    styles.applyModalSubmitText,
+                    (!appForm.agreeTerms || !appForm.agreeData) && styles.applyModalSubmitTextDisabled
+                  ]}>
+                    Submit
+                  </Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
