@@ -58,12 +58,24 @@ const UserReports = () => {
             ...doc.data()
           }));
           
-          // Merge and sort
-          const allReports = [...postReports, ...messageReports, ...reportReports].sort((a, b) => 
-            (b.reportedAt?.toMillis() || 0) - (a.reportedAt?.toMillis() || 0)
-          );
-          setReports(allReports);
-          setLoading(false);
+          // Fetch comment_reports (reports about comments)
+          const unsubComment = onSnapshot(query(collection(db, 'comment_reports'), orderBy('reportedAt', 'desc')), (commentSnapshot) => {
+            const commentReports = commentSnapshot.docs.map(doc => ({
+              id: doc.id,
+              type: 'comment',
+              reportedAt: doc.data().reportedAt,
+              ...doc.data()
+            }));
+            
+            // Merge and sort
+            const allReports = [...postReports, ...messageReports, ...reportReports, ...commentReports].sort((a, b) => 
+              (b.reportedAt?.toMillis() || 0) - (a.reportedAt?.toMillis() || 0)
+            );
+            setReports(allReports);
+            setLoading(false);
+          });
+          
+          return () => unsubComment && unsubComment();
         });
         
         return () => unsubReport && unsubReport();
@@ -143,7 +155,7 @@ const UserReports = () => {
         const batch = writeBatch(db);
         
         pendingReports.forEach(r => {
-             const collectionName = r.type === 'post' ? 'post_reports' : r.type === 'message' ? 'message_reports' : 'report_reports';
+             const collectionName = r.type === 'post' ? 'post_reports' : r.type === 'message' ? 'message_reports' : r.type === 'report' ? 'report_reports' : 'comment_reports';
              const rRef = doc(db, collectionName, r.id);
              batch.update(rRef, { 
                status: 'dismissed',
@@ -155,7 +167,7 @@ const UserReports = () => {
         
       const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
       uniqueReporters.forEach(reporterId => {
-        const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : 'stray report';
+        const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : content.type === 'report' ? 'stray report' : 'comment';
         sendNotification(
           reporterId, 
           'Report Update - Dismissed', 
@@ -202,11 +214,22 @@ const UserReports = () => {
         // Delete the reported stray report
         const reportRef = doc(db, 'stray_reports', content.contentId);
         batch.delete(reportRef);
+      } else if (content.type === 'comment' && content.contentId) {
+        // Delete the reported comment
+        // Check if it's a post comment or report comment
+        const firstReport = pendingReports[0] || content.reports[0];
+        if (firstReport?.postId) {
+          const commentRef = doc(db, 'post_comments', content.contentId);
+          batch.delete(commentRef);
+        } else if (firstReport?.reportId) {
+          const commentRef = doc(db, 'report_comments', content.contentId);
+          batch.delete(commentRef);
+        }
       }
       
       // Resolve all pending reports for this content
       pendingReports.forEach(r => {
-        const collectionName = r.type === 'post' ? 'post_reports' : r.type === 'message' ? 'message_reports' : 'report_reports';
+        const collectionName = r.type === 'post' ? 'post_reports' : r.type === 'message' ? 'message_reports' : r.type === 'report' ? 'report_reports' : 'comment_reports';
         const rRef = doc(db, collectionName, r.id);
         batch.update(rRef, { 
           status: 'resolved', 
@@ -217,15 +240,15 @@ const UserReports = () => {
       
       await batch.commit();
       
-      const userId = content.ownerId || content.reportOwnerId;
+      const userId = content.ownerId || content.reportOwnerId || content.commentOwnerId;
       if (userId) {
-        const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : 'stray report';
+        const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : content.type === 'report' ? 'stray report' : 'comment';
         await sendNotification(userId, 'Content Removed', `Your ${contentType} has been removed. Reason: ${removeReason.trim()}`);
       }
       
       const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
       uniqueReporters.forEach(reporterId => {
-        const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : 'stray report';
+        const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : content.type === 'report' ? 'stray report' : 'comment';
         sendNotification(
           reporterId, 
           'Report Resolved - Content Removed', 
@@ -233,7 +256,7 @@ const UserReports = () => {
         );
       });
       
-      const contentType = content.type === 'post' ? 'Post' : content.type === 'message' ? 'Message' : 'Stray Report';
+      const contentType = content.type === 'post' ? 'Post' : content.type === 'message' ? 'Message' : content.type === 'report' ? 'Stray Report' : 'Comment';
       toast.success(`${contentType} removed successfully. ${pendingReports.length} report(s) resolved.`);
       setRemoveModalOpen(false);
       setContentToRemove(null);
@@ -613,13 +636,13 @@ const UserReports = () => {
 
   const groupedContent = useMemo(() => {
     const groups = {};
-    // Only process pending reports and group by content (postId or messageId)
+    // Only process pending reports and group by content (postId, messageId, reportId, or commentId)
     reports.filter(report => !report.status || report.status === 'pending').forEach(report => {
-      const contentId = report.postId || report.messageId || report.reportId;
+      const contentId = report.postId || report.messageId || report.reportId || report.commentId;
       if (!contentId) return;
       
       const contentKey = `${report.type}_${contentId}`;
-      const ownerId = report.postOwnerId || report.reportedUser || report.reportOwnerId;
+      const ownerId = report.postOwnerId || report.reportedUser || report.reportOwnerId || report.commentOwnerId;
       const reporterId = report.reportedBy || report.reporterId;
       
       if (!groups[contentKey]) {
@@ -629,9 +652,9 @@ const UserReports = () => {
           type: report.type,
           contentId: contentId,
           ownerId: ownerId,
-          ownerName: report.postOwnerName || report.reportedUserName || report.reportOwnerName || ownerProfile.name || 'Unknown',
+          ownerName: report.postOwnerName || report.reportedUserName || report.reportOwnerName || report.commentOwnerName || ownerProfile.name || 'Unknown',
           ownerProfileImage: ownerProfile.profileImage || null,
-          content: report.postContent || report.messageText || report.reportContent || '',
+          content: report.postContent || report.messageText || report.reportContent || report.commentContent || '',
           images: report.postImages || report.messageImages || (report.reportImage ? [report.reportImage] : []),
           reports: [],
           latestDate: report.reportedAt || report.createdAt,
@@ -661,11 +684,11 @@ const UserReports = () => {
     const groups = {};
     // Process resolved/dismissed reports (exclude archived)
     reports.filter(report => (report.status === 'resolved' || report.status === 'dismissed') && !report.archived).forEach(report => {
-      const contentId = report.postId || report.messageId || report.reportId;
+      const contentId = report.postId || report.messageId || report.reportId || report.commentId;
       if (!contentId) return;
       
       const contentKey = `${report.type}_${contentId}`;
-      const ownerId = report.postOwnerId || report.reportedUser || report.reportOwnerId;
+      const ownerId = report.postOwnerId || report.reportedUser || report.reportOwnerId || report.commentOwnerId;
       const reporterId = report.reportedBy || report.reporterId;
       
       if (!groups[contentKey]) {
@@ -675,9 +698,9 @@ const UserReports = () => {
           type: report.type,
           contentId: contentId,
           ownerId: ownerId,
-          ownerName: report.postOwnerName || report.reportedUserName || report.reportOwnerName || ownerProfile.name || 'Unknown',
+          ownerName: report.postOwnerName || report.reportedUserName || report.reportOwnerName || report.commentOwnerName || ownerProfile.name || 'Unknown',
           ownerProfileImage: ownerProfile.profileImage || null,
-          content: report.postContent || report.messageText || report.reportContent || '',
+          content: report.postContent || report.messageText || report.reportContent || report.commentContent || '',
           images: report.postImages || report.messageImages || (report.reportImage ? [report.reportImage] : []),
           reports: [],
           latestDate: report.resolvedAt || report.dismissedAt || report.reportedAt || report.createdAt,
@@ -726,11 +749,11 @@ const UserReports = () => {
     const groups = {};
     // Process archived reports
     reports.filter(report => report.archived === true).forEach(report => {
-      const contentId = report.postId || report.messageId || report.reportId;
+      const contentId = report.postId || report.messageId || report.reportId || report.commentId;
       if (!contentId) return;
       
       const contentKey = `${report.type}_${contentId}`;
-      const ownerId = report.postOwnerId || report.reportedUser || report.reportOwnerId;
+      const ownerId = report.postOwnerId || report.reportedUser || report.reportOwnerId || report.commentOwnerId;
       const reporterId = report.reportedBy || report.reporterId;
       
       if (!groups[contentKey]) {
@@ -740,9 +763,9 @@ const UserReports = () => {
           type: report.type,
           contentId: contentId,
           ownerId: ownerId,
-          ownerName: report.postOwnerName || report.reportedUserName || report.reportOwnerName || ownerProfile.name || 'Unknown',
+          ownerName: report.postOwnerName || report.reportedUserName || report.reportOwnerName || report.commentOwnerName || ownerProfile.name || 'Unknown',
           ownerProfileImage: ownerProfile.profileImage || null,
-          content: report.postContent || report.messageText || report.reportContent || '',
+          content: report.postContent || report.messageText || report.reportContent || report.commentContent || '',
           images: report.postImages || report.messageImages || (report.reportImage ? [report.reportImage] : []),
           reports: [],
           latestDate: report.archivedAt || report.resolvedAt || report.dismissedAt || report.reportedAt || report.createdAt,

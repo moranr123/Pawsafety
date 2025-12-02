@@ -51,6 +51,9 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [commentReportModalVisible, setCommentReportModalVisible] = useState(false);
+  const [selectedCommentForReport, setSelectedCommentForReport] = useState(null);
+  const [hiddenCommentIds, setHiddenCommentIds] = useState(new Set());
   const [isLiking, setIsLiking] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
@@ -462,7 +465,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       right: 0,
       bottom: 0,
       zIndex: 998,
-      backgroundColor: 'transparent',
+      backgroundColor: 'rgba(0, 0, 0, 0.1)',
     },
     commentMenu: {
       position: 'absolute',
@@ -476,7 +479,8 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       shadowRadius: 4,
       elevation: 5,
       minWidth: 120,
-      zIndex: 1000,
+      zIndex: 1001,
+      overflow: 'hidden',
     },
     commentMenuItem: {
       paddingVertical: 12,
@@ -1643,26 +1647,62 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const submitReport = useCallback(async (reason) => {
     if (!user) return;
 
-    try {
-      await addDoc(collection(db, 'post_reports'), {
-        postId: post.id,
-        postContent: post.text || '',
-        postImages: post.images || [],
-        postOwnerId: post.userId,
-        postOwnerName: post.userName || 'Unknown',
-        reportedBy: user.uid,
-        reportedByName: user.displayName || 'Unknown',
-        reportedAt: serverTimestamp(),
-        reason: reason,
-        status: 'pending'
-      });
-      setReportModalVisible(false);
-      Alert.alert('Reported', 'Thank you for reporting. We will review this post.');
-    } catch (error) {
-      console.error('Error reporting post:', error);
-      Alert.alert('Error', 'Failed to report post. Please try again.');
-    }
-  }, [user, post]);
+    // Show confirmation dialog before submitting
+    Alert.alert(
+      'Confirm Report',
+      `Are you sure you want to report this post for "${reason}"? This action cannot be undone and the post will be hidden from your feed.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            // User cancelled, do nothing
+          }
+        },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            // User confirmed, proceed with report submission
+            try {
+              await addDoc(collection(db, 'post_reports'), {
+                postId: post.id,
+                postContent: post.text || '',
+                postImages: post.images || [],
+                postOwnerId: post.userId,
+                postOwnerName: post.userName || 'Unknown',
+                reportedBy: user.uid,
+                reportedByName: user.displayName || 'Unknown',
+                reportedAt: serverTimestamp(),
+                reason: reason,
+                status: 'pending'
+              });
+
+              // Hide the reported post from the user who reported it
+              try {
+                const hiddenPosts = await AsyncStorage.getItem('hidden_posts');
+                const hiddenArray = hiddenPosts ? JSON.parse(hiddenPosts) : [];
+                if (!hiddenArray.includes(post.id)) {
+                  hiddenArray.push(post.id);
+                  await AsyncStorage.setItem('hidden_posts', JSON.stringify(hiddenArray));
+                  if (onPostHidden) onPostHidden(post.id);
+                }
+              } catch (hideError) {
+                console.error('Error hiding post:', hideError);
+                // Don't fail the report submission if hiding fails
+              }
+
+              setReportModalVisible(false);
+              Alert.alert('Reported', 'Thank you for reporting. We will review this post.');
+            } catch (error) {
+              console.error('Error reporting post:', error);
+              Alert.alert('Error', 'Failed to report post. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  }, [user, post, onPostHidden]);
 
   const handleHide = useCallback(async () => {
     try {
@@ -2076,6 +2116,166 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     setReportModalVisible(false);
   }, []);
 
+  const handleCloseCommentReportModal = useCallback(() => {
+    setCommentReportModalVisible(false);
+    setSelectedCommentForReport(null);
+    // Reopen comments modal after closing report modal
+    setTimeout(() => {
+      setShowComments(true);
+    }, 100);
+  }, []);
+
+  // Load hidden comments from AsyncStorage
+  useEffect(() => {
+    const loadHiddenComments = async () => {
+      try {
+        const hiddenComments = await AsyncStorage.getItem('hidden_comments');
+        if (hiddenComments) {
+          const hiddenArray = JSON.parse(hiddenComments);
+          setHiddenCommentIds(new Set(hiddenArray));
+        }
+      } catch (error) {
+        // Error handled silently
+      }
+    };
+    loadHiddenComments();
+  }, []);
+
+  const handleReportComment = useCallback((comment) => {
+    setSelectedCommentForReport(comment);
+    setCommentMenuId(null);
+    // Close comments modal temporarily to show report modal
+    setShowComments(false);
+    setTimeout(() => {
+      setCommentReportModalVisible(true);
+    }, 300);
+  }, []);
+
+  const submitCommentReport = useCallback(async (reason) => {
+    if (!user || !selectedCommentForReport) return;
+
+    // Show confirmation dialog before submitting
+    Alert.alert(
+      'Confirm Report',
+      `Are you sure you want to report this comment for "${reason}"? This action cannot be undone and the comment will be hidden from your view.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            // User cancelled, do nothing
+          }
+        },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            // User confirmed, proceed with report submission
+            try {
+              const reportRef = await addDoc(collection(db, 'comment_reports'), {
+                commentId: selectedCommentForReport.id,
+                commentContent: selectedCommentForReport.text || '',
+                commentOwnerId: selectedCommentForReport.userId,
+                commentOwnerName: selectedCommentForReport.userName || 'Unknown',
+                postId: post.id,
+                postOwnerId: post.userId,
+                reportedBy: user.uid,
+                reportedByName: user.displayName || 'Unknown',
+                reportedAt: serverTimestamp(),
+                reason: reason,
+                status: 'pending'
+              });
+
+              // Notify all admins about the new report
+              try {
+                const adminUsersQuery = query(
+                  collection(db, 'users'),
+                  where('role', 'in', ['agricultural_admin', 'impound_admin', 'superadmin'])
+                );
+                const adminSnapshot = await getDocs(adminUsersQuery);
+                
+                const notificationService = NotificationService.getInstance();
+                const adminNotifications = [];
+                
+                adminSnapshot.forEach((adminDoc) => {
+                  const adminId = adminDoc.id;
+                  adminNotifications.push(
+                    notificationService.createNotification({
+                      userId: adminId,
+                      type: 'admin_report',
+                      title: 'New Comment Report Submitted',
+                      body: `${user.displayName || 'A user'} reported a comment. Reason: ${reason}`,
+                      data: {
+                        type: 'admin_report',
+                        commentReportId: reportRef.id,
+                        commentId: selectedCommentForReport.id,
+                        postId: post.id,
+                        reason: reason,
+                        reportedBy: user.uid,
+                        reportedByName: user.displayName || 'Unknown',
+                      },
+                    }).catch((err) => {
+                      console.error(`Error notifying admin ${adminId}:`, err);
+                    })
+                  );
+                });
+
+                // Also create admin notification in admin_notifications collection
+                await addDoc(collection(db, 'admin_notifications'), {
+                  type: 'comment_report',
+                  commentReportId: reportRef.id,
+                  commentId: selectedCommentForReport.id,
+                  commentContent: selectedCommentForReport.text || '',
+                  commentOwnerId: selectedCommentForReport.userId,
+                  commentOwnerName: selectedCommentForReport.userName || 'Unknown',
+                  postId: post.id,
+                  postOwnerId: post.userId,
+                  reportedBy: user.uid,
+                  reportedByName: user.displayName || 'Unknown',
+                  reason: reason,
+                  status: 'pending',
+                  read: false,
+                  createdAt: serverTimestamp()
+                });
+
+                // Wait for all admin notifications to be sent (don't block on errors)
+                await Promise.allSettled(adminNotifications);
+              } catch (notifError) {
+                console.error('Error notifying admins:', notifError);
+                // Don't fail the report submission if notification fails
+              }
+
+              // Hide the reported comment from the user who reported it
+              try {
+                const hiddenComments = await AsyncStorage.getItem('hidden_comments');
+                const hiddenArray = hiddenComments ? JSON.parse(hiddenComments) : [];
+                if (!hiddenArray.includes(selectedCommentForReport.id)) {
+                  hiddenArray.push(selectedCommentForReport.id);
+                  await AsyncStorage.setItem('hidden_comments', JSON.stringify(hiddenArray));
+                  setHiddenCommentIds(prev => new Set([...prev, selectedCommentForReport.id]));
+                }
+              } catch (hideError) {
+                console.error('Error hiding comment:', hideError);
+                // Don't fail the report submission if hiding fails
+              }
+
+              setCommentReportModalVisible(false);
+              setSelectedCommentForReport(null);
+              // Reopen comments modal after reporting
+              setTimeout(() => {
+                setShowComments(true);
+              }, 100);
+              Alert.alert('Reported', 'Thank you for reporting. We will review this comment.');
+            } catch (error) {
+              console.error('Error reporting comment:', error);
+              Alert.alert('Error', 'Failed to report comment. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  }, [user, selectedCommentForReport, post]);
+
   const handleImageScroll = useCallback((e) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / width);
     setSelectedImageIndex(index);
@@ -2252,11 +2452,6 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                   <MaterialIcons name="close" size={24} color="#050505" />
                 </TouchableOpacity>
               </View>
-            {commentMenuId && (
-              <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
-                <View style={styles.commentMenuOverlay} />
-              </TouchableWithoutFeedback>
-            )}
             <ScrollView 
               style={styles.commentList}
               onScrollBeginDrag={() => setCommentMenuId(null)}
@@ -2265,6 +2460,12 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                 const isCommentOwner = user?.uid === comment.userId;
                 const canDelete = isCommentOwner || isOwner;
                 const canEdit = isCommentOwner;
+                const canReport = !isCommentOwner && user?.uid && !hiddenCommentIds.has(comment.id);
+
+                // Skip hidden comments
+                if (hiddenCommentIds.has(comment.id)) {
+                  return null;
+                }
 
                 return (
                   <View key={comment.id} style={styles.commentItem}>
@@ -2308,7 +2509,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                             </Text>
                           )}
                         </TouchableOpacity>
-                        {(canEdit || canDelete) && (
+                        {(canEdit || canDelete || canReport) && (
                           <TouchableOpacity
                             style={styles.commentMenuButton}
                             onPress={() => setCommentMenuId(commentMenuId === comment.id ? null : comment.id)}
@@ -2318,12 +2519,8 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                         )}
                       </View>
                       
-                      {commentMenuId === comment.id && (canEdit || canDelete) && (
-                        <>
-                          <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
-                            <View style={styles.commentMenuOverlay} />
-                          </TouchableWithoutFeedback>
-                          <View style={styles.commentMenu}>
+                      {commentMenuId === comment.id && (canEdit || canDelete || canReport) && (
+                        <View style={styles.commentMenu}>
                             {canEdit && (
                               <TouchableOpacity
                                 style={styles.commentMenuItem}
@@ -2338,7 +2535,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                             )}
                             {canDelete && (
                               <TouchableOpacity
-                                style={[styles.commentMenuItem, styles.commentMenuItemLast]}
+                                style={styles.commentMenuItem}
                                 onPress={() => {
                                   setCommentMenuId(null);
                                   handleDeleteComment(comment.id);
@@ -2347,8 +2544,21 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                                 <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
                               </TouchableOpacity>
                             )}
+                            {canReport && (
+                              <TouchableOpacity
+                                style={styles.commentMenuItem}
+                                onPress={() => handleReportComment(comment)}
+                              >
+                                <Text style={styles.optionsMenuText}>Report</Text>
+                              </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                              style={[styles.commentMenuItem, styles.commentMenuItemLast]}
+                              onPress={() => setCommentMenuId(null)}
+                            >
+                              <Text style={styles.optionsMenuText}>Cancel</Text>
+                            </TouchableOpacity>
                           </View>
-                        </>
                       )}
 
                       {editingCommentId === comment.id ? (
@@ -2494,6 +2704,39 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
             <TouchableOpacity
               style={styles.reportCancelButton}
               onPress={handleCloseReportModal}
+            >
+              <Text style={styles.reportCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Comment Report Reason Modal */}
+      <Modal
+        visible={commentReportModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseCommentReportModal}
+      >
+        <View style={styles.reportModalOverlay}>
+          <View style={styles.reportModalContent}>
+            <Text style={styles.reportModalTitle}>Report Comment</Text>
+            <Text style={styles.reportModalSubtitle}>Please select a reason:</Text>
+            
+            {['Inappropriate Content', 'Harassment', 'Spam', 'Scam', 'Other'].map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                style={styles.reportOption}
+                onPress={() => submitCommentReport(reason)}
+              >
+                <Text style={styles.reportOptionText}>{reason}</Text>
+                <MaterialIcons name="chevron-right" size={24} color={COLORS.secondaryText} />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={styles.reportCancelButton}
+              onPress={handleCloseCommentReportModal}
             >
               <Text style={styles.reportCancelText}>Cancel</Text>
             </TouchableOpacity>

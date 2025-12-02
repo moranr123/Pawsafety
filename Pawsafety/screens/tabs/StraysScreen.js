@@ -31,6 +31,7 @@ import ReportChatModal from '../../components/ReportChatModal';
 import { auth } from '../../services/firebase';
 import { useProfileImage } from '../../contexts/ProfileImageContext';
 import NotificationService from '../../services/NotificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FilterButton = React.memo(({ title, active = false, onPress, styles }) => (
   <TouchableOpacity 
@@ -298,6 +299,10 @@ const StraysScreen = ({ navigation }) => {
   const user = auth.currentUser;
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedReportForReport, setSelectedReportForReport] = useState(null);
+  const [hiddenReportIds, setHiddenReportIds] = useState(new Set());
+  const [commentReportModalVisible, setCommentReportModalVisible] = useState(false);
+  const [selectedCommentForReport, setSelectedCommentForReport] = useState(null);
+  const [hiddenCommentIds, setHiddenCommentIds] = useState(new Set());
 
   // Memoize filter handlers
   const handleFilterAll = useCallback(() => setFilter('All'), []);
@@ -338,6 +343,38 @@ const StraysScreen = ({ navigation }) => {
       setIsVisible(true);
     }, 150);
   }, [setIsVisible]);
+
+  // Load hidden reports from AsyncStorage
+  useEffect(() => {
+    const loadHiddenReports = async () => {
+      try {
+        const hiddenReports = await AsyncStorage.getItem('hidden_reports');
+        if (hiddenReports) {
+          const hiddenArray = JSON.parse(hiddenReports);
+          setHiddenReportIds(new Set(hiddenArray));
+        }
+      } catch (error) {
+        // Error handled silently
+      }
+    };
+    loadHiddenReports();
+  }, []);
+
+  // Load hidden comments from AsyncStorage
+  useEffect(() => {
+    const loadHiddenComments = async () => {
+      try {
+        const hiddenComments = await AsyncStorage.getItem('hidden_comments');
+        if (hiddenComments) {
+          const hiddenArray = JSON.parse(hiddenComments);
+          setHiddenCommentIds(new Set(hiddenArray));
+        }
+      } catch (error) {
+        // Error handled silently
+      }
+    };
+    loadHiddenComments();
+  }, []);
 
   useEffect(() => {
     // Optimized: Add limit to reduce Firebase reads
@@ -500,8 +537,9 @@ const StraysScreen = ({ navigation }) => {
     });
   }
 
-    return result;
-  }, [reports, filter]);
+    // Filter out hidden reports
+    return result.filter(r => !hiddenReportIds.has(r.id));
+  }, [reports, filter, hiddenReportIds]);
 
   // Comment helper functions - memoized
   const extractMentions = useCallback((text) => {
@@ -1014,87 +1052,266 @@ const StraysScreen = ({ navigation }) => {
     setSelectedReportForReport(null);
   }, []);
 
+  const handleCloseCommentReportModal = useCallback(() => {
+    setCommentReportModalVisible(false);
+    setSelectedCommentForReport(null);
+    // Reopen comments modal after closing report modal
+    setTimeout(() => {
+      setShowComments(true);
+    }, 100);
+  }, []);
+
+  const handleReportComment = useCallback((comment) => {
+    setSelectedCommentForReport(comment);
+    setCommentMenuId(null);
+    // Close comments modal temporarily to show report modal
+    setShowComments(false);
+    setTimeout(() => {
+      setCommentReportModalVisible(true);
+    }, 300);
+  }, []);
+
+  const submitCommentReport = useCallback(async (reason) => {
+    if (!user || !selectedCommentForReport || !selectedReport) return;
+
+    // Show confirmation dialog before submitting
+    Alert.alert(
+      'Confirm Report',
+      `Are you sure you want to report this comment for "${reason}"? This action cannot be undone and the comment will be hidden from your view.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            // User cancelled, do nothing
+          }
+        },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            // User confirmed, proceed with report submission
+            try {
+              const reportRef = await addDoc(collection(db, 'comment_reports'), {
+                commentId: selectedCommentForReport.id,
+                commentContent: selectedCommentForReport.text || '',
+                commentOwnerId: selectedCommentForReport.userId,
+                commentOwnerName: selectedCommentForReport.userName || 'Unknown',
+                reportId: selectedReport.id,
+                reportOwnerId: selectedReport.userId,
+                reportedBy: user.uid,
+                reportedByName: user.displayName || 'Unknown',
+                reportedAt: serverTimestamp(),
+                reason: reason,
+                status: 'pending'
+              });
+
+              // Notify all admins about the new report
+              try {
+                const adminUsersQuery = query(
+                  collection(db, 'users'),
+                  where('role', 'in', ['agricultural_admin', 'impound_admin', 'superadmin'])
+                );
+                const adminSnapshot = await getDocs(adminUsersQuery);
+                
+                const notificationService = NotificationService.getInstance();
+                const adminNotifications = [];
+                
+                adminSnapshot.forEach((adminDoc) => {
+                  const adminId = adminDoc.id;
+                  adminNotifications.push(
+                    notificationService.createNotification({
+                      userId: adminId,
+                      type: 'admin_report',
+                      title: 'New Comment Report Submitted',
+                      body: `${user.displayName || 'A user'} reported a comment on a stray report. Reason: ${reason}`,
+                      data: {
+                        type: 'admin_report',
+                        commentReportId: reportRef.id,
+                        commentId: selectedCommentForReport.id,
+                        reportId: selectedReport.id,
+                        reason: reason,
+                        reportedBy: user.uid,
+                        reportedByName: user.displayName || 'Unknown',
+                      },
+                    }).catch((err) => {
+                      console.error(`Error notifying admin ${adminId}:`, err);
+                    })
+                  );
+                });
+
+                // Also create admin notification in admin_notifications collection
+                await addDoc(collection(db, 'admin_notifications'), {
+                  type: 'comment_report',
+                  commentReportId: reportRef.id,
+                  commentId: selectedCommentForReport.id,
+                  commentContent: selectedCommentForReport.text || '',
+                  commentOwnerId: selectedCommentForReport.userId,
+                  commentOwnerName: selectedCommentForReport.userName || 'Unknown',
+                  reportId: selectedReport.id,
+                  reportOwnerId: selectedReport.userId,
+                  reportedBy: user.uid,
+                  reportedByName: user.displayName || 'Unknown',
+                  reason: reason,
+                  status: 'pending',
+                  read: false,
+                  createdAt: serverTimestamp()
+                });
+
+                // Wait for all admin notifications to be sent (don't block on errors)
+                await Promise.allSettled(adminNotifications);
+              } catch (notifError) {
+                console.error('Error notifying admins:', notifError);
+                // Don't fail the report submission if notification fails
+              }
+
+              // Hide the reported comment from the user who reported it
+              try {
+                const hiddenComments = await AsyncStorage.getItem('hidden_comments');
+                const hiddenArray = hiddenComments ? JSON.parse(hiddenComments) : [];
+                if (!hiddenArray.includes(selectedCommentForReport.id)) {
+                  hiddenArray.push(selectedCommentForReport.id);
+                  await AsyncStorage.setItem('hidden_comments', JSON.stringify(hiddenArray));
+                  setHiddenCommentIds(prev => new Set([...prev, selectedCommentForReport.id]));
+                }
+              } catch (hideError) {
+                console.error('Error hiding comment:', hideError);
+                // Don't fail the report submission if hiding fails
+              }
+
+              setCommentReportModalVisible(false);
+              setSelectedCommentForReport(null);
+              // Reopen comments modal after reporting
+              setTimeout(() => {
+                setShowComments(true);
+              }, 100);
+              Alert.alert('Reported', 'Thank you for reporting. We will review this comment.');
+            } catch (error) {
+              console.error('Error reporting comment:', error);
+              Alert.alert('Error', 'Failed to report comment. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  }, [user, selectedCommentForReport, selectedReport]);
+
   const submitReport = useCallback(async (reason) => {
     if (!user || !selectedReportForReport) return;
 
-    try {
-      const reportRef = await addDoc(collection(db, 'report_reports'), {
-        reportId: selectedReportForReport.id,
-        reportContent: selectedReportForReport.description || '',
-        reportImage: selectedReportForReport.imageUrl || null,
-        reportOwnerId: selectedReportForReport.userId,
-        reportOwnerName: reportUsers[selectedReportForReport.userId]?.name || 'Unknown',
-        reportedBy: user.uid,
-        reportedByName: user.displayName || 'Unknown',
-        reportedAt: serverTimestamp(),
-        reason: reason,
-        status: 'pending'
-      });
-
-      // Notify all admins about the new report
-      try {
-        const adminUsersQuery = query(
-          collection(db, 'users'),
-          where('role', 'in', ['agricultural_admin', 'impound_admin', 'superadmin'])
-        );
-        const adminSnapshot = await getDocs(adminUsersQuery);
-        
-        const notificationService = NotificationService.getInstance();
-        const adminNotifications = [];
-        
-        adminSnapshot.forEach((adminDoc) => {
-          const adminId = adminDoc.id;
-          adminNotifications.push(
-            notificationService.createNotification({
-              userId: adminId,
-              type: 'admin_report',
-              title: 'New Report Submitted',
-              body: `${user.displayName || 'A user'} reported a stray report. Reason: ${reason}`,
-              data: {
-                type: 'admin_report',
-                reportReportId: reportRef.id,
+    // Show confirmation dialog before submitting
+    Alert.alert(
+      'Confirm Report',
+      `Are you sure you want to report this content for "${reason}"? This action cannot be undone and the content will be hidden from your feed.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            // User cancelled, do nothing
+          }
+        },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            // User confirmed, proceed with report submission
+            try {
+              const reportRef = await addDoc(collection(db, 'report_reports'), {
                 reportId: selectedReportForReport.id,
-                reason: reason,
+                reportContent: selectedReportForReport.description || '',
+                reportImage: selectedReportForReport.imageUrl || null,
+                reportOwnerId: selectedReportForReport.userId,
+                reportOwnerName: reportUsers[selectedReportForReport.userId]?.name || 'Unknown',
                 reportedBy: user.uid,
                 reportedByName: user.displayName || 'Unknown',
-              },
-            }).catch((err) => {
-              console.error(`Error notifying admin ${adminId}:`, err);
-            })
-          );
-        });
+                reportedAt: serverTimestamp(),
+                reason: reason,
+                status: 'pending'
+              });
 
-        // Also create admin notification in admin_notifications collection
-        await addDoc(collection(db, 'admin_notifications'), {
-          type: 'report_report',
-          reportReportId: reportRef.id,
-          reportId: selectedReportForReport.id,
-          reportContent: selectedReportForReport.description || '',
-          reportImage: selectedReportForReport.imageUrl || null,
-          reportOwnerId: selectedReportForReport.userId,
-          reportOwnerName: reportUsers[selectedReportForReport.userId]?.name || 'Unknown',
-          reportedBy: user.uid,
-          reportedByName: user.displayName || 'Unknown',
-          reason: reason,
-          status: 'pending',
-          read: false,
-          createdAt: serverTimestamp()
-        });
+              // Notify all admins about the new report
+              try {
+                const adminUsersQuery = query(
+                  collection(db, 'users'),
+                  where('role', 'in', ['agricultural_admin', 'impound_admin', 'superadmin'])
+                );
+                const adminSnapshot = await getDocs(adminUsersQuery);
+                
+                const notificationService = NotificationService.getInstance();
+                const adminNotifications = [];
+                
+                adminSnapshot.forEach((adminDoc) => {
+                  const adminId = adminDoc.id;
+                  adminNotifications.push(
+                    notificationService.createNotification({
+                      userId: adminId,
+                      type: 'admin_report',
+                      title: 'New Report Submitted',
+                      body: `${user.displayName || 'A user'} reported a stray report. Reason: ${reason}`,
+                      data: {
+                        type: 'admin_report',
+                        reportReportId: reportRef.id,
+                        reportId: selectedReportForReport.id,
+                        reason: reason,
+                        reportedBy: user.uid,
+                        reportedByName: user.displayName || 'Unknown',
+                      },
+                    }).catch((err) => {
+                      console.error(`Error notifying admin ${adminId}:`, err);
+                    })
+                  );
+                });
 
-        // Wait for all admin notifications to be sent (don't block on errors)
-        await Promise.allSettled(adminNotifications);
-      } catch (notifError) {
-        console.error('Error notifying admins:', notifError);
-        // Don't fail the report submission if notification fails
-      }
+                // Also create admin notification in admin_notifications collection
+                await addDoc(collection(db, 'admin_notifications'), {
+                  type: 'report_report',
+                  reportReportId: reportRef.id,
+                  reportId: selectedReportForReport.id,
+                  reportContent: selectedReportForReport.description || '',
+                  reportImage: selectedReportForReport.imageUrl || null,
+                  reportOwnerId: selectedReportForReport.userId,
+                  reportOwnerName: reportUsers[selectedReportForReport.userId]?.name || 'Unknown',
+                  reportedBy: user.uid,
+                  reportedByName: user.displayName || 'Unknown',
+                  reason: reason,
+                  status: 'pending',
+                  read: false,
+                  createdAt: serverTimestamp()
+                });
 
-      setReportModalVisible(false);
-      setSelectedReportForReport(null);
-      Alert.alert('Reported', 'Thank you for reporting. We will review this report.');
-    } catch (error) {
-      console.error('Error reporting report:', error);
-      Alert.alert('Error', 'Failed to report. Please try again.');
-    }
+                // Wait for all admin notifications to be sent (don't block on errors)
+                await Promise.allSettled(adminNotifications);
+              } catch (notifError) {
+                console.error('Error notifying admins:', notifError);
+                // Don't fail the report submission if notification fails
+              }
+
+              // Hide the reported report from the user who reported it
+              try {
+                const hiddenReports = await AsyncStorage.getItem('hidden_reports');
+                const hiddenArray = hiddenReports ? JSON.parse(hiddenReports) : [];
+                if (!hiddenArray.includes(selectedReportForReport.id)) {
+                  hiddenArray.push(selectedReportForReport.id);
+                  await AsyncStorage.setItem('hidden_reports', JSON.stringify(hiddenArray));
+                  setHiddenReportIds(prev => new Set([...prev, selectedReportForReport.id]));
+                }
+              } catch (hideError) {
+                console.error('Error hiding report:', hideError);
+                // Don't fail the report submission if hiding fails
+              }
+
+              setReportModalVisible(false);
+              setSelectedReportForReport(null);
+              Alert.alert('Reported', 'Thank you for reporting. We will review this report.');
+            } catch (error) {
+              console.error('Error reporting report:', error);
+              Alert.alert('Error', 'Failed to report. Please try again.');
+            }
+          }
+        }
+      ]
+    );
   }, [user, selectedReportForReport, reportUsers]);
 
   // Render text with mentions - memoized
@@ -1654,7 +1871,8 @@ const StraysScreen = ({ navigation }) => {
       shadowOpacity: 0.1,
       shadowRadius: 4,
       elevation: 5,
-      zIndex: 1000,
+      zIndex: 1001,
+      overflow: 'hidden',
     },
     commentMenuItem: {
       paddingHorizontal: SPACING.md,
@@ -1772,7 +1990,7 @@ const StraysScreen = ({ navigation }) => {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'transparent',
+      backgroundColor: 'rgba(0, 0, 0, 0.1)',
       zIndex: 999,
     },
     optionsMenuText: {
@@ -1993,11 +2211,6 @@ const StraysScreen = ({ navigation }) => {
                   <MaterialIcons name="close" size={24} color="#050505" />
                 </TouchableOpacity>
               </View>
-            {commentMenuId && (
-              <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
-                <View style={styles.commentMenuOverlay} />
-              </TouchableWithoutFeedback>
-            )}
             <ScrollView 
               style={styles.commentList}
               onScrollBeginDrag={() => setCommentMenuId(null)}
@@ -2007,6 +2220,12 @@ const StraysScreen = ({ navigation }) => {
                 const isReportOwner = user?.uid === selectedReport?.userId;
                 const canDelete = isCommentOwner || isReportOwner;
                 const canEdit = isCommentOwner;
+                const canReport = !isCommentOwner && user?.uid && !hiddenCommentIds.has(comment.id);
+
+                // Skip hidden comments
+                if (hiddenCommentIds.has(comment.id)) {
+                  return null;
+                }
 
                 return (
                   <View key={comment.id} style={styles.commentItem}>
@@ -2050,7 +2269,7 @@ const StraysScreen = ({ navigation }) => {
                             </Text>
                           )}
                         </TouchableOpacity>
-                        {(canEdit || canDelete) && (
+                        {(canEdit || canDelete || canReport) && (
                           <TouchableOpacity
                             style={styles.commentMenuButton}
                             onPress={() => setCommentMenuId(commentMenuId === comment.id ? null : comment.id)}
@@ -2060,12 +2279,8 @@ const StraysScreen = ({ navigation }) => {
                         )}
                       </View>
                       
-                      {commentMenuId === comment.id && (canEdit || canDelete) && (
-                        <>
-                          <TouchableWithoutFeedback onPress={() => setCommentMenuId(null)}>
-                            <View style={styles.commentMenuOverlay} />
-                          </TouchableWithoutFeedback>
-                          <View style={styles.commentMenu}>
+                      {commentMenuId === comment.id && (canEdit || canDelete || canReport) && (
+                        <View style={styles.commentMenu}>
                             {canEdit && (
                               <TouchableOpacity
                                 style={styles.commentMenuItem}
@@ -2080,7 +2295,7 @@ const StraysScreen = ({ navigation }) => {
                             )}
                             {canDelete && (
                               <TouchableOpacity
-                                style={[styles.commentMenuItem, styles.commentMenuItemLast]}
+                                style={styles.commentMenuItem}
                                 onPress={() => {
                                   setCommentMenuId(null);
                                   handleDeleteComment(comment.id);
@@ -2089,8 +2304,21 @@ const StraysScreen = ({ navigation }) => {
                                 <Text style={[styles.optionsMenuText, styles.optionsMenuTextDanger]}>Delete</Text>
                               </TouchableOpacity>
                             )}
+                            {canReport && (
+                              <TouchableOpacity
+                                style={styles.commentMenuItem}
+                                onPress={() => handleReportComment(comment)}
+                              >
+                                <Text style={styles.optionsMenuText}>Report</Text>
+                              </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                              style={[styles.commentMenuItem, styles.commentMenuItemLast]}
+                              onPress={() => setCommentMenuId(null)}
+                            >
+                              <Text style={styles.optionsMenuText}>Cancel</Text>
+                            </TouchableOpacity>
                           </View>
-                        </>
                       )}
 
                       {editingCommentId === comment.id ? (
@@ -2235,6 +2463,39 @@ const StraysScreen = ({ navigation }) => {
             <TouchableOpacity
               style={styles.reportCancelButton}
               onPress={handleCloseReportModal}
+            >
+              <Text style={styles.reportCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Comment Report Reason Modal */}
+      <Modal
+        visible={commentReportModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseCommentReportModal}
+      >
+        <View style={styles.reportModalOverlay}>
+          <View style={styles.reportModalContent}>
+            <Text style={styles.reportModalTitle}>Report Comment</Text>
+            <Text style={styles.reportModalSubtitle}>Please select a reason:</Text>
+            
+            {['Inappropriate Content', 'Harassment', 'Spam', 'Scam', 'Other'].map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                style={styles.reportOption}
+                onPress={() => submitCommentReport(reason)}
+              >
+                <Text style={styles.reportOptionText}>{reason}</Text>
+                <MaterialIcons name="chevron-right" size={24} color="#65676b" />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={styles.reportCancelButton}
+              onPress={handleCloseCommentReportModal}
             >
               <Text style={styles.reportCancelText}>Cancel</Text>
             </TouchableOpacity>
