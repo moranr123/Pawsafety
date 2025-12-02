@@ -57,6 +57,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
   const [isLiking, setIsLiking] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
+  const [savingCommentId, setSavingCommentId] = useState(null);
   const [commentMenuId, setCommentMenuId] = useState(null);
   const [commentLikes, setCommentLikes] = useState({});
   const [isLikingComment, setIsLikingComment] = useState({});
@@ -1240,6 +1241,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
       return;
     }
 
+    setSavingCommentId(commentId);
     try {
       // Extract @ mentions from edited comment text
       const mentionedUsernames = extractMentions(editCommentText.trim());
@@ -1275,6 +1277,8 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
     } catch (error) {
       console.error('Error updating comment:', error);
       Alert.alert('Error', 'Failed to update comment. Please try again.');
+    } finally {
+      setSavingCommentId(null);
     }
   }, [editCommentText, extractMentions, findMentionedUserIds, notifyMentionedUsers, loadComments]);
 
@@ -2583,8 +2587,13 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                             <TouchableOpacity
                               style={[styles.commentEditButton, { backgroundColor: '#1877f2' }]}
                               onPress={() => handleEditComment(comment.id)}
+                              disabled={savingCommentId === comment.id}
                             >
-                              <Text style={[styles.commentEditButtonText, { color: '#ffffff' }]}>Save</Text>
+                              {savingCommentId === comment.id ? (
+                                <ActivityIndicator size="small" color="#ffffff" />
+                              ) : (
+                                <Text style={[styles.commentEditButtonText, { color: '#ffffff' }]}>Save</Text>
+                              )}
                             </TouchableOpacity>
                           </View>
                         </View>

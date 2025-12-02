@@ -282,6 +282,7 @@ const StraysScreen = ({ navigation }) => {
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
+  const [savingCommentId, setSavingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
   const [commentMenuId, setCommentMenuId] = useState(null);
   const [commentLikes, setCommentLikes] = useState({});
@@ -896,6 +897,7 @@ const StraysScreen = ({ navigation }) => {
       return;
     }
 
+    setSavingCommentId(commentId);
     try {
       const mentionedUsernames = extractMentions(editCommentText.trim());
       let mentionedUserIds = [];
@@ -926,6 +928,8 @@ const StraysScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Error updating comment:', error);
       Alert.alert('Error', 'Failed to update comment. Please try again.');
+    } finally {
+      setSavingCommentId(null);
     }
   };
 
@@ -2343,8 +2347,13 @@ const StraysScreen = ({ navigation }) => {
                             <TouchableOpacity
                               style={[styles.commentEditButton, { backgroundColor: '#1877f2' }]}
                               onPress={() => handleEditComment(comment.id)}
+                              disabled={savingCommentId === comment.id}
                             >
-                              <Text style={[styles.commentEditButtonText, { color: '#ffffff' }]}>Save</Text>
+                              {savingCommentId === comment.id ? (
+                                <ActivityIndicator size="small" color="#ffffff" />
+                              ) : (
+                                <Text style={[styles.commentEditButtonText, { color: '#ffffff' }]}>Save</Text>
+                              )}
                             </TouchableOpacity>
                           </View>
                         </View>

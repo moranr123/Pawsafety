@@ -1984,6 +1984,14 @@ const HomeTabScreen = ({ navigation }) => {
                             try {
                               // Log logout activity before signing out
                               if (user?.uid) {
+                                // Remove push token to prevent notifications on this device for this user
+                                try {
+                                  const notificationService = NotificationService.getInstance();
+                                  await notificationService.removeTokenFromFirestore(user.uid);
+                                } catch (e) {
+                                  console.error('Error removing push token:', e);
+                                }
+
                                 await logUserActivity(
                                   user.uid,
                                   'Logged out of the mobile app',

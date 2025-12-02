@@ -3,7 +3,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { doc, setDoc, deleteDoc, getDoc, onSnapshot, collection, query, where, limit, serverTimestamp } from 'firebase/firestore';
 
 // Global variable to track push notification preference
@@ -156,6 +156,25 @@ class NotificationService {
     }
   }
 
+  // Remove push token from Firestore on logout
+  async removeTokenFromFirestore(userId) {
+    try {
+      if (!userId) return;
+      
+      // Remove from user_push_tokens
+      await deleteDoc(doc(db, 'user_push_tokens', userId));
+      
+      // Remove from userTokens
+      await deleteDoc(doc(db, 'userTokens', userId));
+      
+      // Reset local token
+      this.expoPushToken = null;
+    } catch (error) {
+      console.error('Error removing push token:', error);
+      // Error handled silently
+    }
+  }
+
   // Send local notification
   async sendLocalNotification(title, body, data = {}) {
     // Check if push notifications are enabled before showing
@@ -224,6 +243,18 @@ class NotificationService {
 
   // Send push notification via Expo
   async sendPushNotification(userId, title, body, data = {}) {
+    // CRITICAL: Never send push notification to the current user (prevent self-notifications)
+    const currentUser = auth.currentUser;
+    if (currentUser?.uid && userId) {
+      const currentUserId = String(currentUser.uid).trim().toLowerCase();
+      const targetUserId = String(userId).trim().toLowerCase();
+      
+      if (currentUserId && targetUserId && currentUserId === targetUserId) {
+        console.log('Prevented self push notification for user:', currentUserId);
+        return; // Silently return without sending push notification
+      }
+    }
+    
     try {
       if (!userId) return;
       
@@ -267,6 +298,20 @@ class NotificationService {
   // Create a notification in Firestore and send push notification
   async createNotification(notification) {
     try {
+      // CRITICAL: Never send notification to the current user (prevent self-notifications)
+      const currentUser = auth.currentUser;
+      if (currentUser?.uid && notification?.userId) {
+        // Normalize both IDs for robust comparison
+        const currentUserId = String(currentUser.uid).trim().toLowerCase();
+        const targetUserId = String(notification.userId).trim().toLowerCase();
+        
+        // If trying to notify yourself, silently return without creating notification
+        if (currentUserId && targetUserId && currentUserId === targetUserId) {
+          console.log('Prevented self-notification:', notification.type, 'for user:', currentUserId);
+          return null;
+        }
+      }
+      
       const notificationRef = doc(collection(db, 'notifications'));
       await setDoc(notificationRef, {
         ...notification,

@@ -13,6 +13,7 @@ import { auth } from '../services/firebase';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { logUserActivity } from '../services/userService';
+import NotificationService from '../services/NotificationService';
 
 const HomeScreen = () => {
   const { colors: COLORS } = useTheme();
@@ -21,6 +22,14 @@ const HomeScreen = () => {
     try {
       // Log logout activity before signing out
       if (user?.uid) {
+        // Remove push token
+        try {
+          const notificationService = NotificationService.getInstance();
+          await notificationService.removeTokenFromFirestore(user.uid);
+        } catch (e) {
+          console.error('Error removing push token:', e);
+        }
+
         await logUserActivity(
           user.uid,
           'Logged out of the mobile app',
