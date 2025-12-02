@@ -3628,92 +3628,95 @@ const AgriculturalDashboard = () => {
                             <User className="h-3 w-3 mr-1" />
                             View
                           </button>
-                          {user.status === 'banned' ? (
-                            <button
-                              onClick={() => handleUnbanUser(user)}
-                              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
-                            >
-                              <RotateCcw className="h-3 w-3 mr-1" />
-                              Unban
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleBanUser(user)}
-                              disabled={checkingBan.has(user.uid)}
-                              className="px-3 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 flex items-center transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {checkingBan.has(user.uid) ? (
-                                <>
-                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                                  Checking...
-                                </>
+                          {!showArchivedUsers && (
+                            <>
+                              {user.status === 'banned' ? (
+                                <button
+                                  onClick={() => handleUnbanUser(user)}
+                                  className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
+                                >
+                                  <RotateCcw className="h-3 w-3 mr-1" />
+                                  Unban
+                                </button>
                               ) : (
-                                <>
-                                  <UserX className="h-3 w-3 mr-1" />
-                                  Ban
-                                </>
+                                <button
+                                  onClick={() => handleBanUser(user)}
+                                  disabled={checkingBan.has(user.uid)}
+                                  className="px-3 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 flex items-center transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {checkingBan.has(user.uid) ? (
+                                    <>
+                                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                                      Checking...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserX className="h-3 w-3 mr-1" />
+                                      Ban
+                                    </>
+                                  )}
+                                </button>
                               )}
-                            </button>
-                          )}
-                          {isChatRestrictionActive(user) ? (
-                            <button
-                              onClick={() => handleUnrestrictChat(user)}
-                              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
-                            >
-                              <RotateCcw className="h-3 w-3 mr-1" />
-                              Unrestrict
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleRestrictChat(user)}
-                              disabled={checkingRestrict.has(user.uid)}
-                              className="px-3 py-1 text-xs rounded bg-yellow-600 text-white hover:bg-yellow-700 flex items-center transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {checkingRestrict.has(user.uid) ? (
-                                <>
-                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                                  Checking...
-                                </>
+                              {isChatRestrictionActive(user) ? (
+                                <button
+                                  onClick={() => handleUnrestrictChat(user)}
+                                  className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
+                                >
+                                  <RotateCcw className="h-3 w-3 mr-1" />
+                                  Unrestrict
+                                </button>
                               ) : (
-                                <>
-                                  <Ban className="h-3 w-3 mr-1" />
-                                  Restrict
-                                </>
+                                <button
+                                  onClick={() => handleRestrictChat(user)}
+                                  disabled={checkingRestrict.has(user.uid)}
+                                  className="px-3 py-1 text-xs rounded bg-yellow-600 text-white hover:bg-yellow-700 flex items-center transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {checkingRestrict.has(user.uid) ? (
+                                    <>
+                                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                                      Checking...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Ban className="h-3 w-3 mr-1" />
+                                      Restrict
+                                    </>
+                                  )}
+                                </button>
                               )}
-                            </button>
+                              {user.status === 'deactivated' ? (
+                                <button
+                                  onClick={() => handleActivateUser(user.uid)}
+                                  className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
+                                >
+                                  <ShieldCheck className="h-3 w-3 mr-1" />
+                                  Activate
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleDeactivateUser(user.uid)}
+                                  className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 flex items-center transition-all duration-300"
+                                >
+                                  <ShieldOff className="h-3 w-3 mr-1" />
+                                  Deactivate
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleArchiveUser(user.uid)}
+                                className="px-3 py-1 text-xs rounded bg-purple-600 text-white hover:bg-purple-700 flex items-center transition-all duration-300"
+                              >
+                                <Archive className="h-3 w-3 mr-1" />
+                                Archive
+                              </button>
+                            </>
                           )}
-                          {user.status === 'deactivated' ? (
-                            <button
-                              onClick={() => handleActivateUser(user.uid)}
-                              className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
-                            >
-                              <ShieldCheck className="h-3 w-3 mr-1" />
-                              Activate
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleDeactivateUser(user.uid)}
-                              className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 flex items-center transition-all duration-300"
-                            >
-                              <ShieldOff className="h-3 w-3 mr-1" />
-                              Deactivate
-                            </button>
-                          )}
-                          {showArchivedUsers ? (
+                          {showArchivedUsers && (
                             <button
                               onClick={() => handleRestoreUser(user.uid)}
                               className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 flex items-center transition-all duration-300"
                             >
                               <RotateCcw className="h-3 w-3 mr-1" />
                               Restore
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleArchiveUser(user.uid)}
-                              className="px-3 py-1 text-xs rounded bg-purple-600 text-white hover:bg-purple-700 flex items-center transition-all duration-300"
-                            >
-                              <Archive className="h-3 w-3 mr-1" />
-                              Archive
                             </button>
                           )}
                         </div>
