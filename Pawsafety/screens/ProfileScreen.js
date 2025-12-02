@@ -455,6 +455,7 @@ const ProfileScreen = ({ navigation, route }) => {
       // Update Firestore user document
       await setDoc(doc(db, 'users', user.uid), {
         displayName: displayName.trim(),
+        name: displayName.trim(), // Keep name field in sync with displayName
         profileImage: imageUrl,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
@@ -708,10 +709,19 @@ const ProfileScreen = ({ navigation, route }) => {
     setIsSendingRequest(true);
 
     try {
-      const requestId = `${currentUser.uid}_${viewUserId}`;
-      const requestDoc = await getDoc(doc(db, 'friend_requests', requestId));
+      // Find the pending request document first
+      const q = query(
+        collection(db, 'friend_requests'),
+        where('fromUserId', '==', currentUser.uid),
+        where('toUserId', '==', viewUserId),
+        where('status', '==', 'pending')
+      );
+      const snapshot = await getDocs(q);
       
-      if (requestDoc.exists()) {
+      if (!snapshot.empty) {
+        const requestDoc = snapshot.docs[0];
+        const requestId = requestDoc.id;
+
         // Delete the friend request
         await deleteDoc(doc(db, 'friend_requests', requestId));
         
@@ -729,10 +739,140 @@ const ProfileScreen = ({ navigation, route }) => {
 
         setHasPendingRequest(false);
         Alert.alert('Success', 'Friend request cancelled.');
+      } else {
+        // Fallback: try with ID convention if query returned nothing but we think there is one
+        const fallbackId = `${currentUser.uid}_${viewUserId}`;
+        const fallbackDoc = await getDoc(doc(db, 'friend_requests', fallbackId));
+        if (fallbackDoc.exists()) {
+           await deleteDoc(doc(db, 'friend_requests', fallbackId));
+           setHasPendingRequest(false);
+           Alert.alert('Success', 'Friend request cancelled.');
+        }
       }
     } catch (error) {
       console.error('Error cancelling friend request:', error);
       Alert.alert('Error', 'Failed to cancel friend request. Please try again.');
+    } finally {
+      setIsSendingRequest(false);
+    }
+  };
+
+  const handleAcceptRequest = async () => {
+    if (!currentUser || !viewUserId || isOwnProfile) return;
+
+    setIsSendingRequest(true);
+
+    try {
+      // Find the incoming request document
+      const q = query(
+        collection(db, 'friend_requests'),
+        where('fromUserId', '==', viewUserId),
+        where('toUserId', '==', currentUser.uid),
+        where('status', '==', 'pending')
+      );
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        Alert.alert('Error', 'Friend request not found.');
+        setIsSendingRequest(false);
+        return;
+      }
+
+      const requestDoc = snapshot.docs[0];
+      const requestId = requestDoc.id;
+      const request = requestDoc.data();
+
+      const friendId1 = `${currentUser.uid}_${viewUserId}`;
+      const friendId2 = `${viewUserId}_${currentUser.uid}`;
+
+      // Get sender user data (latest from Firestore)
+      const senderUserDoc = await getDoc(doc(db, 'users', viewUserId));
+      const senderUserData = senderUserDoc.exists() ? senderUserDoc.data() : {};
+
+      // Get current user data
+      const currentUserDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const currentUserData = currentUserDoc.exists() ? currentUserDoc.data() : {};
+
+      // Add friend relationship for current user
+      await setDoc(doc(db, 'friends', friendId1), {
+        userId: currentUser.uid,
+        friendId: viewUserId,
+        friendName: senderUserData.displayName || senderUserData.name || request.fromUserName || 'Unknown',
+        friendEmail: senderUserData.email || request.fromUserEmail || '',
+        friendProfileImage: senderUserData.profileImage || senderUserData.photoURL || request.fromUserProfileImage || null,
+        createdAt: serverTimestamp(),
+      });
+
+      // Add friend relationship for sender
+      await setDoc(doc(db, 'friends', friendId2), {
+        userId: viewUserId,
+        friendId: currentUser.uid,
+        friendName: currentUser.displayName || currentUserData.displayName || currentUserData.name || 'Unknown',
+        friendEmail: currentUser.email || currentUserData.email || '',
+        friendProfileImage: currentUser.photoURL || currentUserData.profileImage || null,
+        createdAt: serverTimestamp(),
+      });
+
+      // Update the friend request status to 'accepted'
+      await updateDoc(doc(db, 'friend_requests', requestId), {
+        status: 'accepted',
+        acceptedAt: serverTimestamp(),
+      });
+
+      // Send notification to the requester
+      const notificationService = NotificationService.getInstance();
+      const currentUserName = currentUser.displayName || currentUser.email || 'Someone';
+      
+      await notificationService.createNotification({
+        userId: viewUserId,
+        title: 'Friend Request Accepted',
+        body: `${currentUserName} accepted your friend request`,
+        type: 'friend_request_accepted',
+        data: {
+          type: 'friend_request_accepted',
+          friendId: currentUser.uid,
+          friendName: currentUserName,
+        }
+      });
+
+      // Send push notification
+      try {
+        const tokenDoc = await getDoc(doc(db, 'user_push_tokens', viewUserId));
+        if (tokenDoc.exists()) {
+          const token = tokenDoc.data().expoPushToken;
+          if (token) {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip, deflate',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify([{
+                to: token,
+                sound: 'default',
+                title: 'Friend Request Accepted',
+                body: `${currentUserName} accepted your friend request`,
+                data: {
+                  type: 'friend_request_accepted',
+                  friendId: currentUser.uid,
+                },
+                priority: 'high',
+                channelId: 'default'
+              }])
+            });
+          }
+        }
+      } catch (pushError) {
+        console.error('Error sending push notification:', pushError);
+      }
+
+      setIsFriend(true);
+      setHasIncomingRequest(false);
+      Alert.alert('Success', 'Friend request accepted!');
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      Alert.alert('Error', 'Failed to accept friend request. Please try again.');
     } finally {
       setIsSendingRequest(false);
     }
@@ -959,9 +1099,14 @@ const ProfileScreen = ({ navigation, route }) => {
     // Check for pending friend request (sent by current user)
     const checkPendingRequest = async () => {
       try {
-        const requestId = `${currentUser.uid}_${viewUserId}`;
-        const requestDoc = await getDoc(doc(db, 'friend_requests', requestId));
-        setHasPendingRequest(requestDoc.exists() && requestDoc.data().status === 'pending');
+        const q = query(
+          collection(db, 'friend_requests'),
+          where('fromUserId', '==', currentUser.uid),
+          where('toUserId', '==', viewUserId),
+          where('status', '==', 'pending')
+        );
+        const snapshot = await getDocs(q);
+        setHasPendingRequest(!snapshot.empty);
       } catch (error) {
         console.error('Error checking pending request:', error);
       }
@@ -970,9 +1115,14 @@ const ProfileScreen = ({ navigation, route }) => {
     // Check for incoming friend request (sent to current user)
     const checkIncomingRequest = async () => {
       try {
-        const requestId = `${viewUserId}_${currentUser.uid}`;
-        const requestDoc = await getDoc(doc(db, 'friend_requests', requestId));
-        setHasIncomingRequest(requestDoc.exists() && requestDoc.data().status === 'pending');
+        const q = query(
+          collection(db, 'friend_requests'),
+          where('fromUserId', '==', viewUserId),
+          where('toUserId', '==', currentUser.uid),
+          where('status', '==', 'pending')
+        );
+        const snapshot = await getDocs(q);
+        setHasIncomingRequest(!snapshot.empty);
       } catch (error) {
         console.error('Error checking incoming request:', error);
       }
@@ -985,8 +1135,6 @@ const ProfileScreen = ({ navigation, route }) => {
     // Set up real-time listeners
     const friendId1 = `${currentUser.uid}_${viewUserId}`;
     const friendId2 = `${viewUserId}_${currentUser.uid}`;
-    const requestId1 = `${currentUser.uid}_${viewUserId}`;
-    const requestId2 = `${viewUserId}_${currentUser.uid}`;
 
     const unsubscribe1 = onSnapshot(doc(db, 'friends', friendId1), (snap) => {
       setIsFriend(snap.exists());
@@ -994,11 +1142,25 @@ const ProfileScreen = ({ navigation, route }) => {
     const unsubscribe2 = onSnapshot(doc(db, 'friends', friendId2), (snap) => {
       setIsFriend(snap.exists());
     });
-    const unsubscribe3 = onSnapshot(doc(db, 'friend_requests', requestId1), (snap) => {
-      setHasPendingRequest(snap.exists() && snap.data()?.status === 'pending');
+
+    const qPending = query(
+      collection(db, 'friend_requests'),
+      where('fromUserId', '==', currentUser.uid),
+      where('toUserId', '==', viewUserId),
+      where('status', '==', 'pending')
+    );
+    const unsubscribe3 = onSnapshot(qPending, (snapshot) => {
+      setHasPendingRequest(!snapshot.empty);
     });
-    const unsubscribe4 = onSnapshot(doc(db, 'friend_requests', requestId2), (snap) => {
-      setHasIncomingRequest(snap.exists() && snap.data()?.status === 'pending');
+
+    const qIncoming = query(
+      collection(db, 'friend_requests'),
+      where('fromUserId', '==', viewUserId),
+      where('toUserId', '==', currentUser.uid),
+      where('status', '==', 'pending')
+    );
+    const unsubscribe4 = onSnapshot(qIncoming, (snapshot) => {
+      setHasIncomingRequest(!snapshot.empty);
     });
 
     return () => {
@@ -1202,7 +1364,13 @@ const ProfileScreen = ({ navigation, route }) => {
                       ) : (
                         <TouchableOpacity 
                           style={styles.addFriendButton}
-                          onPress={hasPendingRequest ? handleCancelRequest : handleAddFriend}
+                          onPress={
+                            hasIncomingRequest 
+                              ? handleAcceptRequest 
+                              : hasPendingRequest 
+                              ? handleCancelRequest 
+                              : handleAddFriend
+                          }
                           disabled={isSendingRequest}
                         >
                           {isSendingRequest ? (
@@ -1210,12 +1378,24 @@ const ProfileScreen = ({ navigation, route }) => {
                           ) : (
                             <>
                               <MaterialIcons 
-                                name={hasPendingRequest ? "person-remove" : "person-add"} 
+                                name={
+                                  hasIncomingRequest 
+                                    ? "check-circle" 
+                                    : hasPendingRequest 
+                                    ? "person-remove" 
+                                    : "person-add"
+                                } 
                                 size={18} 
                                 color="#ffffff" 
                               />
                               <Text style={styles.addFriendButtonText}>
-                                {hasPendingRequest ? 'Cancel Request' : 'Add Friend'}
+                                {
+                                  hasIncomingRequest 
+                                    ? 'Confirm Request' 
+                                    : hasPendingRequest 
+                                    ? 'Cancel Request' 
+                                    : 'Add Friend'
+                                }
                               </Text>
                             </>
                           )}

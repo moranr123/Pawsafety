@@ -174,8 +174,8 @@ const AddFriendsScreen = ({ navigation }) => {
             return !isSelf && !isAdmin && !isInactive && !isBanned && !isBlockedByMe && !hasBlockedMe;
           })
           .sort((a, b) => {
-            const nameA = (a.name || a.displayName || '').toLowerCase();
-            const nameB = (b.name || b.displayName || '').toLowerCase();
+            const nameA = (a.displayName || a.name || '').toLowerCase();
+            const nameB = (b.displayName || b.name || '').toLowerCase();
             return nameA.localeCompare(nameB);
           });
 
@@ -205,7 +205,7 @@ const AddFriendsScreen = ({ navigation }) => {
       if (blockedUserIds.includes(u.id) || blockedByUserIds.includes(u.id)) {
         return false;
       }
-      const name = (u.name || u.displayName || '').toLowerCase();
+      const name = (u.displayName || u.name || '').toLowerCase();
       const email = (u.email || '').toLowerCase();
       return name.includes(query) || email.includes(query);
     });
@@ -699,7 +699,7 @@ const AddFriendsScreen = ({ navigation }) => {
                   
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>
-                      {userItem.name || userItem.displayName || 'Unknown User'}
+                      {userItem.displayName || userItem.name || 'Unknown User'}
                     </Text>
                   </View>
                   </TouchableOpacity>

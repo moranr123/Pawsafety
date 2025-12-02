@@ -44,7 +44,9 @@ import {
   RotateCcw,
   AlertTriangle,
   MessageSquare,
-  XCircle
+  XCircle,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 import LogoBlue from '../assets/LogoBlue.png';
@@ -152,6 +154,10 @@ const AgriculturalDashboard = () => {
   const [announcementImage, setAnnouncementImage] = useState(null);
   const [announcementImagePreview, setAnnouncementImagePreview] = useState(null);
   const [isCreatingAnnouncement, setIsCreatingAnnouncement] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [showEditAnnouncementModal, setShowEditAnnouncementModal] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
   const [showReportHistoryModal, setShowReportHistoryModal] = useState(false);
   const [selectedUserForReports, setSelectedUserForReports] = useState(null);
   const [userReports, setUserReports] = useState([]);
@@ -489,6 +495,22 @@ const AgriculturalDashboard = () => {
       }
     );
 
+    // Listen to announcements collection
+    const announcementsQuery = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+    const unsubscribeAnnouncements = onSnapshot(
+      announcementsQuery,
+      (snapshot) => {
+        const announcementsList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setAnnouncements(announcementsList);
+      },
+      (error) => {
+        console.error('Error listening to announcements:', error);
+      }
+    );
+
     // Fetch last logout times for users
     let unsubscribeLogoutTimes;
     try {
@@ -608,6 +630,7 @@ const AgriculturalDashboard = () => {
       unsubscribePets();
       unsubscribeUsers();
       unsubscribeNotifications();
+      unsubscribeAnnouncements();
       if (unsubscribeLogoutTimes) unsubscribeLogoutTimes();
       if (unsubscribePostReports) unsubscribePostReports();
       if (unsubscribeMessageReports) unsubscribeMessageReports();
@@ -622,7 +645,8 @@ const AgriculturalDashboard = () => {
     if (users.length > 0) {
       setUserChartData(generateUserChartData(users, selectedYear));
     }
-  }, [selectedYear, registeredPets, users, generateChartData, generateUserChartData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, registeredPets, users]);
 
 
   // Function to get owner's profile image - memoized
@@ -1015,6 +1039,97 @@ const AgriculturalDashboard = () => {
       setIsCreatingAnnouncement(false);
     }
   }, [announcementTitle, announcementMessage, announcementImage, currentUser, logActivity]);
+
+  const handleEditAnnouncement = useCallback((announcement) => {
+    setSelectedAnnouncement(announcement);
+    setAnnouncementTitle(announcement.title || '');
+    setAnnouncementMessage(announcement.message || '');
+    setAnnouncementImagePreview(announcement.imageUrl || null);
+    setAnnouncementImage(null);
+    setShowEditAnnouncementModal(true);
+  }, []);
+
+  const handleUpdateAnnouncement = useCallback(async () => {
+    if (!selectedAnnouncement) return;
+    
+    if (!announcementTitle.trim() && !announcementMessage.trim() && !announcementImage && !announcementImagePreview) {
+      toast.error('Please add at least a title, message, or image');
+      return;
+    }
+
+    setIsEditingAnnouncement(true);
+    try {
+      let imageUrl = selectedAnnouncement.imageUrl || null;
+      
+      // Upload new image if selected
+      if (announcementImage) {
+        try {
+          const storage = getStorage();
+          const imageRef = ref(storage, `announcements/${Date.now()}_${announcementImage.name}`);
+          await uploadBytes(imageRef, announcementImage);
+          imageUrl = await getDownloadURL(imageRef);
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          toast.error('Failed to upload image. Please try again.');
+          setIsEditingAnnouncement(false);
+          return;
+        }
+      }
+
+      // Update announcement document
+      await updateDoc(doc(db, 'announcements', selectedAnnouncement.id), {
+        title: announcementTitle.trim() || 'Announcement',
+        message: announcementMessage.trim() || '',
+        imageUrl: imageUrl,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser?.email || 'agricultural_admin'
+      });
+
+      await logActivity(
+        `Updated announcement: "${announcementTitle.trim()}"`,
+        'update',
+        `Updated announcement ID: ${selectedAnnouncement.id}`
+      );
+
+      toast.success('Announcement updated successfully!');
+      setShowEditAnnouncementModal(false);
+      setSelectedAnnouncement(null);
+      setAnnouncementTitle('');
+      setAnnouncementMessage('');
+      setAnnouncementImage(null);
+      setAnnouncementImagePreview(null);
+    } catch (error) {
+      console.error('Error updating announcement:', error);
+      toast.error('Failed to update announcement');
+    } finally {
+      setIsEditingAnnouncement(false);
+    }
+  }, [selectedAnnouncement, announcementTitle, announcementMessage, announcementImage, announcementImagePreview, currentUser, logActivity]);
+
+  const handleDeleteAnnouncement = useCallback(async (announcementId, announcementTitle) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete this announcement?\n\n` +
+      `Title: ${announcementTitle || 'Untitled'}\n\n` +
+      `This action cannot be undone.`
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, 'announcements', announcementId));
+      
+      await logActivity(
+        `Deleted announcement: "${announcementTitle || 'Untitled'}"`,
+        'delete',
+        `Deleted announcement ID: ${announcementId}`
+      );
+
+      toast.success('Announcement deleted successfully');
+    } catch (error) {
+      console.error('Error deleting announcement:', error);
+      toast.error('Failed to delete announcement');
+    }
+  }, [logActivity]);
 
   const handleArchivePet = useCallback(async (petId, petName) => {
     const confirmed = window.confirm(
@@ -2477,16 +2592,77 @@ const AgriculturalDashboard = () => {
         {!isLoading && activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Header with Create Announcement Button */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-6">
               <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
               <button
-                onClick={() => setShowAnnouncementModal(true)}
+                onClick={() => {
+                  setSelectedAnnouncement(null);
+                  setAnnouncementTitle('');
+                  setAnnouncementMessage('');
+                  setAnnouncementImage(null);
+                  setAnnouncementImagePreview(null);
+                  setShowAnnouncementModal(true);
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
               >
                 <Megaphone className="h-5 w-5" />
                 <span>Create Announcement</span>
               </button>
             </div>
+
+            {/* Announcements List */}
+            {announcements.length > 0 && (
+              <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Megaphone className="h-5 w-5 mr-2 text-indigo-600" />
+                  Recent Announcements ({announcements.length})
+                </h2>
+                <div className="space-y-4">
+                  {announcements.slice(0, 5).map((announcement) => (
+                    <div key={announcement.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-base font-semibold text-gray-900 mb-1">
+                            {announcement.title || 'Untitled Announcement'}
+                          </h3>
+                          {announcement.message && (
+                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                              {announcement.message}
+                            </p>
+                          )}
+                          {announcement.imageUrl && (
+                            <img 
+                              src={announcement.imageUrl} 
+                              alt="Announcement" 
+                              className="w-full max-w-xs h-32 object-cover rounded-lg mt-2"
+                            />
+                          )}
+                          <p className="text-xs text-gray-500 mt-2">
+                            Created: {announcement.createdAt?.toDate ? announcement.createdAt.toDate().toLocaleString() : 'N/A'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            onClick={() => handleEditAnnouncement(announcement)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit Announcement"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAnnouncement(announcement.id, announcement.title)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Announcement"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Overview Cards (match Impound UI) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
@@ -5009,6 +5185,138 @@ const AgriculturalDashboard = () => {
                   Deactivate User
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Announcement Modal */}
+      {showEditAnnouncementModal && selectedAnnouncement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Edit Announcement</h2>
+                  <p className="text-sm text-gray-500">Update announcement details</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowEditAnnouncementModal(false);
+                    setSelectedAnnouncement(null);
+                    setAnnouncementTitle('');
+                    setAnnouncementMessage('');
+                    setAnnouncementImage(null);
+                    setAnnouncementImagePreview(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Title (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  placeholder="Enter announcement title..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  maxLength={100}
+                />
+                <p className="mt-1 text-xs text-gray-500">{announcementTitle.length}/100 characters</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Message
+                </label>
+                <textarea
+                  value={announcementMessage}
+                  onChange={(e) => setAnnouncementMessage(e.target.value)}
+                  placeholder="Enter announcement message..."
+                  rows={6}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  maxLength={500}
+                />
+                <p className="mt-1 text-xs text-gray-500">{announcementMessage.length}/500 characters</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Image (Optional)
+                </label>
+                {announcementImagePreview ? (
+                  <div className="relative">
+                    <img 
+                      src={announcementImagePreview} 
+                      alt="Preview" 
+                      className="w-full h-64 object-cover rounded-lg border border-gray-300"
+                    />
+                    <button
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <Megaphone className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                    <label className="cursor-pointer">
+                      <span className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                        Click to upload image
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 10MB</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowEditAnnouncementModal(false);
+                  setSelectedAnnouncement(null);
+                  setAnnouncementTitle('');
+                  setAnnouncementMessage('');
+                  setAnnouncementImage(null);
+                  setAnnouncementImagePreview(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                disabled={isEditingAnnouncement}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateAnnouncement}
+                disabled={isEditingAnnouncement || (!announcementTitle.trim() && !announcementMessage.trim() && !announcementImage && !announcementImagePreview)}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isEditingAnnouncement ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-4 w-4" />
+                    <span>Update Announcement</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

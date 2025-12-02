@@ -13,27 +13,21 @@ import {
   serverTimestamp,
   where,
   writeBatch,
-  getDocs
+  getDocs,
+  getDoc
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
 import { 
   LogOut, 
   Bell,
-  Dog,
   Search,
   Heart,
   CheckCircle2,
-  XCircle,
-  Clock,
   ShieldCheck,
   List,
-  Edit,
   BarChart3,
-  TrendingUp,
-  Users, 
-  FileText,
-  Archive
+  FileText
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 
@@ -78,39 +72,13 @@ const CAT_BREEDS = [
   'Other'
 ];
 
-const TabButton = ({ active, label, icon: Icon, onClick, badge = 0 }) => (
-  <button
-    onClick={onClick}
-    role="tab"
-    aria-selected={active}
-    className={`group flex items-center w-full px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-      active
-        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
-    }`}
-  >
-    <Icon className="h-5 w-5 mr-3 text-current" />
-    <span className="flex-1 text-left">{label}</span>
-    {badge > 0 && (
-      <span
-        className={`ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-medium ${
-          active ? 'bg-white/20 text-white' : 'bg-red-500 text-white'
-        }`}
-      >
-        {badge > 99 ? '99+' : badge}
-      </span>
-    )}
-  </button>
-);
+// TabButton component removed - unused
 
 const inputBase =
   'mt-1 block w-full rounded-md border-2 border-gray-400 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-600 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
 const selectBase = 
   'mt-1 block w-full rounded-md border-2 border-gray-400 bg-white px-3 py-2 pr-10 text-base text-gray-900 placeholder-gray-600 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative z-10';
-
-const selectBaseWithIcon = 
-  'mt-1 block w-full rounded-md border-2 border-gray-400 bg-white pl-10 pr-10 py-2 text-base text-gray-900 placeholder-gray-600 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative z-10';
 
 const labelBase = 'block text-sm font-medium text-gray-800';
 
@@ -140,7 +108,7 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [adoptionForm.showBreedDropdown]);
+  }, [adoptionForm.showBreedDropdown, setAdoptionForm]);
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -394,8 +362,64 @@ const AdoptionForm = ({ adoptionForm, setAdoptionForm, submittingAdoption, onSub
     );
   };
 
+
+// Image component with loading state - Defined outside to prevent re-renders
+const ImageWithLoading = ({ src, alt, className, imageId, fallbackContent }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const handleLoad = () => {
+    setIsLoading(false);
+    setHasLoaded(true);
+  };
+
+  const handleError = () => {
+    setIsLoading(false);
+    setHasError(true);
+  };
+
+  // Only reset loading state if this is a new image that hasn't been loaded before
+  React.useEffect(() => {
+    if (src && !hasLoaded) {
+      setIsLoading(true);
+      setHasError(false);
+    }
+  }, [src, hasLoaded]);
+
+  if (hasError) {
+    return fallbackContent || (
+      <div className={`${className} bg-gray-200 flex items-center justify-center`}>
+        <span className="text-gray-400 text-sm">Failed to load</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onLoad={handleLoad}
+        onError={handleError}
+        style={{ 
+          opacity: isLoading ? 0 : 1,
+          transition: 'opacity 0.3s ease-in-out'
+        }}
+      />
+      {isLoading && (
+        <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ImpoundDashboard = () => {
   const { currentUser, logout } = useAuth();
+  const [userSearchQuery, setUserSearchQuery] = useState('');
   
   // Helper function to log admin activities
   const logActivity = async (action, actionType, details = '') => {
@@ -414,6 +438,51 @@ const ImpoundDashboard = () => {
       console.error('Error logging activity:', error);
     }
   };
+
+  // Send push notification to user
+  const sendPushNotification = async (userId, title, body, data = {}) => {
+    if (!userId) return;
+    try {
+      const tokenDoc = await getDoc(doc(db, 'user_push_tokens', userId));
+      
+      if (tokenDoc.exists()) {
+        const tokenData = tokenDoc.data();
+        const token = tokenData?.expoPushToken || tokenData?.pushToken;
+        
+        if (token) {
+          // Send push notification via Expo API
+          const response = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Accept-Encoding': 'gzip, deflate',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify([{
+              to: token,
+              sound: 'default',
+              title: title,
+              body: body,
+              data: {
+                type: data.type || 'pet_transfer',
+                userId: userId,
+                ...data
+              },
+              priority: 'high',
+              channelId: 'default'
+            }])
+          });
+          
+          if (!response.ok) {
+            console.error('Failed to send push notification:', response.statusText);
+          }
+        }
+      }
+    } catch (pushError) {
+      console.error('Error sending push notification:', pushError);
+      // Don't throw - push notification is optional
+    }
+  };
   
   // Function to open Google Maps with coordinates
   const openGoogleMaps = (location, locationName) => {
@@ -423,7 +492,6 @@ const ImpoundDashboard = () => {
     }
     
     const { latitude, longitude } = location;
-    const encodedLocationName = encodeURIComponent(locationName || 'Pet Location');
     const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
     
     // Open in new tab
@@ -433,6 +501,7 @@ const ImpoundDashboard = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeApplicationTab, setActiveApplicationTab] = useState('pending');
   const [strayReports, setStrayReports] = useState([]);
+  const [allStrayReports, setAllStrayReports] = useState([]); // All stray reports for chart (matches insights card)
   const [lostReports, setLostReports] = useState([]);
   const [incidentReports, setIncidentReports] = useState([]);
   const [foundReports, setFoundReports] = useState([]);
@@ -442,7 +511,6 @@ const ImpoundDashboard = () => {
   const [submittingAdoption, setSubmittingAdoption] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -451,14 +519,11 @@ const ImpoundDashboard = () => {
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [strayChartData, setStrayChartData] = useState([]);
-  const [isDataLoading, setIsDataLoading] = useState(true);
-  const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
   const [adoptedPets, setAdoptedPets] = useState([]);
   const [selectedYearAdopted, setSelectedYearAdopted] = useState(new Date().getFullYear());
   const [selectedYearStray, setSelectedYearStray] = useState(new Date().getFullYear());
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [adoptionExpanded, setAdoptionExpanded] = useState(true);
-  const [imageLoadingStates, setImageLoadingStates] = useState({});
   
   // Database totals for insights
   const [dbTotals, setDbTotals] = useState({
@@ -471,71 +536,6 @@ const ImpoundDashboard = () => {
     adoptedPets: 0
   });
 
-  // Helper functions for image loading states
-  const setImageLoading = (imageId, isLoading) => {
-    setImageLoadingStates(prev => ({
-      ...prev,
-      [imageId]: isLoading
-    }));
-  };
-
-  const isImageLoading = (imageId) => {
-    return imageLoadingStates[imageId] === true;
-  };
-
-  // Image component with loading indicator
-  const ImageWithLoading = ({ src, alt, className, imageId, fallbackContent }) => {
-    const [isLoading, setIsLoading] = useState(true);
-    const [hasError, setHasError] = useState(false);
-    const [hasLoaded, setHasLoaded] = useState(false);
-
-    const handleLoad = () => {
-      setIsLoading(false);
-      setHasLoaded(true);
-    };
-
-    const handleError = () => {
-      setIsLoading(false);
-      setHasError(true);
-    };
-
-    // Only reset loading state if this is a new image that hasn't been loaded before
-    React.useEffect(() => {
-      if (src && !hasLoaded) {
-        setIsLoading(true);
-        setHasError(false);
-      }
-    }, [src, hasLoaded]);
-
-    if (hasError) {
-      return fallbackContent || (
-        <div className={`${className} bg-gray-200 flex items-center justify-center`}>
-          <span className="text-gray-400 text-sm">Failed to load</span>
-        </div>
-      );
-    }
-
-    return (
-      <div className="relative">
-        <img
-          src={src}
-          alt={alt}
-          className={className}
-          onLoad={handleLoad}
-          onError={handleError}
-          style={{ 
-            opacity: isLoading ? 0 : 1,
-            transition: 'opacity 0.3s ease-in-out'
-          }}
-        />
-        {isLoading && (
-          <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // Generate chart data for adopted pets
   const generateAdoptedPetsChartData = (adoptedPets, year = new Date().getFullYear()) => {
@@ -547,7 +547,11 @@ const ImpoundDashboard = () => {
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
       
       const monthPets = adoptedPets.filter(pet => {
-        const petDate = pet.adoptedAt?.toDate ? pet.adoptedAt.toDate() : new Date(pet.adoptedAt);
+        // Use transferredAt for pets transferred from impound, or adoptedAt if available
+        const dateField = pet.transferredAt || pet.adoptedAt;
+        if (!dateField) return false;
+        
+        const petDate = dateField?.toDate ? dateField.toDate() : new Date(dateField);
         return petDate.getMonth() === date.getMonth() && 
                petDate.getFullYear() === date.getFullYear();
       });
@@ -587,85 +591,56 @@ const ImpoundDashboard = () => {
     return months;
   };
 
-  // Calculate real growth percentage for adopted pets
-  const calculateAdoptedPetsGrowth = (chartData) => {
-    if (chartData.length < 2) return 0;
-    const currentMonth = chartData[chartData.length - 1]?.count || 0;
-    const previousMonth = chartData[chartData.length - 2]?.count || 0;
-    
-    if (previousMonth === 0) return currentMonth > 0 ? 100 : 0;
-    return Math.round(((currentMonth - previousMonth) / previousMonth) * 100);
-  };
-
-  // Calculate real growth percentage for stray reports
-  const calculateStrayReportsGrowth = (chartData) => {
-    if (chartData.length < 2) return 0;
-    const currentMonth = chartData[chartData.length - 1]?.count || 0;
-    const previousMonth = chartData[chartData.length - 2]?.count || 0;
-    
-    if (previousMonth === 0) return currentMonth > 0 ? 100 : 0;
-    return Math.round(((currentMonth - previousMonth) / previousMonth) * 100);
-  };
+  // Growth calculation functions removed - unused
 
   // Generate SVG path for chart line based on real data
   const generateChartPath = (chartData, maxValue = 10) => {
-    if (!chartData || chartData.length === 0) return "M 50,250 L 50,250";
-    
-    const totalWidth = 950; // Leave 50px margin on each side
-    const spacing = totalWidth / Math.max(chartData.length - 1, 1);
-    
+    if (!chartData || chartData.length === 0) return "M 20,180 L 20,180";
+    const spacing = 360 / Math.max(chartData.length, 1);
     const points = chartData.map((data, index) => {
-      const x = 50 + (index * spacing);
-      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
+      const x = 20 + (index * spacing);
+      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
       return `${x},${y}`;
     });
-    
     if (points.length === 1) {
       return `M ${points[0]} L ${points[0]}`;
     }
-    
     return `M ${points[0]} L ${points.slice(1).join(' L ')}`;
   };
 
   // Generate SVG path for chart area fill
   const generateChartAreaPath = (chartData, maxValue = 10) => {
-    if (!chartData || chartData.length === 0) return "M 50,250 L 50,250 L 50,250 Z";
-    
-    const totalWidth = 950; // Leave 50px margin on each side
-    const spacing = totalWidth / Math.max(chartData.length - 1, 1);
-    
+    if (!chartData || chartData.length === 0) return "M 20,180 L 20,180 L 20,180 Z";
+    const spacing = 360 / Math.max(chartData.length, 1);
     const points = chartData.map((data, index) => {
-      const x = 50 + (index * spacing);
-      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
+      const x = 20 + (index * spacing);
+      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
       return `${x},${y}`;
     });
-    
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
-    
-    return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},250 L 50,250 Z`;
+    return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},180 L 20,180 Z`;
   };
 
 
+  // Real-time chart data updates for adopted pets and stray reports
   useEffect(() => {
-    if (adoptablePets && strayReports) {
-      setIsDataLoading(true);
-      const adoptedPets = adoptablePets.filter(pet => pet.adoptedAt);
-      setChartData(generateAdoptedPetsChartData(adoptedPets, selectedYearAdopted));
-      setStrayChartData(generateStrayReportsChartData(strayReports, selectedYearStray));
-      setLastDataUpdate(new Date());
-      setIsDataLoading(false);
-    }
-  }, [adoptablePets, strayReports, selectedYearAdopted, selectedYearStray]);
-
-  // Real-time chart data updates for better performance
-  useEffect(() => {
-    if (adoptedPets && strayReports) {
-      setChartData(generateAdoptedPetsChartData(adoptedPets, selectedYearAdopted));
-      setStrayChartData(generateStrayReportsChartData(strayReports, selectedYearStray));
-      setLastDataUpdate(new Date());
-    }
-  }, [adoptedPets, strayReports, selectedYearAdopted, selectedYearStray]);
+    // Always generate chart data, even if arrays are empty (to show empty charts)
+    const adoptedPetsArray = Array.isArray(adoptedPets) ? adoptedPets : [];
+    // Use allStrayReports to match insights card data source (all stray_reports from database)
+    const strayReportsArray = Array.isArray(allStrayReports) ? allStrayReports : [];
+    
+    // Generate chart data for adopted pets
+    setChartData(generateAdoptedPetsChartData(adoptedPetsArray, selectedYearAdopted));
+    
+    // Sort stray reports by reportTime before generating chart data
+    const sortedStrayReports = [...strayReportsArray].sort((a, b) => {
+      const timeA = a.reportTime?.toDate ? a.reportTime.toDate().getTime() : new Date(a.reportTime || 0).getTime();
+      const timeB = b.reportTime?.toDate ? b.reportTime.toDate().getTime() : new Date(b.reportTime || 0).getTime();
+      return timeA - timeB;
+    });
+    setStrayChartData(generateStrayReportsChartData(sortedStrayReports, selectedYearStray));
+  }, [adoptedPets, allStrayReports, selectedYearAdopted, selectedYearStray]);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedIncidentForDecline, setSelectedIncidentForDecline] = useState(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -746,6 +721,8 @@ const ImpoundDashboard = () => {
       setNotifications(filteredNotifications);
       setUnreadCount(filteredNotifications.filter((n) => !n.impoundRead).length);
       setStrayReports(rows.filter((r) => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'));
+      // Store all stray reports for chart (matches insights card data source)
+      setAllStrayReports(rows);
       setLostReports(rows.filter((r) => (r.status || '').toLowerCase() === 'lost'));
       setIncidentReports(rows.filter((r) => (r.status || '').toLowerCase() === 'incident'));
       // Only show found reports that were NOT marked as found by the owner
@@ -996,16 +973,7 @@ const ImpoundDashboard = () => {
     }
   };
 
-  // Notifications: mark read/unread by toggling a flag on the report document
-  const toggleNotificationRead = async (reportId, currentVal) => {
-    try {
-      await updateDoc(doc(db, 'stray_reports', reportId), {
-        impoundRead: !currentVal
-      });
-    } catch (e) {
-      toast.error('Failed to update notification');
-    }
-  };
+  // toggleNotificationRead function removed - unused
 
 
   const deleteNotification = async (notificationId) => {
@@ -1043,21 +1011,6 @@ const ImpoundDashboard = () => {
       });
     } catch (error) {
       console.error('Error marking notification as read:', error);
-    }
-  };
-
-  const markAllNotificationsAsRead = async () => {
-    try {
-      const batch = writeBatch(db);
-      notifications.forEach(notification => {
-        if (!notification.impoundRead) {
-          batch.update(doc(db, 'stray_reports', notification.id), { impoundRead: true });
-        }
-      });
-      await batch.commit();
-      setShowNotifications(false);
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
     }
   };
 
@@ -1525,13 +1478,67 @@ const ImpoundDashboard = () => {
         'create',
         `Created adoptable pet: ${adoptionForm.petName} (${adoptionForm.petType || 'Unknown Type'})`
       );
+
+      // Send push notifications to all users about new adoptable pet
+      try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const pushPromises = [];
+
+        for (const userDoc of usersSnapshot.docs) {
+          const userId = userDoc.id;
+          const userData = userDoc.data();
+          
+          // Skip banned users
+          if (userData.status === 'banned') continue;
+
+          // Get user's push token
+          const tokenDoc = await getDoc(doc(db, 'user_push_tokens', userId));
+          if (tokenDoc.exists()) {
+            const tokenData = tokenDoc.data();
+            const token = tokenData?.expoPushToken || tokenData?.pushToken;
+
+            if (token) {
+              pushPromises.push(
+                fetch('https://exp.host/--/api/v2/push/send', {
+                  method: 'POST',
+                  headers: {
+                    'Accept': 'application/json',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify([{
+                    to: token,
+                    sound: 'default',
+                    title: 'New Pet Available for Adoption! 🐾',
+                    body: `${adoptionForm.petName} (${adoptionForm.breed || adoptionForm.petType}) is now available for adoption!`,
+                    data: {
+                      type: 'new_adoptable_pet',
+                      petName: adoptionForm.petName,
+                      petType: adoptionForm.petType,
+                      breed: adoptionForm.breed
+                    },
+                    priority: 'high',
+                    channelId: 'default'
+                  }])
+                }).catch(err => console.error('Push notification error for user:', userId, err))
+              );
+            }
+          }
+        }
+
+        // Send all push notifications in parallel
+        await Promise.all(pushPromises);
+        console.log(`Sent ${pushPromises.length} push notifications for new adoptable pet`);
+      } catch (notifError) {
+        console.error('Error sending push notifications:', notifError);
+        // Don't fail the whole operation if notifications fail
+      }
       
-      // Reset form to match the current state structure
+      // Reset form - clear all fields
       setAdoptionForm({
         petName: '',
         petType: '',
         breed: '',
-        age: '',
         gender: '',
         description: '',
         vaccinated: false,
@@ -1545,6 +1552,14 @@ const ImpoundDashboard = () => {
         showBreedDropdown: false,
         daysAtImpound: ''
       });
+
+      // Reset file input element to clear the visual selection
+      setTimeout(() => {
+        const fileInput = document.querySelector('input[type="file"][accept="image/*"]');
+        if (fileInput) {
+          fileInput.value = '';
+        }
+      }, 100);
     } catch (error) {
       console.error('Error posting adoptable pet:', error);
       toast.error('Failed to post adoptable pet: ' + (error.message || 'Unknown error'));
@@ -1571,7 +1586,7 @@ const ImpoundDashboard = () => {
         if (role === 'user' || role === 'regular') {
           usersMap.set(doc.id, {
             uid: doc.id,
-            displayName: userData.name || userData.displayName || 'Unknown User',
+            displayName: userData.displayName || userData.name || 'Unknown User',
             email: userData.email || 'No email',
             phone: userData.phone || 'No phone',
             address: userData.address || 'No address',
@@ -1594,7 +1609,6 @@ const ImpoundDashboard = () => {
             usersMap.set(appData.userId, {
               ...existingUser,
               // Override with more detailed info from adoption application if available
-              displayName: appData.applicant.fullName || existingUser.displayName,
               phone: appData.applicant.phone || existingUser.phone,
               address: appData.applicant.address || existingUser.address,
               hasAdoptionApplication: true
@@ -1625,7 +1639,8 @@ const ImpoundDashboard = () => {
     
     setTransferring(true);
     try {
-      await addDoc(collection(db, 'pets'), {
+      // Create pet document and get its ID
+      const petRef = await addDoc(collection(db, 'pets'), {
         petName: selectedAdoptable.petName,
         petType: selectedAdoptable.breed?.toLowerCase().includes('cat') ? 'cat' : 'dog',
         petGender: selectedAdoptable.gender || 'male',
@@ -1649,6 +1664,8 @@ const ImpoundDashboard = () => {
         healthStatus: selectedAdoptable.healthStatus || ''
       });
 
+      const petId = petRef.id;
+
       // Create notification for the user
       await addDoc(collection(db, 'user_notifications'), {
         userId: selectedUser.uid,
@@ -1658,10 +1675,29 @@ const ImpoundDashboard = () => {
         petName: selectedAdoptable.petName,
         petBreed: selectedAdoptable.breed,
         petImage: selectedAdoptable.imageUrl || '',
+        petId: petId,
         read: false,
         createdAt: serverTimestamp(),
-        createdBy: currentUser?.email || 'impound_admin'
+        createdBy: currentUser?.email || 'impound_admin',
+        data: {
+          type: 'pet_transfer',
+          petId: petId,
+          petName: selectedAdoptable.petName
+        }
       });
+
+      // Send push notification to user
+      await sendPushNotification(
+        selectedUser.uid,
+        'New Pet Transferred to You!',
+        `Congratulations! ${selectedAdoptable.petName} (${selectedAdoptable.breed}) has been transferred to your care. Check your My Pets screen to view it.`,
+        {
+          type: 'pet_transfer',
+          petId: petId,
+          petName: selectedAdoptable.petName,
+          petBreed: selectedAdoptable.breed
+        }
+      );
 
       // Remove from adoptable pets
       await deleteDoc(doc(db, 'adoptable_pets', selectedAdoptable.id));
@@ -3089,92 +3125,78 @@ const ImpoundDashboard = () => {
             {/* Analytics Charts */}
             <div className="grid grid-cols-1 gap-6">
               {/* Adopted Pets Line Chart */}
-              <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 rounded-xl shadow-lg p-6 border border-emerald-200">
+              <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-white flex items-center">
-                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
-                    </div>
-                    Adopted Pets Trend
-                  </h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-white">Adopted Pets Trend ({selectedYearAdopted})</h3>
                   <select
                     value={selectedYearAdopted}
                     onChange={(e) => setSelectedYearAdopted(parseInt(e.target.value))}
-                    className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 hover:bg-white/30 transition-colors"
+                    className="bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-600 transition-colors"
                   >
                     {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
-                      <option key={year} value={year} className="bg-slate-700 text-white">
+                      <option key={year} value={year} className="bg-gray-700 text-white">
                         {year}
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="h-96">
-                  <svg width="100%" height="100%" viewBox="0 0 1000 280" className="overflow-visible">
-                    {/* Grid lines */}
+                <div className="h-48 sm:h-64">
+                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                    {/* Dark grid lines */}
                     <defs>
                       <pattern id="adoptedGrid" width="40" height="40" patternUnits="userSpaceOnUse">
                         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
                       </pattern>
-                      <linearGradient id="adoptedChartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.4"/>
-                        <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/>
-                      </linearGradient>
                     </defs>
                     <rect width="100%" height="100%" fill="url(#adoptedGrid)" />
                     
                     {/* Chart area fill */}
                     <path
                       d={generateChartAreaPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
-                      fill="url(#adoptedChartGradient)"
+                      fill="#10b981"
+                      fillOpacity="0.2"
                     />
                     
                     {/* Chart line */}
                     <path
                       d={generateChartPath(chartData, Math.max(...chartData.map(d => d.count), 1))}
                       fill="none"
-                      stroke="#ffffff"
-                      strokeWidth="4"
+                      stroke="#10b981"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
                     />
                     
                     {/* Data points */}
                     {chartData.map((data, index) => {
                       const maxValue = Math.max(...chartData.map(d => d.count), 1);
-                      const totalWidth = 950;
-                      const spacing = totalWidth / Math.max(chartData.length - 1, 1);
-                      const x = 50 + (index * spacing);
-                      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
+                      const spacing = 360 / Math.max(chartData.length, 1);
+                      const x = 20 + (index * spacing);
+                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
                       return (
                         <circle 
                           key={index}
                           cx={x} 
                           cy={y} 
-                          r="8" 
-                          fill="#ffffff" 
-                          stroke="#10b981" 
-                          strokeWidth="3" 
-                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                          r="4" 
+                          fill="#10b981" 
+                          stroke="#1e293b"
+                          strokeWidth="2"
                         />
                       );
                     })}
                     
-                    {/* Labels */}
+                    {/* Month labels */}
                     {chartData.map((data, index) => {
-                      const totalWidth = 950;
-                      const spacing = totalWidth / Math.max(chartData.length - 1, 1);
-                      const x = 50 + (index * spacing);
+                      const spacing = 360 / Math.max(chartData.length, 1);
+                      const x = 20 + (index * spacing);
                       return (
                         <text 
                           key={index}
-                          x={x}
-                          y="265" 
+                          x={x} 
+                          y="195" 
                           textAnchor="middle" 
-                          className="text-xs fill-white"
+                          className="text-xs fill-gray-300"
                         >
                           {data.month}
                         </text>
@@ -3184,117 +3206,105 @@ const ImpoundDashboard = () => {
                     {/* Y-axis labels */}
                     {(() => {
                       const maxValue = Math.max(...chartData.map(d => d.count), 1);
-                      const roundedMax = Math.ceil(maxValue / 4) * 4; // Round up to next multiple of 4
-                      const step = roundedMax / 4;
-                      const labels = [0, step, step * 2, step * 3, roundedMax];
-                      const yPositions = [255, 205, 155, 105, 55];
-                      
-                      return labels.map((label, idx) => (
-                        <text key={idx} x="40" y={yPositions[idx]} textAnchor="end" className="text-xs fill-white">
-                          {Math.round(label)}
-                        </text>
-                      ));
+                      const tickMax = Math.max(5, Math.ceil(maxValue / 5) * 5);
+                      const ticks = [0, tickMax * 0.25, tickMax * 0.5, tickMax * 0.75, tickMax];
+                      return ticks.map((t, i) => {
+                        const y = 180 - Math.min((t / tickMax) * 160, 160);
+                        const label = t % 1 === 0 ? t : t.toFixed(0);
+                        return (
+                          <text 
+                            key={i}
+                            x="15" 
+                            y={y + 4} 
+                            textAnchor="end" 
+                            className="text-xs fill-gray-300"
+                          >
+                            {label}
+                          </text>
+                        );
+                      });
                     })()}
                   </svg>
-                  </div>
-                <div className="mt-4 flex justify-between text-sm text-white">
-                  <span>Total Adopted: {dbTotals.adoptedPets}</span>
-                  <div className="flex items-center space-x-2">
-                    <span>Growth: {calculateAdoptedPetsGrowth(chartData) >= 0 ? '+' : ''}{calculateAdoptedPetsGrowth(chartData)}% this month</span>
-                    {isDataLoading && (
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                    )}
                 </div>
+                <div className="mt-3 flex justify-between text-xs text-gray-300">
+                  <span>Period Total: {chartData.reduce((sum, d) => sum + d.count, 0)}</span>
+                  <span>Peak: {Math.max(...chartData.map(d => d.count), 0)}</span>
                 </div>
               </div>
 
               {/* Stray Reports Line Chart */}
-              <div className="bg-gradient-to-br from-orange-600 via-red-600 to-pink-600 rounded-xl shadow-lg p-6 border border-orange-200">
+              <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-white flex items-center">
-                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    Stray Reports Trend
-                  </h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-white">Stray Reports Trend ({selectedYearStray})</h3>
                   <select
                     value={selectedYearStray}
                     onChange={(e) => setSelectedYearStray(parseInt(e.target.value))}
-                    className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 hover:bg-white/30 transition-colors"
+                    className="bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-600 transition-colors"
                   >
                     {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
-                      <option key={year} value={year} className="bg-slate-700 text-white">
+                      <option key={year} value={year} className="bg-gray-700 text-white">
                         {year}
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="h-96">
-                  <svg width="100%" height="100%" viewBox="0 0 1000 280" className="overflow-visible">
-                    {/* Grid lines */}
+                <div className="h-48 sm:h-64">
+                  <svg width="100%" height="100%" viewBox="0 0 400 200" className="overflow-visible">
+                    {/* Dark grid lines */}
                     <defs>
                       <pattern id="strayGrid" width="40" height="40" patternUnits="userSpaceOnUse">
                         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
                       </pattern>
-                      <linearGradient id="strayChartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#f97316" stopOpacity="0.4"/>
-                        <stop offset="100%" stopColor="#ec4899" stopOpacity="0.1"/>
-                      </linearGradient>
                     </defs>
                     <rect width="100%" height="100%" fill="url(#strayGrid)" />
                     
                     {/* Chart area fill */}
                     <path
                       d={generateChartAreaPath(strayChartData, Math.max(...strayChartData.map(d => d.count), 1))}
-                      fill="url(#strayChartGradient)"
+                      fill="#f97316"
+                      fillOpacity="0.2"
                     />
                     
                     {/* Chart line */}
                     <path
                       d={generateChartPath(strayChartData, Math.max(...strayChartData.map(d => d.count), 1))}
                       fill="none"
-                      stroke="#ffffff"
-                      strokeWidth="4"
+                      stroke="#f97316"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
                     />
                     
                     {/* Data points */}
                     {strayChartData.map((data, index) => {
                       const maxValue = Math.max(...strayChartData.map(d => d.count), 1);
-                      const totalWidth = 950;
-                      const spacing = totalWidth / Math.max(strayChartData.length - 1, 1);
-                      const x = 50 + (index * spacing);
-                      const y = 250 - Math.min((data.count / maxValue) * 220, 220);
+                      const spacing = 360 / Math.max(strayChartData.length, 1);
+                      const x = 20 + (index * spacing);
+                      const y = 180 - Math.min((data.count / maxValue) * 160, 160);
                       return (
                         <circle 
                           key={index}
                           cx={x} 
                           cy={y} 
-                          r="8" 
-                          fill="#ffffff" 
-                          stroke="#f97316" 
-                          strokeWidth="3" 
-                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                          r="4" 
+                          fill="#f97316" 
+                          stroke="#1e293b"
+                          strokeWidth="2"
                         />
                       );
                     })}
                     
-                    {/* Labels */}
+                    {/* Month labels */}
                     {strayChartData.map((data, index) => {
-                      const totalWidth = 950;
-                      const spacing = totalWidth / Math.max(strayChartData.length - 1, 1);
-                      const x = 50 + (index * spacing);
+                      const spacing = 360 / Math.max(strayChartData.length, 1);
+                      const x = 20 + (index * spacing);
                       return (
                         <text 
                           key={index}
-                          x={x}
-                          y="265" 
+                          x={x} 
+                          y="195" 
                           textAnchor="middle" 
-                          className="text-xs fill-white"
+                          className="text-xs fill-gray-300"
                         >
                           {data.month}
                         </text>
@@ -3304,30 +3314,32 @@ const ImpoundDashboard = () => {
                     {/* Y-axis labels */}
                     {(() => {
                       const maxValue = Math.max(...strayChartData.map(d => d.count), 1);
-                      const roundedMax = Math.ceil(maxValue / 4) * 4; // Round up to next multiple of 4
-                      const step = roundedMax / 4;
-                      const labels = [0, step, step * 2, step * 3, roundedMax];
-                      const yPositions = [255, 205, 155, 105, 55];
-                      
-                      return labels.map((label, idx) => (
-                        <text key={idx} x="40" y={yPositions[idx]} textAnchor="end" className="text-xs fill-white">
-                          {Math.round(label)}
-                        </text>
-                      ));
+                      const tickMax = Math.max(5, Math.ceil(maxValue / 5) * 5);
+                      const ticks = [0, tickMax * 0.25, tickMax * 0.5, tickMax * 0.75, tickMax];
+                      return ticks.map((t, i) => {
+                        const y = 180 - Math.min((t / tickMax) * 160, 160);
+                        const label = t % 1 === 0 ? t : t.toFixed(0);
+                        return (
+                          <text 
+                            key={i}
+                            x="15" 
+                            y={y + 4} 
+                            textAnchor="end" 
+                            className="text-xs fill-gray-300"
+                          >
+                            {label}
+                          </text>
+                        );
+                      });
                     })()}
                   </svg>
-              </div>
-                <div className="mt-4 flex justify-between text-sm text-white">
-                  <span>Total Reports: {dbTotals.strayReports}</span>
-                  <div className="flex items-center space-x-2">
-                    <span>Growth: {calculateStrayReportsGrowth(strayChartData) >= 0 ? '+' : ''}{calculateStrayReportsGrowth(strayChartData)}% this month</span>
-                    {isDataLoading && (
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                    )}
+                </div>
+                <div className="mt-3 flex justify-between text-xs text-gray-300">
+                  <span>Period Total: {strayChartData.reduce((sum, d) => sum + d.count, 0)}</span>
+                  <span>Peak: {Math.max(...strayChartData.map(d => d.count), 0)}</span>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
           </div>
         )}
 
@@ -3682,7 +3694,7 @@ const ImpoundDashboard = () => {
                         <div className="relative">
                           <img 
                             src={selectedReport.imageUrl} 
-                            alt="Report Image"
+                            alt="Report"
                             className="w-full h-64 object-cover rounded-lg border"
                             onError={(e) => {
                               e.target.style.display = 'none';
@@ -4125,20 +4137,38 @@ const ImpoundDashboard = () => {
 
               {/* User Selection */}
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-md font-medium text-gray-900 flex items-center">
-                    <svg className="w-5 h-5 text-indigo-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                    </svg>
-                    Select New Owner
-                  </h4>
-                  <button
-                    onClick={fetchRegisteredUsers}
-                    disabled={loadingUsers}
-                    className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {loadingUsers ? 'Loading...' : 'Refresh Users'}
-                  </button>
+                <div className="flex flex-col space-y-3 mb-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-md font-medium text-gray-900 flex items-center">
+                      <svg className="w-5 h-5 text-indigo-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                      </svg>
+                      Select New Owner
+                    </h4>
+                    <button
+                      onClick={fetchRegisteredUsers}
+                      disabled={loadingUsers}
+                      className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {loadingUsers ? 'Loading...' : 'Refresh Users'}
+                    </button>
+                  </div>
+                  
+                  {/* Search User */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search users by name or email..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
 
                 {loadingUsers ? (
@@ -4158,7 +4188,12 @@ const ImpoundDashboard = () => {
                   </div>
                 ) : (
                   <div className="max-h-60 overflow-y-auto border rounded-lg">
-                    {registeredUsers.map((user) => (
+                    {registeredUsers
+                      .filter(user => 
+                        (user.displayName || '').toLowerCase().includes(userSearchQuery.toLowerCase()) || 
+                        (user.email || '').toLowerCase().includes(userSearchQuery.toLowerCase())
+                      )
+                      .map((user) => (
                       <div
                         key={user.uid}
                         className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 ${
@@ -4441,7 +4476,7 @@ const ImpoundDashboard = () => {
                         <div className="relative">
                           <img 
                             src={selectedNotification.imageUrl} 
-                            alt="Report Image" 
+                            alt="Report" 
                             className="w-full h-64 object-cover rounded-lg border"
                           />
                         </div>

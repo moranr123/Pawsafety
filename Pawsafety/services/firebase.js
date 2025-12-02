@@ -64,8 +64,18 @@ try {
   }
 } catch (error) {
   console.error('Firebase initialization error:', error);
-  // Re-throw to prevent app from running with broken Firebase
-  throw error;
+  // Don't throw here, as it crashes the app immediately.
+  // Instead, export null/mock objects and let the UI handle it.
+  
+  // Create a mock auth object to prevent immediate crashes in imports
+  auth = {
+    currentUser: null,
+    onAuthStateChanged: () => () => {},
+    signOut: () => Promise.resolve(),
+  };
+  
+  // Store the error to be checked by the app
+  global.firebaseInitError = error;
 }
 
 export { db, storage, auth };

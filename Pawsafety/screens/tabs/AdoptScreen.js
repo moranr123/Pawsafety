@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback, memo } from 'react';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -1437,95 +1437,133 @@ const AdoptScreen = () => {
     },
   }), [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight]);
 
-  const AdoptionCard = ({ pet, onPressAdopt }) => (
-    <View style={styles.petCard}>
-      {/* Header with pet info and gender badge */}
-      <View style={styles.petHeader}>
-        <View style={styles.petHeaderInfo}>
-          <View style={styles.petHeaderDetails}>
-            <Text style={styles.petNameLabel}>Name:</Text>
-            <Text style={styles.petName} numberOfLines={1}>
-              {capitalizeFirstLetter(pet.petName) || 'Unnamed Pet'}
-            </Text>
+  // Memoized handler for adopt button press
+  const handleAdoptPress = useCallback((pet) => {
+    setSelectedPet(pet);
+    const user = auth.currentUser;
+    setAppForm((prev) => ({
+      ...prev,
+      fullName: prev.fullName || (user?.displayName || ''),
+      email: prev.email || (user?.email || ''),
+    }));
+    setApplyVisible(true);
+  }, []);
+
+  const AdoptionCard = memo(({ pet, onPressAdopt }) => {
+    const [imageError, setImageError] = useState(false);
+    
+    return (
+      <View style={styles.petCard}>
+        {/* Header with pet info and gender badge */}
+        <View style={styles.petHeader}>
+          <View style={styles.petHeaderInfo}>
+            <View style={styles.petHeaderDetails}>
+              <Text style={styles.petNameLabel}>Name:</Text>
+              <Text style={styles.petName} numberOfLines={1}>
+                {capitalizeFirstLetter(pet.petName) || 'Unnamed Pet'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.genderBadge}>
+            <Text style={styles.genderText}>{pet.gender === 'male' ? '♂ Male' : '♀ Female'}</Text>
           </View>
         </View>
-        <View style={styles.genderBadge}>
-          <Text style={styles.genderText}>{pet.gender === 'male' ? '♂ Male' : '♀ Female'}</Text>
+
+        {/* Content with Details */}
+        <View style={styles.petContent}>
+          {/* Details Text */}
+          <View style={styles.detailsContainer}>
+            {pet.petType && (
+              <Text style={styles.detailText}>Type: {pet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}</Text>
+            )}
+            {pet.breed && (
+              <Text style={styles.detailText}>Breed: {pet.breed}</Text>
+            )}
+            {pet.gender && (
+              <Text style={styles.detailText}>Gender: {pet.gender === 'male' ? '♂ Male' : '♀ Female'}</Text>
+            )}
+            {pet.location && (
+              <Text style={styles.detailText}>Location: {pet.location}</Text>
+            )}
+            {pet.daysAtImpound !== undefined && pet.daysAtImpound !== null && pet.daysAtImpound !== '' && (
+              <Text style={styles.detailText}>
+                Days Sheltered: {pet.daysAtImpound} {Number(pet.daysAtImpound) === 1 ? 'day' : 'days'}
+              </Text>
+            )}
+            {pet.vaccinated && (pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate) && (
+              <Text style={styles.detailText}>
+                Vaccinated: {formatDate(pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate)}
+              </Text>
+            )}
+            {pet.dewormed && (pet.dewormedDate || pet.dewormDate) && (
+              <Text style={styles.detailText}>
+                Dewormed: {formatDate(pet.dewormedDate || pet.dewormDate)}
+              </Text>
+            )}
+            {pet.antiRabies && (pet.antiRabiesDate || pet.antiRabiesVaccineDate) && (
+              <Text style={styles.detailText}>
+                Anti-Rabies: {formatDate(pet.antiRabiesDate || pet.antiRabiesVaccineDate)}
+              </Text>
+            )}
+          </View>
+
+          {pet.description ? (
+            <View style={styles.descriptionSection}>
+              <Text style={styles.descriptionLabel}>More Details:</Text>
+              <Text style={styles.petDescription} numberOfLines={3}>{pet.description}</Text>
+            </View>
+          ) : null}
+          
+          {/* Image */}
+          {pet.imageUrl && !imageError ? (
+            <Image
+              source={{ uri: pet.imageUrl }}
+              style={styles.petImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              onError={() => setImageError(true)}
+              transition={200}
+            />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <MaterialIcons name="pets" size={60} color="#9CA3AF" />
+            </View>
+          )}
+        </View>
+
+        {/* Actions */}
+        <View style={styles.petActions}>
+          <TouchableOpacity style={styles.adoptButton} onPress={onPressAdopt}>
+            <MaterialIcons 
+              name="favorite" 
+              size={isSmallDevice ? 20 : isTablet ? 24 : 22} 
+              color="#FFFFFF" 
+            />
+            <Text style={styles.adoptButtonText}>Adopt</Text>
+          </TouchableOpacity>
         </View>
       </View>
-
-      {/* Content with Details */}
-      <View style={styles.petContent}>
-        {/* Details Text */}
-        <View style={styles.detailsContainer}>
-          {pet.petType && (
-            <Text style={styles.detailText}>Type: {pet.petType === 'dog' ? '🐕 Dog' : '🐱 Cat'}</Text>
-          )}
-          {pet.breed && (
-            <Text style={styles.detailText}>Breed: {pet.breed}</Text>
-          )}
-          {pet.gender && (
-            <Text style={styles.detailText}>Gender: {pet.gender === 'male' ? '♂ Male' : '♀ Female'}</Text>
-          )}
-          {pet.location && (
-            <Text style={styles.detailText}>Location: {pet.location}</Text>
-          )}
-          {pet.daysAtImpound !== undefined && pet.daysAtImpound !== null && pet.daysAtImpound !== '' && (
-            <Text style={styles.detailText}>
-              Days Sheltered: {pet.daysAtImpound} {Number(pet.daysAtImpound) === 1 ? 'day' : 'days'}
-            </Text>
-          )}
-          {pet.vaccinated && (pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate) && (
-            <Text style={styles.detailText}>
-              Vaccinated: {formatDate(pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate)}
-            </Text>
-          )}
-          {pet.dewormed && (pet.dewormedDate || pet.dewormDate) && (
-            <Text style={styles.detailText}>
-              Dewormed: {formatDate(pet.dewormedDate || pet.dewormDate)}
-            </Text>
-          )}
-          {pet.antiRabies && (pet.antiRabiesDate || pet.antiRabiesVaccineDate) && (
-            <Text style={styles.detailText}>
-              Anti-Rabies: {formatDate(pet.antiRabiesDate || pet.antiRabiesVaccineDate)}
-            </Text>
-          )}
-        </View>
-
-        {pet.description ? (
-          <View style={styles.descriptionSection}>
-            <Text style={styles.descriptionLabel}>More Details:</Text>
-            <Text style={styles.petDescription} numberOfLines={3}>{pet.description}</Text>
-          </View>
-        ) : null}
-        
-        {/* Image */}
-        {pet.imageUrl ? (
-          <Image
-            source={{ uri: pet.imageUrl }}
-            style={styles.petImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <MaterialIcons name="pets" size={60} color="#9CA3AF" />
-          </View>
-        )}
-      </View>
-
-      {/* Actions */}
-      <View style={styles.petActions}>
-        <TouchableOpacity style={styles.adoptButton} onPress={onPressAdopt}>
-          <MaterialIcons 
-            name="favorite" 
-            size={isSmallDevice ? 20 : isTablet ? 24 : 22} 
-            color="#FFFFFF" 
-          />
-          <Text style={styles.adoptButtonText}>Adopt</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  }, (prevProps, nextProps) => {
+    // Custom comparison: only re-render if pet data actually changed
+    return (
+      prevProps.pet.id === nextProps.pet.id &&
+      prevProps.pet.imageUrl === nextProps.pet.imageUrl &&
+      prevProps.pet.petName === nextProps.pet.petName &&
+      prevProps.pet.breed === nextProps.pet.breed &&
+      prevProps.pet.gender === nextProps.pet.gender &&
+      prevProps.pet.petType === nextProps.pet.petType &&
+      prevProps.pet.description === nextProps.pet.description &&
+      prevProps.pet.location === nextProps.pet.location &&
+      prevProps.pet.daysAtImpound === nextProps.pet.daysAtImpound &&
+      prevProps.pet.vaccinated === nextProps.pet.vaccinated &&
+      prevProps.pet.dewormed === nextProps.pet.dewormed &&
+      prevProps.pet.antiRabies === nextProps.pet.antiRabies &&
+      prevProps.pet.vaccinatedDate === nextProps.pet.vaccinatedDate &&
+      prevProps.pet.dewormedDate === nextProps.pet.dewormedDate &&
+      prevProps.pet.antiRabiesDate === nextProps.pet.antiRabiesDate
+    );
+  });
 
   const FilterChip = ({ title, active = false, onPress, style }) => (
     <TouchableOpacity 
@@ -1646,16 +1684,7 @@ const AdoptScreen = () => {
             <AdoptionCard
               key={p.id}
               pet={p}
-              onPressAdopt={() => {
-                setSelectedPet(p);
-                const user = auth.currentUser;
-                setAppForm((prev) => ({
-                  ...prev,
-                  fullName: prev.fullName || (user?.displayName || ''),
-                  email: prev.email || (user?.email || ''),
-                }));
-                setApplyVisible(true);
-              }}
+              onPressAdopt={() => handleAdoptPress(p)}
             />
           ))}
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc, addDoc, serverTimestamp, Timestamp, writeBatch, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, addDoc, serverTimestamp, Timestamp, writeBatch, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { AlertCircle, UserX, MessageSquare, FileText, Flag, X, Clock, User, Trash2, Ban, History, RotateCcw, Archive, ArrowLeft } from 'lucide-react';
+import { UserX, MessageSquare, FileText, Flag, X, Clock, User, Trash2, Ban, History, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const UserReports = () => {
@@ -23,6 +23,7 @@ const UserReports = () => {
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [selectedHistoryContent, setSelectedHistoryContent] = useState(null);
   const [archiveSearchTerm, setArchiveSearchTerm] = useState('');
+  const [historyDateFilter, setHistoryDateFilter] = useState('');
   const [isCheckingRestrict, setIsCheckingRestrict] = useState(false);
   const [isRestricting, setIsRestricting] = useState(false);
   const [isCheckingBan, setIsCheckingBan] = useState(false);
@@ -729,21 +730,44 @@ const UserReports = () => {
   }, [reports, userProfiles]);
 
   const filteredHistoryContent = useMemo(() => {
-    if (!historySearchTerm.trim()) return groupedHistoryContent;
+    let filtered = groupedHistoryContent;
     
-    const searchLower = historySearchTerm.toLowerCase();
-    return groupedHistoryContent.filter(content => {
-      const matchesOwnerName = content.ownerName?.toLowerCase().includes(searchLower);
-      const matchesContent = content.content?.toLowerCase().includes(searchLower);
-      const matchesReporter = content.reports.some(report => 
-        report.reporterName?.toLowerCase().includes(searchLower) ||
-        report.reason?.toLowerCase().includes(searchLower)
-      );
-      const matchesResolution = content.resolution?.toLowerCase().includes(searchLower);
+    // Apply date filter
+    if (historyDateFilter) {
+      const filterDate = new Date(historyDateFilter);
+      filterDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(filterDate);
+      nextDay.setDate(nextDay.getDate() + 1);
       
-      return matchesOwnerName || matchesContent || matchesReporter || matchesResolution;
-    });
-  }, [groupedHistoryContent, historySearchTerm]);
+      filtered = filtered.filter(content => {
+        const contentDate = content.resolvedAt || content.latestDate;
+        if (!contentDate) return false;
+        
+        const date = contentDate.toDate ? contentDate.toDate() : new Date(contentDate);
+        date.setHours(0, 0, 0, 0);
+        
+        return date >= filterDate && date < nextDay;
+      });
+    }
+    
+    // Apply search filter
+    if (historySearchTerm.trim()) {
+      const searchLower = historySearchTerm.toLowerCase();
+      filtered = filtered.filter(content => {
+        const matchesOwnerName = content.ownerName?.toLowerCase().includes(searchLower);
+        const matchesContent = content.content?.toLowerCase().includes(searchLower);
+        const matchesReporter = content.reports.some(report => 
+          report.reporterName?.toLowerCase().includes(searchLower) ||
+          report.reason?.toLowerCase().includes(searchLower)
+        );
+        const matchesResolution = content.resolution?.toLowerCase().includes(searchLower);
+        
+        return matchesOwnerName || matchesContent || matchesReporter || matchesResolution;
+      });
+    }
+    
+    return filtered;
+  }, [groupedHistoryContent, historySearchTerm, historyDateFilter]);
 
   const groupedArchivedContent = useMemo(() => {
     const groups = {};
@@ -848,6 +872,7 @@ const UserReports = () => {
     return <div className="p-8 text-center text-gray-500">Loading reports...</div>;
   }
 
+  // eslint-disable-next-line no-unused-vars
   const handleUndoBan = async (content) => {
     const userId = content.ownerId;
     if (!userId) {
@@ -902,6 +927,7 @@ const UserReports = () => {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleUndoRestrict = async (content) => {
     const userId = content.ownerId;
     if (!userId) {
@@ -931,6 +957,7 @@ const UserReports = () => {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleArchiveHistory = async (content) => {
     if (!window.confirm(`Are you sure you want to archive this report history?`)) return;
 
@@ -1165,11 +1192,22 @@ const UserReports = () => {
                     onChange={(e) => setHistorySearchTerm(e.target.value)}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   />
-                  {historySearchTerm && (
+                  <input
+                    type="date"
+                    value={historyDateFilter}
+                    onChange={(e) => setHistoryDateFilter(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="Filter by date"
+                  />
+                  {(historySearchTerm || historyDateFilter) && (
                     <button
-                      onClick={() => setHistorySearchTerm('')}
-                      className="px-4 py-2 text-sm bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors"
+                      onClick={() => {
+                        setHistorySearchTerm('');
+                        setHistoryDateFilter('');
+                      }}
+                      className="px-4 py-2 text-sm bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
                     >
+                      <X className="w-4 h-4" />
                       Clear
                     </button>
                   )}
@@ -1181,7 +1219,7 @@ const UserReports = () => {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                 <History className="w-12 h-12 text-gray-200 mx-auto mb-3" />
                 <p className="text-gray-500">
-                  {historySearchTerm ? 'No history found matching your search.' : 'No history found.'}
+                  {(historySearchTerm || historyDateFilter) ? 'No history found matching your filters.' : 'No history found.'}
                 </p>
               </div>
             ) : (
@@ -1266,7 +1304,7 @@ const UserReports = () => {
                     {filteredHistoryContent.length === 0 && (
               <tr>
                         <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-600">
-                          {historySearchTerm ? 'No history found matching your search.' : 'No history found.'}
+                          {(historySearchTerm || historyDateFilter) ? 'No history found matching your filters.' : 'No history found.'}
                 </td>
               </tr>
             )}
