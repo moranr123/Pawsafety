@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
@@ -49,6 +50,7 @@ const StrayPetCard = React.memo(({
   commentsCount = 0,
   styles,
   COLORS,
+  onReport,
 }) => {
   const imageUri = useMemo(() => report?.imageUrl, [report?.imageUrl]);
   const location = useMemo(() => report?.locationName || 'Unknown location', [report?.locationName]);
@@ -82,6 +84,38 @@ const StrayPetCard = React.memo(({
     return canMessage || onOpenComments;
   }, [report.userId, onOpenChat, onOpenComments]);
 
+  const optionsButtonRef = useRef(null);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 50, right: 12 });
+
+  const handleOptionsPress = useCallback(() => {
+    if (optionsButtonRef.current) {
+      optionsButtonRef.current.measureInWindow((x, y, width, height) => {
+        const screenWidth = Dimensions.get('window').width;
+        setMenuPosition({
+          top: y + height + 4,
+          right: screenWidth - x - width
+        });
+        setShowOptionsMenu(true);
+      });
+    } else {
+      setShowOptionsMenu(!showOptionsMenu);
+    }
+  }, [showOptionsMenu]);
+
+  const handleReport = useCallback(() => {
+    setShowOptionsMenu(false);
+    if (onReport) {
+      setTimeout(() => {
+        onReport(report);
+      }, 300);
+    }
+  }, [onReport, report]);
+
+  const isReportOwner = useMemo(() => {
+    return report.userId === auth.currentUser?.uid;
+  }, [report.userId]);
+
   return (
   <View style={styles.reportCard}>
     {/* Header with reporter info and status badge */}
@@ -114,17 +148,29 @@ const StrayPetCard = React.memo(({
           )}
         </View>
       </TouchableOpacity>
-      <View
-        style={[
-        styles.statusBadge,
-          status === 'Lost'
-            ? { backgroundColor: COLORS.error }
-            : status === 'Stray'
-            ? { backgroundColor: COLORS.mediumBlue }
-            : { backgroundColor: COLORS.warning },
-        ]}
-      >
-        <Text style={styles.statusText}>{status}</Text>
+      <View style={styles.reportHeaderRight}>
+        <View
+          style={[
+          styles.statusBadge,
+            status === 'Lost'
+              ? { backgroundColor: COLORS.error }
+              : status === 'Stray'
+              ? { backgroundColor: COLORS.mediumBlue }
+              : { backgroundColor: COLORS.warning },
+          ]}
+        >
+          <Text style={styles.statusText}>{status}</Text>
+        </View>
+        {!isReportOwner && (
+          <TouchableOpacity
+            ref={optionsButtonRef}
+            style={styles.optionsButton}
+            onPress={handleOptionsPress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <MaterialIcons name="more-horiz" size={24} color="#65676b" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
 
@@ -183,6 +229,33 @@ const StrayPetCard = React.memo(({
         )}
       </View>
     )}
+
+    {/* Options Menu Modal */}
+    <Modal
+      visible={showOptionsMenu}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowOptionsMenu(false)}
+    >
+      <View style={{ flex: 1 }}>
+        <TouchableWithoutFeedback onPress={() => setShowOptionsMenu(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />
+        </TouchableWithoutFeedback>
+        <View style={[styles.optionsMenuContainer, { top: menuPosition.top, right: menuPosition.right }]}>
+          <TouchableWithoutFeedback onPress={() => {}}>
+            <View style={styles.optionsMenu}>
+              <TouchableOpacity
+                style={styles.optionsMenuItem}
+                onPress={handleReport}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.optionsMenuText}>Report</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </View>
+    </Modal>
   </View>
   );
 });
@@ -223,6 +296,8 @@ const StraysScreen = ({ navigation }) => {
   const [filteredFriends, setFilteredFriends] = useState([]);
   const { profileImage } = useProfileImage();
   const user = auth.currentUser;
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [selectedReportForReport, setSelectedReportForReport] = useState(null);
 
   // Memoize filter handlers
   const handleFilterAll = useCallback(() => setFilter('All'), []);
@@ -928,6 +1003,100 @@ const StraysScreen = ({ navigation }) => {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }, []);
 
+  // Handle report report
+  const handleReportReport = useCallback((report) => {
+    setSelectedReportForReport(report);
+    setReportModalVisible(true);
+  }, []);
+
+  const handleCloseReportModal = useCallback(() => {
+    setReportModalVisible(false);
+    setSelectedReportForReport(null);
+  }, []);
+
+  const submitReport = useCallback(async (reason) => {
+    if (!user || !selectedReportForReport) return;
+
+    try {
+      const reportRef = await addDoc(collection(db, 'report_reports'), {
+        reportId: selectedReportForReport.id,
+        reportContent: selectedReportForReport.description || '',
+        reportImage: selectedReportForReport.imageUrl || null,
+        reportOwnerId: selectedReportForReport.userId,
+        reportOwnerName: reportUsers[selectedReportForReport.userId]?.name || 'Unknown',
+        reportedBy: user.uid,
+        reportedByName: user.displayName || 'Unknown',
+        reportedAt: serverTimestamp(),
+        reason: reason,
+        status: 'pending'
+      });
+
+      // Notify all admins about the new report
+      try {
+        const adminUsersQuery = query(
+          collection(db, 'users'),
+          where('role', 'in', ['agricultural_admin', 'impound_admin', 'superadmin'])
+        );
+        const adminSnapshot = await getDocs(adminUsersQuery);
+        
+        const notificationService = NotificationService.getInstance();
+        const adminNotifications = [];
+        
+        adminSnapshot.forEach((adminDoc) => {
+          const adminId = adminDoc.id;
+          adminNotifications.push(
+            notificationService.createNotification({
+              userId: adminId,
+              type: 'admin_report',
+              title: 'New Report Submitted',
+              body: `${user.displayName || 'A user'} reported a stray report. Reason: ${reason}`,
+              data: {
+                type: 'admin_report',
+                reportReportId: reportRef.id,
+                reportId: selectedReportForReport.id,
+                reason: reason,
+                reportedBy: user.uid,
+                reportedByName: user.displayName || 'Unknown',
+              },
+            }).catch((err) => {
+              console.error(`Error notifying admin ${adminId}:`, err);
+            })
+          );
+        });
+
+        // Also create admin notification in admin_notifications collection
+        await addDoc(collection(db, 'admin_notifications'), {
+          type: 'report_report',
+          reportReportId: reportRef.id,
+          reportId: selectedReportForReport.id,
+          reportContent: selectedReportForReport.description || '',
+          reportImage: selectedReportForReport.imageUrl || null,
+          reportOwnerId: selectedReportForReport.userId,
+          reportOwnerName: reportUsers[selectedReportForReport.userId]?.name || 'Unknown',
+          reportedBy: user.uid,
+          reportedByName: user.displayName || 'Unknown',
+          reason: reason,
+          status: 'pending',
+          read: false,
+          createdAt: serverTimestamp()
+        });
+
+        // Wait for all admin notifications to be sent (don't block on errors)
+        await Promise.allSettled(adminNotifications);
+      } catch (notifError) {
+        console.error('Error notifying admins:', notifError);
+        // Don't fail the report submission if notification fails
+      }
+
+      setReportModalVisible(false);
+      setSelectedReportForReport(null);
+      Alert.alert('Reported', 'Thank you for reporting. We will review this report.');
+    } catch (error) {
+      console.error('Error reporting report:', error);
+      Alert.alert('Error', 'Failed to report. Please try again.');
+    }
+  }, [user, selectedReportForReport, reportUsers]);
+
   // Render text with mentions - memoized
   const renderTextWithMentions = useCallback((text, mentionedUsers = []) => {
     if (!text) return null;
@@ -1049,6 +1218,15 @@ const StraysScreen = ({ navigation }) => {
       paddingTop: 10,
       paddingBottom: 6,
       justifyContent: 'space-between',
+    },
+    reportHeaderRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    optionsButton: {
+      padding: 4,
+      borderRadius: 20,
     },
     reportUserInfo: {
       flexDirection: 'row',
@@ -1605,6 +1783,94 @@ const StraysScreen = ({ navigation }) => {
     optionsMenuTextDanger: {
       color: '#E74C3C',
     },
+    // Options Menu Styles
+    optionsMenuContainer: {
+      position: 'absolute',
+      zIndex: 1001,
+      pointerEvents: 'box-none',
+      elevation: 1001,
+    },
+    optionsMenu: {
+      backgroundColor: '#ffffff',
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 10,
+      minWidth: 150,
+      overflow: 'hidden',
+    },
+    optionsMenuItem: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+    },
+    // Report Modal Styles
+    reportModalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+      zIndex: 2000,
+    },
+    reportModalContent: {
+      width: '100%',
+      backgroundColor: '#f0f2f5',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: SPACING.lg,
+      paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.lg,
+      elevation: 5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+    },
+    reportModalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#000000',
+      textAlign: 'center',
+      marginBottom: SPACING.xs,
+    },
+    reportModalSubtitle: {
+      fontSize: 14,
+      color: '#65676b',
+      textAlign: 'center',
+      marginBottom: SPACING.lg,
+    },
+    reportOption: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e4e6eb',
+    },
+    reportOptionText: {
+      fontSize: 16,
+      color: '#FF3B30',
+      fontWeight: '500',
+    },
+    reportCancelButton: {
+      marginTop: SPACING.lg,
+      alignItems: 'center',
+      padding: SPACING.md,
+      backgroundColor: '#FFFFFF',
+      borderRadius: RADIUS.medium,
+      borderWidth: 1,
+      borderColor: '#e4e6eb',
+    },
+    reportCancelText: {
+      fontSize: 16,
+      color: '#050505',
+      fontWeight: '600',
+    },
   }), [COLORS, isSmallDevice, isTablet, currentWidth, currentHeight]);
 
 
@@ -1654,8 +1920,9 @@ const StraysScreen = ({ navigation }) => {
             commentsCount={commentsCount[item.id] || 0}
             styles={styles}
             COLORS={COLORS}
+            onReport={handleReportReport}
           />
-        ), [reportUsers, navigation, onOpenChat, onOpenComments, commentsCount, styles, COLORS])}
+        ), [reportUsers, navigation, onOpenChat, onOpenComments, commentsCount, styles, COLORS, handleReportReport])}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={
@@ -1940,6 +2207,39 @@ const StraysScreen = ({ navigation }) => {
           </View>
         </KeyboardAvoidingView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Report Reason Modal */}
+      <Modal
+        visible={reportModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseReportModal}
+      >
+        <View style={styles.reportModalOverlay}>
+          <View style={styles.reportModalContent}>
+            <Text style={styles.reportModalTitle}>Report Report</Text>
+            <Text style={styles.reportModalSubtitle}>Please select a reason:</Text>
+            
+            {['Inappropriate Content', 'Harassment', 'Spam', 'Scam', 'False Information', 'Other'].map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                style={styles.reportOption}
+                onPress={() => submitReport(reason)}
+              >
+                <Text style={styles.reportOptionText}>{reason}</Text>
+                <MaterialIcons name="chevron-right" size={24} color="#65676b" />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={styles.reportCancelButton}
+              onPress={handleCloseReportModal}
+            >
+              <Text style={styles.reportCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </View>
   );
