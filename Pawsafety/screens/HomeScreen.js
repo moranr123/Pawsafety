@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,9 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
-  Image
+  Image,
+  ActivityIndicator,
+  Modal
 } from 'react-native';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
@@ -17,9 +19,13 @@ import NotificationService from '../services/NotificationService';
 
 const HomeScreen = () => {
   const { colors: COLORS } = useTheme();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
     try {
+      setIsLoggingOut(true);
       // Log logout activity before signing out
       if (user?.uid) {
         // Remove push token
@@ -41,6 +47,7 @@ const HomeScreen = () => {
       await signOut(auth);
       // Navigation handled by auth state change
     } catch (error) {
+      setIsLoggingOut(false);
       Alert.alert('Error', 'Failed to log out. Please try again.');
     }
   };
@@ -126,6 +133,40 @@ const HomeScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Logout Loading Overlay */}
+      <Modal
+        visible={isLoggingOut}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          <View style={{
+            backgroundColor: COLORS.background || '#ffffff',
+            borderRadius: 12,
+            padding: 24,
+            alignItems: 'center',
+            minWidth: 120,
+          }}>
+            <ActivityIndicator size="large" color={COLORS.error || '#dc2626'} />
+            <Text style={{
+              marginTop: 16,
+              fontSize: 16,
+              fontWeight: '600',
+              color: COLORS.text,
+              fontFamily: FONTS.family,
+            }}>
+              Logging out...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.content}>
         <View style={styles.welcomeContainer}>
           <Image source={require('../assets/LogoBlue.png')} style={styles.logoImage} />
@@ -157,8 +198,16 @@ const HomeScreen = () => {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
+        <TouchableOpacity 
+          style={[styles.logoutButton, isLoggingOut && { opacity: 0.6 }]} 
+          onPress={handleLogout}
+          disabled={isLoggingOut}
+        >
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

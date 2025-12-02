@@ -647,14 +647,18 @@ const MessagesScreen = ({ navigation }) => {
         ref={(ref) => {
           if (ref) chatItemRefs.current[item.id] = ref;
         }}
+        style={styles.chatItemWrapper}
       >
-        <Pressable
+        <TouchableOpacity
           style={[
             styles.chatItem,
             longPressedChatId === item.id && styles.chatItemPressed
           ]}
           onPress={() => handleChatPress(item)}
           onLongPress={() => handleChatLongPress(item)}
+          activeOpacity={0.7}
+          delayLongPress={500}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
         <View style={styles.chatItemLeft}>
           {item.otherUser?.profileImage ? (
@@ -704,7 +708,7 @@ const MessagesScreen = ({ navigation }) => {
           </View>
         </View>
         {isUnread && <View style={styles.unreadDot} />}
-        </Pressable>
+      </TouchableOpacity>
       </View>
     );
   };
@@ -797,6 +801,12 @@ const MessagesScreen = ({ navigation }) => {
     },
     chatList: {
       flex: 1,
+    },
+    chatListContent: {
+      flexGrow: 1,
+    },
+    chatItemWrapper: {
+      backgroundColor: 'transparent',
     },
     chatItem: {
       flexDirection: 'row',
@@ -1101,6 +1111,7 @@ const MessagesScreen = ({ navigation }) => {
       right: 0,
       bottom: 0,
       zIndex: 1000,
+      pointerEvents: 'box-none', // Allow touches to pass through to items below
     },
     chatMenuBackdrop: {
       flex: 1,
@@ -1355,6 +1366,7 @@ const MessagesScreen = ({ navigation }) => {
             renderItem={renderChatItem}
             keyExtractor={(item) => item.id}
             style={styles.chatList}
+            contentContainerStyle={styles.chatListContent}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -1363,7 +1375,7 @@ const MessagesScreen = ({ navigation }) => {
                 tintColor={COLORS.darkPurple}
               />
             }
-            removeClippedSubviews
+            removeClippedSubviews={false}
             initialNumToRender={10}
             maxToRenderPerBatch={5}
           />
@@ -1391,9 +1403,15 @@ const MessagesScreen = ({ navigation }) => {
 
       {/* Chat Card Menu */}
       {selectedChatForMenu && menuPositionReady && (
-        <View style={styles.chatMenuOverlay}>
-          <Pressable style={styles.chatMenuBackdrop} onPress={closeChatMenu} />
-          <View style={[styles.chatMenu, { top: chatMenuPosition.top, left: chatMenuPosition.left }]}>
+        <View style={styles.chatMenuOverlay} pointerEvents="box-none">
+          <Pressable 
+            style={[styles.chatMenuBackdrop, { pointerEvents: 'auto' }]} 
+            onPress={closeChatMenu} 
+          />
+          <View 
+            style={[styles.chatMenu, { top: chatMenuPosition.top, left: chatMenuPosition.left }]}
+            pointerEvents="box-none"
+          >
             <TouchableOpacity
               style={styles.chatMenuItem}
               onPress={() => handleArchiveChat(selectedChatForMenu)}

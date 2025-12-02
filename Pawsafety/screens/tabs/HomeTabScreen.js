@@ -39,6 +39,7 @@ const HomeTabScreen = ({ navigation }) => {
   const { profileImage } = useProfileImage();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
   const [appNotifs, setAppNotifs] = useState([]);
   const [petNotifs, setPetNotifs] = useState([]);
@@ -1969,6 +1970,7 @@ const HomeTabScreen = ({ navigation }) => {
                     backgroundColor: '#fee2e2',
                   }}
                   onPress={async () => {
+                    if (isLoggingOut) return;
                     Alert.alert(
                       'Logout',
                       'Are you sure you want to logout?',
@@ -1982,6 +1984,7 @@ const HomeTabScreen = ({ navigation }) => {
                           style: 'destructive',
                           onPress: async () => {
                             try {
+                              setIsLoggingOut(true);
                               // Log logout activity before signing out
                               if (user?.uid) {
                                 // Remove push token to prevent notifications on this device for this user
@@ -2009,6 +2012,7 @@ const HomeTabScreen = ({ navigation }) => {
                                 setSidebarVisible(false);
                               });
                             } catch (error) {
+                              setIsLoggingOut(false);
                               Alert.alert('Error', 'Failed to logout. Please try again.');
                             }
                           },
@@ -2016,17 +2020,58 @@ const HomeTabScreen = ({ navigation }) => {
                       ]
                     );
                   }}
+                  disabled={isLoggingOut}
                 >
-                  <MaterialIcons name="logout" size={24} color="#dc2626" />
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#dc2626', marginLeft: 16 }}>
-                    Logout
-                  </Text>
+                  {isLoggingOut ? (
+                    <ActivityIndicator size="small" color="#dc2626" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="logout" size={24} color="#dc2626" />
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#dc2626', marginLeft: 16 }}>
+                        Logout
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
           </Animated.View>
         </>
       )}
+
+      {/* Logout Loading Overlay */}
+      <Modal
+        visible={isLoggingOut}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          <View style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 12,
+            padding: 24,
+            alignItems: 'center',
+            minWidth: 120,
+          }}>
+            <ActivityIndicator size="large" color={COLORS.darkPurple || '#1877f2'} />
+            <Text style={{
+              marginTop: 16,
+              fontSize: 16,
+              fontWeight: '600',
+              color: COLORS.text,
+              fontFamily: FONTS.family,
+            }}>
+              Logging out...
+            </Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* Notifications Modal */}
       <Modal
