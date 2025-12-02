@@ -56,6 +56,7 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
   const [menuPosition, setMenuPosition] = useState({ top: 0 });
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [messageToReport, setMessageToReport] = useState(null);
+  const [reportedMessageIds, setReportedMessageIds] = useState(new Set());
   const messageLayouts = useRef({});
   const messageRefs = useRef({});
   const scrollViewRef = useRef(null);
@@ -165,6 +166,43 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
     };
   }, [visible, currentUser, friend?.id]);
 
+  // Load reported messages by current user
+  useEffect(() => {
+    if (!visible || !currentUser) {
+      setReportedMessageIds(new Set());
+      return;
+    }
+
+    const chatId = getChatId();
+    if (!chatId) {
+      setReportedMessageIds(new Set());
+      return;
+    }
+
+    const reportsRef = collection(db, 'message_reports');
+    const reportsQuery = query(
+      reportsRef,
+      where('chatId', '==', chatId),
+      where('chatType', '==', 'direct'),
+      where('reportedBy', '==', currentUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(reportsQuery, (snapshot) => {
+      const reportedIds = new Set();
+      snapshot.docs.forEach(doc => {
+        const reportData = doc.data();
+        if (reportData.messageId) {
+          reportedIds.add(reportData.messageId);
+        }
+      });
+      setReportedMessageIds(reportedIds);
+    }, (error) => {
+      console.error('Error loading reported messages:', error);
+    });
+
+    return () => unsubscribe();
+  }, [visible, currentUser, friend?.id, getChatId]);
+
   // Load messages
   useEffect(() => {
     if (!visible || !currentUser || !friend?.id) {
@@ -194,9 +232,9 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
           ...doc.data(),
         }))
         .filter(message => {
-          // Filter out messages deleted by current user
+          // Hide messages that have been reported by the current user
           if (!currentUser) return true;
-          return !message.deletedBy || !message.deletedBy.includes(currentUser.uid);
+          return !reportedMessageIds.has(message.id);
         });
       setMessages(messagesData);
       setLoading(false);
@@ -210,7 +248,7 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
     });
 
     return () => unsubscribe();
-  }, [visible, currentUser, friend?.id]);
+  }, [visible, currentUser, friend?.id, reportedMessageIds]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -368,7 +406,20 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, 'direct_messages', messageId));
+              const messageRef = doc(db, 'direct_messages', messageId);
+              const messageDoc = await getDoc(messageRef);
+              
+              if (messageDoc.exists()) {
+                const messageData = messageDoc.data();
+                // Mark message as deleted instead of deleting it
+                await updateDoc(messageRef, {
+                  deleted: true,
+                  deletedBy: currentUser.uid,
+                  deletedAt: serverTimestamp(),
+                  text: null, // Clear the text
+                  images: null, // Clear the images
+                });
+              }
               cancelMenu();
             } catch (error) {
               console.error('Error deleting message:', error);
@@ -378,13 +429,34 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
         },
       ]
     );
-  }, [cancelMenu]);
+  }, [cancelMenu, currentUser]);
 
   // Report message - memoized
   const handleReportMessage = useCallback((message) => {
-    setMessageToReport(message);
-    setReportModalVisible(true);
-    cancelMenu();
+    // Don't allow reporting deleted messages
+    if (message.deleted) {
+      Alert.alert('Cannot Report', 'You cannot report a deleted message.');
+      cancelMenu();
+      return;
+    }
+
+    // Show confirmation before opening report modal
+    Alert.alert(
+      'Report Message',
+      'Are you sure you want to report this message? Our team will review it.',
+      [
+        { text: 'Cancel', style: 'cancel', onPress: cancelMenu },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: () => {
+            setMessageToReport(message);
+            setReportModalVisible(true);
+            cancelMenu();
+          },
+        },
+      ]
+    );
   }, [cancelMenu]);
 
   const submitReport = useCallback(async (reason) => {
@@ -405,6 +477,8 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
         status: 'pending',
         createdAt: serverTimestamp(),
       });
+      // Add to reported messages set to hide it immediately
+      setReportedMessageIds(prev => new Set([...prev, messageToReport.id]));
       setReportModalVisible(false);
       setMessageToReport(null);
       Alert.alert('Report Submitted', 'Thank you for reporting this message. Our team will review it.');
@@ -1097,34 +1171,58 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
                           </View>
                         ) : (
                           <>
-                            {message.images && message.images.length > 0 && (
-                              <View style={styles.messageImagesContainer}>
-                                {message.images.map((imageUrl, index) => (
-                                  <Image
-                                    key={index}
-                                    source={{ uri: imageUrl }}
-                                    style={styles.messageImage}
-                                    contentFit="cover"
-                                  />
-                                ))}
-                              </View>
-                            )}
-                            {message.text && (
-                              <View style={styles.messageTextContainer}>
+                            {message.deleted ? (
+                              <View style={[styles.messageTextContainer, { alignItems: 'center' }]}>
+                                <MaterialIcons 
+                                  name="delete-outline" 
+                                  size={16} 
+                                  color={isSent ? 'rgba(255, 255, 255, 0.6)' : COLORS.secondaryText} 
+                                  style={{ marginRight: 4 }}
+                                />
                                 <Text
                                   style={[
                                     styles.messageText,
                                     !isSent && styles.messageTextReceived,
+                                    { fontStyle: 'italic', opacity: 0.7 }
                                   ]}
                                 >
-                                  {message.text}
+                                  {message.deletedBy === currentUser?.uid 
+                                    ? 'You deleted a message' 
+                                    : `${message.senderName?.split(' ')[0] || 'Someone'} deleted a message`}
                                 </Text>
-                                {message.edited && (
-                                  <Text style={[styles.editedLabel, !isSent && styles.editedLabelReceived]}>
-                                    (edited)
-                                  </Text>
-                                )}
                               </View>
+                            ) : (
+                              <>
+                                {message.images && message.images.length > 0 && (
+                                  <View style={styles.messageImagesContainer}>
+                                    {message.images.map((imageUrl, index) => (
+                                      <Image
+                                        key={index}
+                                        source={{ uri: imageUrl }}
+                                        style={styles.messageImage}
+                                        contentFit="cover"
+                                      />
+                                    ))}
+                                  </View>
+                                )}
+                                {message.text && (
+                                  <View style={styles.messageTextContainer}>
+                                    <Text
+                                      style={[
+                                        styles.messageText,
+                                        !isSent && styles.messageTextReceived,
+                                      ]}
+                                    >
+                                      {message.text}
+                                    </Text>
+                                    {message.edited && (
+                                      <Text style={[styles.editedLabel, !isSent && styles.editedLabelReceived]}>
+                                        (edited)
+                                      </Text>
+                                    )}
+                                  </View>
+                                )}
+                              </>
                             )}
                             {message.timestamp && (
                               <Text
@@ -1244,7 +1342,7 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
                         <Text style={styles.messageMenuItemText}>Edit</Text>
                       </TouchableOpacity>
                     )}
-                    {isOwnMessage && (
+                    {isOwnMessage && !selectedMessage?.deleted && (
                       <TouchableOpacity
                         style={[styles.messageMenuItem, !hasImages && styles.messageMenuItemDelete]}
                         onPress={() => handleDeleteMessage(selectedMessageId)}
@@ -1253,7 +1351,7 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
                         <Text style={[styles.messageMenuItemText, styles.messageMenuItemTextDelete]}>Delete</Text>
                       </TouchableOpacity>
                     )}
-                    {!isOwnMessage && (
+                    {!isOwnMessage && !selectedMessage?.deleted && (
                       <TouchableOpacity
                         style={styles.messageMenuItem}
                         onPress={() => {
