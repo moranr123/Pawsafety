@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   TextInput,
   Dimensions,
-  Platform
+  Platform,
+  StatusBar
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as Location from 'expo-location';
@@ -20,7 +21,6 @@ import { captureRef } from 'react-native-view-shot';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db, storage } from '../services/firebase';
 import { collection, query, where, onSnapshot, doc, addDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -32,122 +32,108 @@ const { width } = Dimensions.get('window');
 
 
 // Memoized PetCard component to prevent unnecessary re-renders
-const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onArchivePet, onReportLost, onMarkFound, onShowQR, styles }) => {
+const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onReportLost, onMarkFound, onShowQR, styles }) => {
   const [imageError, setImageError] = useState(false);
   
   return (
     <View style={styles.petCard}>
-      <View style={styles.petImageContainer}>
-        {pet.petImage && !imageError ? (
+      {/* Header */}
+      <View style={styles.cardHeader}>
+        <View style={styles.userInfo}>
+          <View style={styles.profilePlaceholder}>
+            <Text style={{ fontSize: 20 }}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
+          </View>
+          <View style={styles.userDetails}>
+            <Text style={styles.userName}>{pet.petName}</Text>
+            <Text style={styles.postTime}>
+              {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Pet Image */}
+      {pet.petImage && !imageError ? (
+        <View style={styles.imageContainer}>
           <Image 
             source={{ uri: pet.petImage }} 
-            style={styles.petImage} 
+            style={styles.singleImage} 
             onError={() => setImageError(true)}
             resizeMode="cover"
           />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.placeholderIcon}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
-            <Text style={styles.placeholderText}>No Photo</Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.petInfo}>
-        <View style={styles.petHeader}>
-          <Text style={styles.petName}>{pet.petName}</Text>
-          <View style={styles.petTypeIcon}>
-            <Text style={{ fontSize: 16 }}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
-          </View>
         </View>
-        
-        <Text style={styles.petDetails}>
-          {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
-        </Text>
-        
+      ) : null}
+
+      {/* Content */}
+      <View style={styles.content}>
+        {pet.description && (
+          <Text style={styles.postText}>{pet.description}</Text>
+        )}
         <Text style={styles.ownerInfo}>
           Owner: {pet.ownerFullName || 'Unknown'}
         </Text>
         
-        {pet.description && (
-          <Text style={styles.description}>{pet.description}</Text>
-        )}
-      </View>
-      
-      {/* Status Buttons */}
-      <View style={styles.statusButtonsContainer}>
-        {pet.registrationStatus === 'registered' ? (
+        {/* Status Button */}
+        {pet.registrationStatus === 'registered' && (
           <TouchableOpacity 
-            style={[styles.statusButton, styles.deceasedButton]} 
+            style={styles.statusButton} 
             onPress={() => onUpdateStatus(pet.id, pet.petName)}
           >
             <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
           </TouchableOpacity>
-        ) : (
-          <View 
-            style={[styles.statusButton, styles.deceasedButton, styles.disabledButton]}
-          >
-            <Text style={[styles.statusButtonText, styles.disabledButtonText]}>🕊️ Mark Deceased (Registration Required)</Text>
-          </View>
         )}
       </View>
 
-      <View style={styles.actionButtons}>
+      {/* Actions */}
+      <View style={styles.actions}>
         {(pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
           <TouchableOpacity 
-            style={[styles.actionButton, styles.qrButton]} 
+            style={styles.actionButton} 
             onPress={() => onShowQR(pet)}
           >
-            <MaterialIcons name="qr-code" size={16} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>QR Code</Text>
+            <MaterialIcons name="qr-code" size={20} color="#65676b" />
+            <Text style={styles.actionText}>QR Code</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity 
-            style={[styles.actionButton, styles.pendingQRButton]} 
+            style={styles.actionButton} 
             disabled={true}
           >
-            <MaterialIcons name="qr-code" size={16} color="#6B7280" />
-            <Text style={styles.pendingQRButtonText}>QR Pending</Text>
+            <MaterialIcons name="qr-code" size={20} color="#bcc0c4" />
+            <Text style={[styles.actionText, { color: '#bcc0c4' }]}>QR Pending</Text>
           </TouchableOpacity>
         )}
         {pet.status === 'lost' ? (
           <TouchableOpacity 
-            style={[styles.actionButton, styles.foundButton]} 
+            style={styles.actionButton} 
             onPress={() => onMarkFound(pet)}
           >
-            <MaterialIcons name="check-circle" size={16} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Mark Found</Text>
+            <MaterialIcons name="check-circle" size={20} color="#65676b" />
+            <Text style={styles.actionText}>Mark Found</Text>
           </TouchableOpacity>
         ) : (pet.registrationStatus === 'registered' || pet.transferredFrom === 'impound') ? (
           <TouchableOpacity 
-            style={[styles.actionButton, styles.lostButton]} 
+            style={styles.actionButton} 
             onPress={() => onReportLost(pet)}
           >
-            <MaterialIcons name="report-problem" size={16} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Report Lost</Text>
+            <MaterialIcons name="report-problem" size={20} color="#65676b" />
+            <Text style={styles.actionText}>Report Lost</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity 
-            style={[styles.actionButton, styles.disabledButton]} 
+            style={styles.actionButton} 
             disabled={true}
           >
-            <MaterialIcons name="report-problem" size={16} color="#9CA3AF" />
-            <Text style={styles.disabledButtonText}>Report Lost</Text>
+            <MaterialIcons name="report-problem" size={20} color="#bcc0c4" />
+            <Text style={[styles.actionText, { color: '#bcc0c4' }]}>Report Lost</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity 
-          style={[styles.actionButton, styles.editButton]} 
+          style={styles.actionButton} 
           onPress={() => onEditPet(pet)}
         >
-          <MaterialIcons name="edit" size={16} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.archiveButton]} 
-          onPress={() => onArchivePet(pet.id, pet.petName)}
-        >
-          <MaterialIcons name="archive" size={16} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>Archive</Text>
+          <MaterialIcons name="edit" size={20} color="#65676b" />
+          <Text style={styles.actionText}>Edit</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -157,191 +143,119 @@ const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onArchivePet, onReportLo
 const MyPetsScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
   
-  // Modern pet card styles
+  // Post card style for pet cards
   const modernPetCardStyles = StyleSheet.create({
-  petCard: {
-      backgroundColor: '#F8FAFC',
-      borderRadius: 24,
-      marginBottom: 24,
-      ...SHADOWS.medium,
-    overflow: 'hidden',
-      borderWidth: 3,
-      borderColor: '#3B82F6',
-      elevation: 6,
-  },
-  petImageContainer: {
-      height: 220,
-    backgroundColor: '#F8FAFC',
-  },
-  petImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  placeholderIcon: {
-      fontSize: 60,
-    marginBottom: 8,
-  },
-  placeholderText: {
-      fontSize: 14,
-      color: '#64748B',
-    fontWeight: '500',
-  },
-  petInfo: {
-    padding: 20,
-  },
-  petHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    petCard: {
+      backgroundColor: '#ffffff',
+      marginHorizontal: 0,
+      marginTop: SPACING.md,
+      borderRadius: 10,
+      overflow: 'visible',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      marginBottom: SPACING.md,
+    },
+    cardHeader: {
+      flexDirection: 'row',
       alignItems: 'center',
-    marginBottom: 12,
-  },
-  petName: {
-      fontSize: 26,
-      fontWeight: '900',
-      color: '#1E40AF',
-    flex: 1,
-  },
-  petTypeIcon: {
-      backgroundColor: '#F3F4F6',
-    borderRadius: 24,
-      width: 48,
-      height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-      borderColor: '#E5E7EB',
-  },
-  petDetails: {
-    fontSize: 15,
-      color: '#6B7280',
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  ownerInfo: {
-    fontSize: 14,
-      color: '#9CA3AF',
-    marginBottom: 12,
-  },
-  description: {
-    fontSize: 14,
-      color: '#4B5563',
-    marginTop: 8,
+      padding: 12,
+      justifyContent: 'space-between',
+    },
+    userInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    profilePlaceholder: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#e4e6eb',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    userDetails: {
+      flex: 1,
+    },
+    userName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      marginBottom: 2,
+    },
+    postTime: {
+      fontSize: 12,
+      color: '#65676b',
+    },
+    imageContainer: {
+      marginBottom: 12,
+    },
+    singleImage: {
+      width: '85%',
+      height: 300,
+      maxHeight: 400,
+      borderRadius: 8,
+      alignSelf: 'center',
+    },
+    content: {
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+    },
+    postText: {
+      fontSize: 15,
+      color: '#050505',
       lineHeight: 20,
-  },
-  statusButtonsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 10,
-  },
-  statusButton: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-      borderWidth: 1,
-  },
-  pregnantButton: {
-      backgroundColor: '#FFFBEB',
-    borderColor: '#F59E0B',
-  },
-  deceasedButton: {
+      marginBottom: 12,
+      fontFamily: FONTS.family,
+    },
+    ownerInfo: {
+      fontSize: 13,
+      color: '#65676b',
+      marginBottom: 8,
+    },
+    statusButton: {
       backgroundColor: '#FEF2F2',
-    borderColor: '#EF4444',
-  },
-  undoButton: {
-      backgroundColor: '#F0FDF4',
-    borderColor: '#16A34A',
-  },
-  statusButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingTop: 12,
-    backgroundColor: '#E0F2FE',
-    borderTopWidth: 3,
-    borderTopColor: '#0EA5E9',
-    justifyContent: 'space-between',
-  },
-  actionButton: {
-    width: Platform.OS === 'android' ? '48%' : '48%',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: Platform.OS === 'android' ? 12 : 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    elevation: 2,
-    marginBottom: 12,
-  },
-  qrButton: {
-      backgroundColor: '#1D4ED8',
-      ...SHADOWS.small,
-      borderWidth: 2,
-      borderColor: '#1E40AF',
-  },
-  pendingQRButton: {
-      backgroundColor: '#E5E7EB',
-      opacity: 0.7,
-  },
-  foundButton: {
-    backgroundColor: '#10B981',
-      ...SHADOWS.small,
-  },
-  lostButton: {
-    backgroundColor: '#F59E0B',
-      ...SHADOWS.small,
-  },
-  editButton: {
-    backgroundColor: '#8B5CF6',
-      ...SHADOWS.small,
-  },
-  archiveButton: {
-    backgroundColor: '#6B7280',
-      ...SHADOWS.small,
-  },
-  deleteButton: {
-    backgroundColor: '#EF4444',
-      ...SHADOWS.small,
-  },
-  disabledButton: {
-      backgroundColor: '#F3F4F6',
-    opacity: 0.6,
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  pendingQRButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-      color: '#6B7280',
-    textAlign: 'center',
-  },
-  disabledButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    textAlign: 'center',
-  },
-});
+      borderWidth: 1,
+      borderColor: '#EF4444',
+      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 8,
+    },
+    statusButtonText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: '#EF4444',
+      textAlign: 'center',
+    },
+    actions: {
+      flexDirection: 'row',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
+    },
+    actionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    actionText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#65676b',
+      marginLeft: 6,
+    },
+  });
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPetQR, setSelectedPetQR] = useState(null);
@@ -383,8 +297,6 @@ const MyPetsScreen = ({ navigation }) => {
     petImage: ''
   });
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
-  const [showUserManual, setShowUserManual] = useState(false);
-  const hasShownManualToday = useRef(false);
   const qrRef = useRef(null);
   const user = auth.currentUser;
 
@@ -414,55 +326,6 @@ const MyPetsScreen = ({ navigation }) => {
     };
   }, [user]);
 
-  // Check if user should see manual today (once per day per account)
-  useEffect(() => {
-    const checkDailyManual = async () => {
-      try {
-        // Skip if we've already shown the manual today in this session
-        if (hasShownManualToday.current) {
-          return;
-        }
-
-        const user = auth.currentUser;
-        if (!user) return; // No user logged in
-
-        // Use user-specific storage key
-        const storageKey = `PAW_MY_PETS_MANUAL_LAST_SHOWN_${user.uid}`;
-        const lastShownDate = await AsyncStorage.getItem(storageKey);
-        const today = new Date().toDateString();
-        
-        // Show manual if it hasn't been shown today for this user
-        if (lastShownDate !== today) {
-          hasShownManualToday.current = true;
-          setShowUserManual(true);
-        }
-      } catch (error) {
-        // Error handled silently
-      }
-    };
-    
-    // Only check on initial load, not on every re-render
-    checkDailyManual();
-  }, []); // Empty dependency array ensures this only runs once
-
-  // Handle manual close and mark as shown for today
-  const handleManualClose = async () => {
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        setShowUserManual(false);
-        return;
-      }
-
-      const today = new Date().toDateString();
-      const storageKey = `PAW_MY_PETS_MANUAL_LAST_SHOWN_${user.uid}`;
-      await AsyncStorage.setItem(storageKey, today);
-      setShowUserManual(false);
-    } catch (error) {
-      // Error handled silently
-      setShowUserManual(false);
-    }
-  };
 
   const handleArchivePet = (petId, petName) => {
     Alert.alert(
@@ -1015,12 +878,12 @@ Thank you for helping reunite pets with their families! ❤️`;
       backgroundColor: COLORS.background,
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
-      paddingTop: isSmallDevice ? 45 : 50,
-      paddingBottom: SPACING.md,
+      backgroundColor: '#ffffff',
+      paddingHorizontal: SPACING.md,
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+      borderBottomColor: '#e4e6eb',
       ...SHADOWS.light,
     },
     headerContent: {
@@ -1029,35 +892,41 @@ Thank you for helping reunite pets with their families! ❤️`;
       justifyContent: 'space-between',
     },
     backButton: {
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      borderRadius: 20,
       width: 40,
       height: 40,
+      borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: '#e4e6eb',
       marginRight: SPACING.md,
     },
     headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 16,
+      gap: 8,
     },
     archiveButtonHeader: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    padding: SPACING.sm,
-    marginRight: SPACING.xs,
-  },
-  helpButton: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 12,
-      padding: SPACING.sm,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#e4e6eb',
+      marginRight: SPACING.xs,
+    },
+    helpButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#e4e6eb',
     },
     headerTitle: {
       fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
+      fontWeight: '700',
+      color: '#050505',
       flex: 1,
     },
     headerRight: {
@@ -1080,14 +949,14 @@ Thank you for helping reunite pets with their families! ❤️`;
       marginLeft: 'auto',
     },
     statsText: {
-      color: COLORS.lightBlue,
+      color: '#65676b',
       fontSize: 14,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
+      fontWeight: '600',
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
+      paddingHorizontal: SPACING.md,
       paddingTop: SPACING.lg,
     },
     content: {
@@ -1190,21 +1059,27 @@ Thank you for helping reunite pets with their families! ❤️`;
       opacity: 0.8,
     },
     addPetButton: {
-      backgroundColor: COLORS.darkPurple,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.lg,
+      backgroundColor: '#1877f2',
+      borderRadius: 10,
+      padding: 12,
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'center',
-      ...SHADOWS.medium,
+      marginHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+      marginBottom: SPACING.lg,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
     },
     addPetButtonText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
-      marginLeft: SPACING.sm,
-      textAlign: 'center',
+      fontWeight: '600',
+      color: '#FFFFFF',
+      marginLeft: 8,
     },
     emptyContainer: {
       alignItems: 'center',
@@ -1311,62 +1186,65 @@ Thank you for helping reunite pets with their families! ❤️`;
       textAlign: 'center',
       flexShrink: 0,
     },
-    // Report Lost Modal Styles
+    // Report Lost Modal Styles - Facebook Style
     reportModalContent: {
-      backgroundColor: COLORS.white,
-      borderRadius: RADIUS.large, 
-      maxHeight: '85%',
+      backgroundColor: '#ffffff',
+      borderRadius: 8,
+      maxHeight: '90%',
       width: '90%',
+      maxWidth: 500,
       alignSelf: 'center',
       marginTop: 'auto',
       marginBottom: 'auto',
-      ...SHADOWS.medium,
+      overflow: 'hidden',
     },
     reportModalHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       borderBottomWidth: 1,
-      borderBottomColor: COLORS.lightGray,
+      borderBottomColor: '#e4e6eb',
+      backgroundColor: '#ffffff',
     },
     reportModalTitle: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '700',
+      color: '#050505',
       flex: 1,
     },
     modalCloseButton: {
       padding: SPACING.xs,
     },
     reportFormContainer: {
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-      maxHeight: 400,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      maxHeight: 500,
+      backgroundColor: '#ffffff',
     },
     formField: {
-      marginBottom: SPACING.lg,
+      marginBottom: 16,
     },
     formLabel: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semibold,
-      color: COLORS.text,
-      marginBottom: SPACING.sm,
+      fontWeight: '600',
+      color: '#050505',
+      marginBottom: 8,
     },
     formInput: {
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      fontSize: FONTS.sizes.medium,
+      borderColor: '#ccd0d5',
+      borderRadius: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
-      backgroundColor: COLORS.white,
-      minHeight: 48,
+      color: '#050505',
+      backgroundColor: '#ffffff',
+      minHeight: 44,
     },
     locationInputContainer: {
       flexDirection: 'row',
@@ -1392,67 +1270,75 @@ Thank you for helping reunite pets with their families! ❤️`;
       marginTop: SPACING.xs,
     },
     textArea: {
-      minHeight: 100,
+      minHeight: 80,
       textAlignVertical: 'top',
+      paddingTop: 10,
     },
     reportModalButtons: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.lg,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       borderTopWidth: 1,
-      borderTopColor: COLORS.lightGray,
-      gap: SPACING.md,
+      borderTopColor: '#e4e6eb',
+      gap: 8,
+      backgroundColor: '#f2f3f5',
     },
     cancelButton: {
-      backgroundColor: COLORS.lightGray,
+      backgroundColor: '#e4e6eb',
       flex: 1,
+      borderRadius: 6,
+      paddingVertical: 8,
+      minHeight: 36,
     },
     submitButton: {
-      backgroundColor: COLORS.darkPurple,
+      backgroundColor: '#1877f2',
       flex: 1,
+      borderRadius: 6,
+      paddingVertical: 8,
+      minHeight: 36,
     },
     // Map and DateTime Selection Buttons
     mapSelectButton: {
       flexDirection: 'row',
       alignItems: 'center',
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
-      padding: SPACING.md,
-      backgroundColor: COLORS.white,
-      gap: SPACING.sm,
+      borderColor: '#ccd0d5',
+      borderRadius: 6,
+      padding: 12,
+      backgroundColor: '#ffffff',
+      gap: 8,
     },
     locationButtonContent: {
       flex: 1,
     },
     mapSelectButtonText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
-      color: COLORS.text,
-      marginBottom: SPACING.xs,
+      fontWeight: '500',
+      color: '#050505',
+      marginBottom: 4,
     },
     locationButtonSubtext: {
-      fontSize: FONTS.sizes.small,
+      fontSize: 13,
       fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
+      color: '#65676b',
       lineHeight: 18,
     },
     dateTimeSelectButton: {
       flexDirection: 'row',
       alignItems: 'center',
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
-      padding: SPACING.md,
-      backgroundColor: COLORS.white,
-      gap: SPACING.sm,
+      borderColor: '#ccd0d5',
+      borderRadius: 6,
+      padding: 12,
+      backgroundColor: '#ffffff',
+      gap: 8,
     },
     dateTimeSelectButtonText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: reportForm.timeLost ? COLORS.text : COLORS.secondaryText,
+      color: reportForm.timeLost ? '#050505' : '#65676b',
       flex: 1,
     },
     // Map Modal Styles
@@ -1903,7 +1789,7 @@ Thank you for helping reunite pets with their families! ❤️`;
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      backgroundColor: 'rgba(0, 0, 0, 0.4)',
       justifyContent: 'center',
       alignItems: 'center',
       zIndex: 999999,
@@ -1929,19 +1815,17 @@ Thank you for helping reunite pets with their families! ❤️`;
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.lg,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       borderBottomWidth: 1,
-      borderBottomColor: '#E5E5E5',
-      backgroundColor: COLORS.cardBackground,
-      borderTopLeftRadius: RADIUS.xlarge,
-      borderTopRightRadius: RADIUS.xlarge,
+      borderBottomColor: '#e4e6eb',
+      backgroundColor: '#ffffff',
     },
     centeredModalTitle: {
-      fontSize: FONTS.sizes.xlarge,
+      fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
+      fontWeight: '700',
+      color: '#050505',
       flex: 1,
     },
     // Map Styles
@@ -2201,55 +2085,47 @@ Thank you for helping reunite pets with their families! ❤️`;
     // Bottom Buttons
     centeredBottomButtons: {
       flexDirection: 'row',
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       borderTopWidth: 1,
-      borderTopColor: COLORS.lightGray,
-      gap: SPACING.sm,
-      backgroundColor: COLORS.white,
+      borderTopColor: '#e4e6eb',
+      gap: 8,
+      backgroundColor: '#f2f3f5',
     },
     centeredCancelButton: {
       flex: 1,
-      paddingVertical: SPACING.md,
-      paddingHorizontal: SPACING.lg,
-      borderWidth: 2,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.medium,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 6,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: COLORS.white,
-      marginRight: SPACING.sm,
-      minHeight: 48,
-      ...SHADOWS.medium,
-      elevation: 4,
+      backgroundColor: '#e4e6eb',
+      marginRight: 8,
+      minHeight: 36,
     },
     centeredCancelButtonText: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.secondaryText,
+      fontWeight: '600',
+      color: '#050505',
       textAlign: 'center',
-      letterSpacing: 0.5,
     },
     centeredConfirmButton: {
       flex: 1,
-      paddingVertical: SPACING.md,
-      paddingHorizontal: SPACING.lg,
-      backgroundColor: COLORS.darkPurple,
-      borderRadius: RADIUS.medium,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      backgroundColor: '#1877f2',
+      borderRadius: 6,
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: 48,
-      ...SHADOWS.medium,
-      elevation: 4,
+      minHeight: 36,
     },
     centeredButtonText: {
-      fontSize: FONTS.sizes.large,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
+      fontWeight: '600',
+      color: '#ffffff',
       textAlign: 'center',
-      letterSpacing: 0.5,
     },
     centeredDisabledButton: {
       backgroundColor: COLORS.secondaryText,
@@ -2259,53 +2135,56 @@ Thank you for helping reunite pets with their families! ❤️`;
       color: COLORS.white,
       opacity: 0.8,
     },
-    // Edit Modal Styles
+    // Edit Modal Styles - Facebook Style
     centeredEditModal: {
-      backgroundColor: COLORS.white,
-      borderRadius: RADIUS.large,
+      backgroundColor: '#ffffff',
+      borderRadius: 8,
       width: '90%',
+      maxWidth: 500,
       maxHeight: '85%',
-      ...SHADOWS.medium,
+      overflow: 'hidden',
     },
     centeredEditContent: {
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-      maxHeight: 400,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      maxHeight: 500,
+      backgroundColor: '#ffffff',
     },
     editFormGroup: {
-      marginBottom: SPACING.md,
+      marginBottom: 16,
     },
     editFormLabel: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semibold,
-      color: COLORS.text,
-      marginBottom: SPACING.xs,
+      fontWeight: '600',
+      color: '#050505',
+      marginBottom: 8,
     },
     editFormInput: {
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      fontSize: FONTS.sizes.medium,
+      borderColor: '#ccd0d5',
+      borderRadius: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      color: COLORS.text,
-      backgroundColor: COLORS.white,
+      color: '#050505',
+      backgroundColor: '#ffffff',
     },
     editFormTextArea: {
       height: 80,
       textAlignVertical: 'top',
+      paddingTop: 10,
     },
     imagePickerButton: {
-      borderWidth: 2,
-      borderColor: COLORS.border,
-      borderStyle: 'dashed',
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
+      borderWidth: 1,
+      borderColor: '#ccd0d5',
+      borderStyle: 'solid',
+      borderRadius: 6,
+      padding: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: COLORS.inputBackground,
+      backgroundColor: '#f2f3f5',
     },
     editFormImage: {
       width: 120,
@@ -2327,30 +2206,30 @@ Thank you for helping reunite pets with their families! ❤️`;
     editFormRadioGroup: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: SPACING.sm,
+      gap: 8,
     },
     editFormRadioButton: {
       flex: 1,
-      paddingVertical: SPACING.sm,
-      paddingHorizontal: SPACING.md,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
       borderWidth: 1,
-      borderColor: COLORS.lightGray,
-      borderRadius: RADIUS.small,
+      borderColor: '#ccd0d5',
+      borderRadius: 6,
       alignItems: 'center',
-      backgroundColor: COLORS.white,
+      backgroundColor: '#ffffff',
     },
     editFormActiveRadioButton: {
-      backgroundColor: COLORS.darkPurple,
-      borderColor: COLORS.darkPurple,
+      backgroundColor: '#1877f2',
+      borderColor: '#1877f2',
     },
     editFormRadioText: {
-      fontSize: FONTS.sizes.medium,
+      fontSize: 15,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semibold,
-      color: COLORS.text,
+      fontWeight: '500',
+      color: '#050505',
     },
     editFormActiveRadioText: {
-      color: COLORS.white,
+      color: '#ffffff',
     },
     disabledButton: {
       opacity: 0.6,
@@ -2362,205 +2241,6 @@ Thank you for helping reunite pets with their families! ❤️`;
       color: COLORS.secondaryText,
       textAlign: 'center',
       opacity: 0.7,
-    },
-    // User Manual Modal Styles
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: SPACING.lg,
-    },
-    modalContent: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      padding: SPACING.lg,
-      marginHorizontal: SPACING.lg,
-      maxHeight: '90%',
-      width: '90%',
-      maxWidth: 500,
-      ...SHADOWS.heavy,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: SPACING.lg,
-      paddingBottom: SPACING.md,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.lightBlue,
-    },
-    modalTitle: {
-      fontSize: FONTS.sizes.xlarge,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      flex: 1,
-    },
-    closeButton: {
-      padding: SPACING.sm,
-    },
-    modalScrollView: {
-      maxHeight: 400,
-    },
-    manualContent: {
-      paddingBottom: SPACING.md,
-    },
-    section: {
-      marginBottom: SPACING.lg,
-    },
-    sectionTitle: {
-      fontSize: FONTS.sizes.large,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.text,
-      marginBottom: SPACING.md,
-    },
-    sectionText: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 22,
-    },
-    featureItem: {
-      flexDirection: 'row',
-      marginBottom: SPACING.lg,
-      alignItems: 'flex-start',
-    },
-    featureIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: '#F3F4F6',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: SPACING.md,
-    },
-    featureContent: {
-      flex: 1,
-    },
-    featureTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
-      marginBottom: SPACING.xs,
-    },
-    featureDescription: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 20,
-    },
-    statusItem: {
-      flexDirection: 'row',
-      marginBottom: SPACING.md,
-      alignItems: 'flex-start',
-    },
-    statusEmoji: {
-      fontSize: FONTS.sizes.large,
-      marginRight: SPACING.sm,
-      marginTop: 2,
-    },
-    statusContent: {
-      flex: 1,
-    },
-    statusTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
-      marginBottom: SPACING.xs,
-    },
-    statusDescription: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 18,
-    },
-    tipsSection: {
-      backgroundColor: COLORS.lightBlue,
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      marginBottom: SPACING.md,
-    },
-    tipsTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
-      marginBottom: SPACING.md,
-    },
-    tipItem: {
-      flexDirection: 'row',
-      marginBottom: SPACING.sm,
-      alignItems: 'flex-start',
-    },
-    tipBullet: {
-      fontSize: FONTS.sizes.medium,
-      color: COLORS.text,
-      marginRight: SPACING.sm,
-      marginTop: 2,
-    },
-    tipText: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 18,
-      flex: 1,
-    },
-    notesSection: {
-      backgroundColor: '#FEF2F2',
-      borderRadius: RADIUS.medium,
-      padding: SPACING.md,
-      marginBottom: SPACING.md,
-      borderLeftWidth: 4,
-      borderLeftColor: '#EF4444',
-    },
-    notesTitle: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.semiBold,
-      color: COLORS.text,
-      marginBottom: SPACING.md,
-    },
-    noteItem: {
-      flexDirection: 'row',
-      marginBottom: SPACING.sm,
-      alignItems: 'flex-start',
-    },
-    noteBullet: {
-      fontSize: FONTS.sizes.medium,
-      color: '#EF4444',
-      marginRight: SPACING.sm,
-      marginTop: 2,
-    },
-    noteText: {
-      fontSize: FONTS.sizes.small,
-      fontFamily: FONTS.family,
-      color: COLORS.secondaryText,
-      lineHeight: 18,
-      flex: 1,
-    },
-    modalFooter: {
-      paddingTop: SPACING.md,
-      borderTopWidth: 1,
-      borderTopColor: COLORS.lightBlue,
-    },
-    gotItButton: {
-      backgroundColor: COLORS.darkPurple,
-      borderRadius: RADIUS.medium,
-      paddingVertical: SPACING.md,
-      paddingHorizontal: SPACING.xl,
-      alignItems: 'center',
-      marginTop: SPACING.lg,
-      ...SHADOWS.medium,
-    },
-    gotItButtonText: {
-      fontSize: FONTS.sizes.medium,
-      fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
     },
   }), [COLORS, reportForm.lastSeenLocation, reportForm.timeLost]);
 
@@ -2575,26 +2255,20 @@ Thank you for helping reunite pets with their families! ❤️`;
             style={styles.backButton} 
             onPress={handleBackPress}
           >
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.white} />
+            <MaterialIcons name="arrow-back" size={24} color="#050505" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Pets</Text>
           <View style={styles.headerActions}>
-          <View style={styles.statsContainer}>
-            <Text style={styles.statsText}>
-              {pets.length} {pets.length === 1 ? 'Pet' : 'Pets'}
-            </Text>
+            <View style={styles.statsContainer}>
+              <Text style={styles.statsText}>
+                {pets.length} {pets.length === 1 ? 'Pet' : 'Pets'}
+              </Text>
             </View>
             <TouchableOpacity 
               style={styles.archiveButtonHeader}
               onPress={() => navigation.navigate('ArchivedPets')}
             >
-              <MaterialIcons name="archive" size={20} color={COLORS.white} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.helpButton}
-              onPress={() => setShowUserManual(true)}
-            >
-              <MaterialIcons name="help-outline" size={24} color={COLORS.white} />
+              <MaterialIcons name="archive" size={20} color="#050505" />
             </TouchableOpacity>
           </View>
         </View>
@@ -2622,7 +2296,8 @@ Thank you for helping reunite pets with their families! ❤️`;
                 style={styles.addPetButton}
                 onPress={() => navigation.navigate('RegisterPet')}
               >
-                <Text style={styles.addPetButtonText}>🐕 Register Your First Pet</Text>
+                <MaterialIcons name="add-circle-outline" size={24} color="#FFFFFF" />
+                <Text style={styles.addPetButtonText}>Register Your First Pet</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -2634,7 +2309,6 @@ Thank you for helping reunite pets with their families! ❤️`;
                     pet={pet}
                     onUpdateStatus={handleUpdatePetStatus}
                     onEditPet={handleEditPet}
-                    onArchivePet={handleArchivePet}
                     onReportLost={(pet) => {setSelectedPetForReport(pet); setShowReportLostModal(true);}}
                     onMarkFound={(pet) => handleMarkFound(pet)}
                     onShowQR={(pet) => setSelectedPetQR(pet)}
@@ -2647,7 +2321,8 @@ Thank you for helping reunite pets with their families! ❤️`;
                 style={styles.addPetButton}
                 onPress={() => navigation.navigate('RegisterPet')}
               >
-                <Text style={styles.addPetButtonText}>➕ Add Another Pet</Text>
+                <MaterialIcons name="add-circle-outline" size={24} color={COLORS.white} />
+                <Text style={styles.addPetButtonText}>Add Another Pet</Text>
               </TouchableOpacity>
             </>
           )}
@@ -3147,9 +2822,9 @@ Thank you for helping reunite pets with their families! ❤️`;
       <View style={styles.modalBackdrop}>
         <View style={styles.centeredEditModal}>
           <View style={styles.centeredModalHeader}>
-            <Text style={styles.centeredModalTitle}>Edit {selectedPetForEdit.petName}</Text>
+            <Text style={styles.centeredModalTitle}>Edit Pet</Text>
             <TouchableOpacity onPress={() => setShowEditModal(false)}>
-              <MaterialIcons name="close" size={24} color={COLORS.text} />
+              <MaterialIcons name="close" size={24} color="#050505" />
             </TouchableOpacity>
           </View>
           
@@ -3309,9 +2984,9 @@ Thank you for helping reunite pets with their families! ❤️`;
               disabled={isSubmittingEdit}
             >
               {isSubmittingEdit ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
+                <ActivityIndicator size="small" color="#ffffff" />
               ) : (
-                <Text style={styles.centeredButtonText}>Save Changes</Text>
+                <Text style={styles.centeredButtonText}>Save</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -3319,191 +2994,6 @@ Thank you for helping reunite pets with their families! ❤️`;
       </View>
     )}
 
-    {/* User Manual Modal */}
-    <Modal
-      visible={showUserManual}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setShowUserManual(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>📚 My Pets User Manual</Text>
-          </View>
-
-          <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-            <View style={styles.manualContent}>
-              
-              {/* Overview */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🐾 Overview</Text>
-                <Text style={styles.sectionText}>
-                  The My Pets screen helps you manage all your registered pets. Here you can view pet information, 
-                  generate QR codes, report lost pets, and manage pet status.
-                </Text>
-              </View>
-
-              {/* Pet Card Features */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📱 Pet Card Features</Text>
-                
-                <View style={styles.featureItem}>
-                  <View style={styles.featureIcon}>
-                    <MaterialIcons name="qr-code" size={20} color="#1D4ED8" />
-                  </View>
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>QR Code</Text>
-                    <Text style={styles.featureDescription}>
-                      Generate a unique QR code for your pet. This code contains your pet's information and can be scanned by others to help reunite you with your pet if they get lost.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.featureItem}>
-                  <View style={styles.featureIcon}>
-                    <MaterialIcons name="report-problem" size={20} color="#F59E0B" />
-                  </View>
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>Report Lost</Text>
-                    <Text style={styles.featureDescription}>
-                      If your pet goes missing, tap this button to create a lost pet report. This will notify other users in your area to help find your pet.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.featureItem}>
-                  <View style={styles.featureIcon}>
-                    <MaterialIcons name="check-circle" size={20} color="#10B981" />
-                  </View>
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>Mark Found</Text>
-                    <Text style={styles.featureDescription}>
-                      When your lost pet is found, tap this button to mark them as found. This will update the lost pet report and notify others.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.featureItem}>
-                  <View style={styles.featureIcon}>
-                    <MaterialIcons name="edit" size={20} color="#8B5CF6" />
-                  </View>
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>Edit Pet</Text>
-                    <Text style={styles.featureDescription}>
-                      Update your pet's information including name, breed, description, owner details, and profile photo.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.featureItem}>
-                  <View style={styles.featureIcon}>
-                    <MaterialIcons name="delete" size={20} color="#EF4444" />
-                  </View>
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>Delete Pet</Text>
-                    <Text style={styles.featureDescription}>
-                      Remove a pet from your account. This will also delete any associated lost pet reports.
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Status Management */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📊 Status Management</Text>
-                
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusEmoji}>🤰</Text>
-                  <View style={styles.statusContent}>
-                    <Text style={styles.statusTitle}>Mark Pregnant</Text>
-                    <Text style={styles.statusDescription}>
-                      For female pets only. Mark when your pet is pregnant to track their health status.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusEmoji}>🕊️</Text>
-                  <View style={styles.statusContent}>
-                    <Text style={styles.statusTitle}>Mark Deceased</Text>
-                    <Text style={styles.statusDescription}>
-                      Update your pet's status if they have passed away. You can undo this action if marked by mistake.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusEmoji}>✅</Text>
-                  <View style={styles.statusContent}>
-                    <Text style={styles.statusTitle}>Undo Status</Text>
-                    <Text style={styles.statusDescription}>
-                      If you marked your pet as pregnant or deceased by mistake, tap "Undo" to revert to healthy status.
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Tips */}
-              <View style={styles.tipsSection}>
-                <Text style={styles.tipsTitle}>💡 Tips for Better Pet Management</Text>
-                <View style={styles.tipItem}>
-                  <Text style={styles.tipBullet}>•</Text>
-                  <Text style={styles.tipText}>Keep your pet's information up to date, especially contact details</Text>
-                </View>
-                <View style={styles.tipItem}>
-                  <Text style={styles.tipBullet}>•</Text>
-                  <Text style={styles.tipText}>Use clear, recent photos of your pet for better identification</Text>
-                </View>
-                <View style={styles.tipItem}>
-                  <Text style={styles.tipBullet}>•</Text>
-                  <Text style={styles.tipText}>Report lost pets immediately for better chances of reunion</Text>
-                </View>
-                <View style={styles.tipItem}>
-                  <Text style={styles.tipBullet}>•</Text>
-                  <Text style={styles.tipText}>Share your pet's QR code with trusted friends and family</Text>
-                </View>
-                <View style={styles.tipItem}>
-                  <Text style={styles.tipBullet}>•</Text>
-                  <Text style={styles.tipText}>Regularly check for updates on your lost pet reports</Text>
-                </View>
-              </View>
-
-              {/* Important Notes */}
-              <View style={styles.notesSection}>
-                <Text style={styles.notesTitle}>⚠️ Important Notes</Text>
-                <View style={styles.noteItem}>
-                  <Text style={styles.noteBullet}>•</Text>
-                  <Text style={styles.noteText}>QR codes are only available for registered pets</Text>
-                </View>
-                <View style={styles.noteItem}>
-                  <Text style={styles.noteBullet}>•</Text>
-                  <Text style={styles.noteText}>Lost pet reports are visible to other users in your area</Text>
-                </View>
-                <View style={styles.noteItem}>
-                  <Text style={styles.noteBullet}>•</Text>
-                  <Text style={styles.noteText}>Deleting a pet will remove all associated data permanently</Text>
-                </View>
-                <View style={styles.noteItem}>
-                  <Text style={styles.noteBullet}>•</Text>
-                  <Text style={styles.noteText}>Contact information is not shared publicly in lost reports</Text>
-                </View>
-              </View>
-
-            </View>
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={styles.gotItButton}
-              onPress={handleManualClose}
-            >
-              <Text style={styles.gotItButtonText}>Got It!</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
     </>
   );
 };

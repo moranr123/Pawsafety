@@ -7,8 +7,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Dimensions,
-  Platform
+  Platform,
+  StatusBar
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -16,7 +16,6 @@ import { auth, db } from '../services/firebase';
 import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, getDocs, orderBy, limit } from 'firebase/firestore';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { getResponsiveDimensions } from '../utils/responsive';
 
 const ArchivedPetsScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -24,7 +23,6 @@ const ArchivedPetsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const user = auth.currentUser;
 
-  const { isSmallDevice, isTablet, wp, hp } = getResponsiveDimensions();
 
   useEffect(() => {
     if (!user) return;
@@ -54,12 +52,12 @@ const ArchivedPetsScreen = ({ navigation }) => {
 
   const handleUnarchivePet = (petId, petName) => {
     Alert.alert(
-      'Unarchive Pet',
+      'Restore Pet',
       `Do you want to restore ${petName} back to your pets?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Unarchive',
+          text: 'Restore',
           onPress: async () => {
             try {
               await updateDoc(doc(db, 'pets', petId), {
@@ -68,7 +66,7 @@ const ArchivedPetsScreen = ({ navigation }) => {
               });
               Alert.alert('Success', `${petName} has been restored to your pets.`);
             } catch (error) {
-              Alert.alert('Error', 'Failed to unarchive pet. Please try again.');
+              Alert.alert('Error', 'Failed to restore pet. Please try again.');
             }
           }
         }
@@ -119,12 +117,12 @@ const ArchivedPetsScreen = ({ navigation }) => {
       backgroundColor: COLORS.background,
     },
     header: {
-      backgroundColor: COLORS.darkPurple,
-      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
-      paddingTop: isSmallDevice ? 45 : 50,
-      paddingBottom: SPACING.md,
+      backgroundColor: '#ffffff',
+      paddingHorizontal: SPACING.md,
+      paddingTop: Platform.OS === 'ios' ? 50 : Math.max(0, (StatusBar.currentHeight || 0) - 24),
+      paddingBottom: 8,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+      borderBottomColor: '#e4e6eb',
       ...SHADOWS.light,
     },
     headerContent: {
@@ -135,62 +133,108 @@ const ArchivedPetsScreen = ({ navigation }) => {
     headerTitle: {
       fontSize: 20,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.bold,
-      color: COLORS.white,
+      fontWeight: '700',
+      color: '#050505',
       flex: 1,
     },
     headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 16,
+      gap: 8,
+    },
+    statsContainer: {
+      marginLeft: 'auto',
     },
     statsText: {
-      color: COLORS.lightBlue,
+      color: '#65676b',
       fontSize: 14,
       fontFamily: FONTS.family,
-      fontWeight: FONTS.weights.medium,
+      fontWeight: '600',
     },
     backButton: {
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      borderRadius: 20,
       width: 40,
       height: 40,
+      borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: '#e4e6eb',
       marginRight: SPACING.md,
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: isSmallDevice ? SPACING.md : SPACING.lg,
+      paddingHorizontal: SPACING.md,
       paddingTop: SPACING.lg,
     },
     content: {
       paddingBottom: SPACING.xl,
     },
     petCard: {
-      backgroundColor: COLORS.cardBackground,
-      borderRadius: RADIUS.large,
-      marginBottom: SPACING.lg,
-      ...SHADOWS.medium,
-      overflow: 'hidden',
-      borderWidth: 2,
-      borderColor: COLORS.secondaryText,
-      opacity: 0.8,
+      backgroundColor: '#ffffff',
+      marginHorizontal: 0,
+      marginTop: SPACING.md,
+      borderRadius: 10,
+      overflow: 'visible',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      marginBottom: SPACING.md,
+      opacity: 0.9,
     },
-    petImageContainer: {
-      height: 220,
-      backgroundColor: COLORS.inputBackground,
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      justifyContent: 'space-between',
     },
-    petImage: {
-      width: '100%',
-      height: '100%',
-      resizeMode: 'cover',
-    },
-    imagePlaceholder: {
+    userInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
       flex: 1,
+    },
+    profilePlaceholder: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#e4e6eb',
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: COLORS.inputBackground,
+      marginRight: 10,
+    },
+    userDetails: {
+      flex: 1,
+    },
+    userName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
+      marginBottom: 2,
+    },
+    postTime: {
+      fontSize: 12,
+      color: '#65676b',
+    },
+    petImageContainer: {
+      marginBottom: 12,
+    },
+    petImage: {
+      width: '85%',
+      height: 300,
+      maxHeight: 400,
+      borderRadius: 8,
+      alignSelf: 'center',
+    },
+    imagePlaceholder: {
+      width: '85%',
+      height: 300,
+      maxHeight: 400,
+      alignSelf: 'center',
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#e4e6eb',
+      borderRadius: 8,
+      marginBottom: 12,
     },
     placeholderIcon: {
       fontSize: 60,
@@ -198,100 +242,97 @@ const ArchivedPetsScreen = ({ navigation }) => {
     },
     placeholderText: {
       fontSize: 14,
-      color: COLORS.secondaryText,
+      color: '#65676b',
       fontWeight: '500',
     },
     petInfo: {
-      padding: 20,
+      paddingHorizontal: 12,
+      paddingBottom: 12,
     },
     petHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 12,
+      marginBottom: 8,
     },
     petName: {
-      fontSize: 26,
-      fontWeight: '900',
-      color: COLORS.secondaryText,
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#050505',
       flex: 1,
+      marginBottom: 2,
     },
     archivedBadge: {
-      backgroundColor: COLORS.secondaryText,
-      paddingHorizontal: SPACING.sm,
-      paddingVertical: SPACING.xs,
-      borderRadius: RADIUS.small,
-      marginLeft: SPACING.sm,
+      backgroundColor: '#65676b',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+      marginLeft: 8,
     },
     archivedBadgeText: {
       fontSize: 10,
       fontWeight: '600',
-      color: COLORS.white,
+      color: '#ffffff',
       textTransform: 'uppercase',
     },
     petTypeIcon: {
-      backgroundColor: COLORS.inputBackground,
-      borderRadius: 24,
-      width: 48,
-      height: 48,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#e4e6eb',
       justifyContent: 'center',
       alignItems: 'center',
-      borderWidth: 1,
-      borderColor: COLORS.secondaryText,
     },
     petDetails: {
-      fontSize: 15,
-      color: COLORS.secondaryText,
-      marginBottom: 6,
-      fontWeight: '500',
+      fontSize: 12,
+      color: '#65676b',
+      marginBottom: 8,
     },
     ownerInfo: {
-      fontSize: 14,
-      color: COLORS.secondaryText,
-      marginBottom: 12,
+      fontSize: 13,
+      color: '#65676b',
+      marginBottom: 8,
     },
     description: {
-      fontSize: 14,
-      color: COLORS.secondaryText,
-      marginTop: 8,
+      fontSize: 15,
+      color: '#050505',
       lineHeight: 20,
+      marginBottom: 12,
+      fontFamily: FONTS.family,
     },
     actionButtons: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      paddingHorizontal: 20,
-      paddingVertical: 20,
-      paddingTop: 12,
-      backgroundColor: COLORS.inputBackground,
-      borderTopWidth: 2,
-      borderTopColor: COLORS.secondaryText,
-      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#e4e6eb',
+      gap: 8,
     },
     actionButton: {
-      width: Platform.OS === 'android' ? '48%' : '48%',
-      borderRadius: 16,
-      paddingVertical: 16,
-      paddingHorizontal: Platform.OS === 'android' ? 12 : 18,
-      alignItems: 'center',
-      justifyContent: 'center',
       flexDirection: 'row',
-      elevation: 2,
-      marginBottom: 12,
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+      paddingVertical: 8,
+      borderRadius: 8,
     },
     unarchiveButton: {
-      backgroundColor: COLORS.success,
-      ...SHADOWS.small,
+      backgroundColor: 'transparent',
     },
     deleteButton: {
-      backgroundColor: COLORS.error,
-      ...SHADOWS.small,
+      backgroundColor: 'transparent',
     },
     actionButtonText: {
-      fontSize: 13,
+      fontSize: 15,
       fontWeight: '600',
-      color: '#FFFFFF',
-      textAlign: 'center',
-      marginLeft: SPACING.xs,
+      color: '#65676b',
+      marginLeft: 6,
+    },
+    unarchiveButtonText: {
+      color: '#10B981',
+    },
+    deleteButtonText: {
+      color: '#EF4444',
     },
     emptyContainer: {
       alignItems: 'center',
@@ -328,7 +369,7 @@ const ArchivedPetsScreen = ({ navigation }) => {
       color: COLORS.secondaryText,
       marginTop: SPACING.md,
     },
-  }), [COLORS, isSmallDevice, isTablet, wp, hp]);
+  }), [COLORS]);
 
   return (
     <View style={styles.container}>
@@ -338,13 +379,15 @@ const ArchivedPetsScreen = ({ navigation }) => {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+            <MaterialIcons name="arrow-back" size={24} color="#050505" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Archived Pets</Text>
           <View style={styles.headerActions}>
-            <Text style={styles.statsText}>
-              {archivedPets.length} {archivedPets.length === 1 ? 'Pet' : 'Pets'}
-            </Text>
+            <View style={styles.statsContainer}>
+              <Text style={styles.statsText}>
+                {archivedPets.length} {archivedPets.length === 1 ? 'Pet' : 'Pets'}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -370,65 +413,69 @@ const ArchivedPetsScreen = ({ navigation }) => {
           ) : (
             archivedPets.map((pet) => (
               <View key={pet.id} style={styles.petCard}>
-                <View style={styles.petImageContainer}>
-                  {pet.petImage ? (
+                {/* Header */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.userInfo}>
+                    <View style={styles.profilePlaceholder}>
+                      <Text style={{ fontSize: 20 }}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
+                    </View>
+                    <View style={styles.userDetails}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Text style={styles.userName}>{pet.petName}</Text>
+                        <View style={styles.archivedBadge}>
+                          <Text style={styles.archivedBadgeText}>Archived</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.postTime}>
+                        {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Pet Image */}
+                {pet.petImage ? (
+                  <View style={styles.petImageContainer}>
                     <Image 
                       source={{ uri: pet.petImage }} 
                       style={styles.petImage} 
                       resizeMode="cover"
                     />
-                  ) : (
-                    <View style={styles.imagePlaceholder}>
-                      <Text style={styles.placeholderIcon}>
-                        {pet.petType === 'dog' ? '🐕' : '🐱'}
-                      </Text>
-                      <Text style={styles.placeholderText}>No Photo</Text>
-                    </View>
-                  )}
-                </View>
-                
-                <View style={styles.petInfo}>
-                  <View style={styles.petHeader}>
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={styles.petName}>{pet.petName}</Text>
-                      <View style={styles.archivedBadge}>
-                        <Text style={styles.archivedBadgeText}>Archived</Text>
-                      </View>
-                    </View>
-                    <View style={styles.petTypeIcon}>
-                      <Text style={{ fontSize: 16 }}>
-                        {pet.petType === 'dog' ? '🐕' : '🐱'}
-                      </Text>
-                    </View>
                   </View>
-                  
-                  <Text style={styles.petDetails}>
-                    {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
-                  </Text>
-                  
-                  <Text style={styles.ownerInfo}>
-                    Owner: {pet.ownerFullName || 'Unknown'}
-                  </Text>
-                  
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <Text style={styles.placeholderIcon}>
+                      {pet.petType === 'dog' ? '🐕' : '🐱'}
+                    </Text>
+                    <Text style={styles.placeholderText}>No Photo</Text>
+                  </View>
+                )}
+
+                {/* Content */}
+                <View style={styles.petInfo}>
                   {pet.description && (
                     <Text style={styles.description}>{pet.description}</Text>
                   )}
+                  <Text style={styles.ownerInfo}>
+                    Owner: {pet.ownerFullName || 'Unknown'}
+                  </Text>
                 </View>
-                
+
+                {/* Actions */}
                 <View style={styles.actionButtons}>
                   <TouchableOpacity 
                     style={[styles.actionButton, styles.unarchiveButton]} 
                     onPress={() => handleUnarchivePet(pet.id, pet.petName)}
                   >
-                    <MaterialIcons name="unarchive" size={16} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>Unarchive</Text>
+                    <MaterialIcons name="unarchive" size={20} color="#10B981" />
+                    <Text style={[styles.actionButtonText, styles.unarchiveButtonText]}>Restore</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={[styles.actionButton, styles.deleteButton]} 
                     onPress={() => handleDeletePet(pet.id, pet.petName)}
                   >
-                    <MaterialIcons name="delete" size={16} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>Delete</Text>
+                    <MaterialIcons name="delete" size={20} color="#EF4444" />
+                    <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
                   </TouchableOpacity>
                 </View>
               </View>
