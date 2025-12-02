@@ -43,7 +43,8 @@ import {
   Ban,
   RotateCcw,
   AlertTriangle,
-  MessageSquare
+  MessageSquare,
+  XCircle
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 import LogoBlue from '../assets/LogoBlue.png';
@@ -333,7 +334,10 @@ const AgriculturalDashboard = () => {
       });
       
       const registered = allPets
-        .filter(pet => pet.registrationStatus === 'registered' && !pet.archived)
+        .filter(pet => {
+          // Include registered pets that are not archived, OR registered pets that are deceased (even if archived)
+          return pet.registrationStatus === 'registered' && (!pet.archived || pet.status === 'deceased');
+        })
         .sort((a, b) => {
           const dateA = a.registeredAt?.toDate 
             ? a.registeredAt.toDate() 
@@ -639,28 +643,106 @@ const AgriculturalDashboard = () => {
     }
   }, [logout]);
 
-  const handleApprovePetRegistration = useCallback(async (petId) => {
+  // Send push notification only (without creating Firestore notification)
+  // Defined early so it can be used in other callbacks
+  const sendPushNotification = useCallback(async (userId, title, body, data = {}) => {
+    if (!userId) return;
     try {
-      const petDoc = pets.find(pet => pet.id === petId);
+      const tokenDoc = await getDoc(doc(db, 'user_push_tokens', userId));
       
+      if (tokenDoc.exists()) {
+        const tokenData = tokenDoc.data();
+        const token = tokenData?.expoPushToken || tokenData?.pushToken;
+        
+        if (token) {
+          // Send push notification via Expo API
+          const response = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Accept-Encoding': 'gzip, deflate',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify([{
+              to: token,
+              sound: 'default',
+              title: title,
+              body: body,
+              data: {
+                type: data.type || 'admin_action',
+                userId: userId,
+                ...data
+              },
+              priority: 'high',
+              channelId: 'default'
+            }])
+          });
+          
+          if (!response.ok) {
+            console.error('Failed to send push notification:', response.statusText);
+          }
+        }
+      }
+    } catch (pushError) {
+      console.error('Error sending push notification:', pushError);
+      // Don't throw - push notification is optional
+    }
+  }, []);
+
+  const handleApprovePetRegistration = useCallback(async (petId) => {
+    const petDoc = pets.find(pet => pet.id === petId);
+    const petName = petDoc?.petName || 'Unnamed Pet';
+    const ownerName = petDoc?.ownerFullName || 'Unknown Owner';
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to approve this pet registration?\n\n` +
+      `Pet: ${petName}\n` +
+      `Type: ${petDoc?.petType || 'Unknown'}\n` +
+      `Breed: ${petDoc?.breed || 'Unknown'}\n` +
+      `Owner: ${ownerName}\n\n` +
+      `This will:\n` +
+      `• Approve and register the pet\n` +
+      `• Send an approval notification to the pet owner\n` +
+      `• Enable QR code generation for the pet\n\n` +
+      `Click OK to approve or Cancel to abort.`
+    );
+    
+    if (!confirmed) {
+      return; // User cancelled the action
+    }
+    
+    try {
       await updateDoc(doc(db, 'pets', petId), {
         registrationStatus: 'registered',
         registeredAt: serverTimestamp(),
         registeredBy: currentUser?.email || 'agricultural_admin'
       });
 
-      // Create notification for pet owner
+      // Create notification for pet owner and send push notification
       if (petDoc && petDoc.userId) {
+        const notificationTitle = 'Pet Registration Approved';
+        const notificationMessage = `Your pet "${petDoc.petName}" has been approved and registered successfully!`;
+        
+        // Create Firestore notification
         await addDoc(collection(db, 'notifications'), {
           userId: petDoc.userId,
           type: 'pet_registration_approved',
-          title: 'Pet Registration Approved',
-          message: `Your pet "${petDoc.petName}" has been approved and registered successfully!`,
+          title: notificationTitle,
+          message: notificationMessage,
           petId: petId,
           petName: petDoc.petName,
           read: false,
           createdAt: serverTimestamp()
         });
+
+        // Send push notification (Firestore notification already created above)
+        await sendPushNotification(
+          petDoc.userId,
+          notificationTitle,
+          notificationMessage,
+          { type: 'pet_registration_approved', petId: petId, petName: petDoc.petName }
+        );
       }
 
       toast.success('Pet registration approved');
@@ -675,7 +757,7 @@ const AgriculturalDashboard = () => {
       console.error('Error approving registration:', error);
       toast.error('Failed to approve registration');
     }
-  }, [pets, currentUser, logActivity]);
+  }, [pets, currentUser, logActivity, sendPushNotification]);
 
   const handleRejectPetRegistration = useCallback(async (petId) => {
       const petDoc = pets.find(pet => pet.id === petId);
@@ -699,18 +781,30 @@ const AgriculturalDashboard = () => {
     }
     
     try {
-      // Create notification for pet owner before archiving
+      // Create notification for pet owner before archiving and send push notification
       if (petDoc && petDoc.userId) {
+        const notificationTitle = 'Pet Registration Rejected';
+        const notificationMessage = `Your pet "${petDoc.petName}" registration has been rejected. Please review the requirements and try again.`;
+        
+        // Create Firestore notification
         await addDoc(collection(db, 'notifications'), {
           userId: petDoc.userId,
           type: 'pet_registration_rejected',
-          title: 'Pet Registration Rejected',
-          message: `Your pet "${petDoc.petName}" registration has been rejected. Please review the requirements and try again.`,
+          title: notificationTitle,
+          message: notificationMessage,
           petId: petId,
           petName: petDoc.petName,
           read: false,
           createdAt: serverTimestamp()
         });
+
+        // Send push notification (Firestore notification already created above)
+        await sendPushNotification(
+          petDoc.userId,
+          notificationTitle,
+          notificationMessage,
+          { type: 'pet_registration_rejected', petId: petId, petName: petDoc.petName }
+        );
       }
 
       // Archive the pet instead of deleting
@@ -734,7 +828,7 @@ const AgriculturalDashboard = () => {
       console.error('Error rejecting registration:', error);
       toast.error('Failed to reject registration');
     }
-  }, [pets, currentUser, logActivity]);
+  }, [pets, currentUser, logActivity, sendPushNotification]);
 
   const handleImageSelect = useCallback((event) => {
     const file = event.target.files[0];
@@ -2971,10 +3065,17 @@ const AgriculturalDashboard = () => {
                       </h3>
                       <p className="text-xs text-gray-600 truncate mt-0.5">{pet.ownerFullName || 'Unknown Owner'}</p>
                     </div>
-                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 whitespace-nowrap">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Registered
-                    </span>
+                    {pet.status === 'deceased' ? (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 whitespace-nowrap">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Deceased
+                      </span>
+                    ) : (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 whitespace-nowrap">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Registered
+                      </span>
+                    )}
                   </div>
                   
                   <div className="space-y-2 text-xs">
@@ -3068,10 +3169,17 @@ const AgriculturalDashboard = () => {
                          pet.registeredDate ? new Date(pet.registeredDate).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="px-4 py-2 text-sm">
-                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Registered
-                        </span>
+                       {pet.status === 'deceased' ? (
+                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                           <XCircle className="h-3 w-3 mr-1" />
+                           Deceased
+                         </span>
+                       ) : (
+                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                           <CheckCircle2 className="h-3 w-3 mr-1" />
+                           Registered
+                         </span>
+                       )}
                       </td>
                       <td className="px-4 py-2 text-right text-sm">
                         <div className="inline-flex gap-2">

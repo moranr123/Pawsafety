@@ -429,7 +429,8 @@ const RegisterPetScreen = ({ navigation }) => {
           userId: user.uid,
           registeredDate: new Date().toISOString(),
           createdAt: new Date(),
-          registrationStatus: 'pending' // Set as pending until agricultural admin approves
+          registrationStatus: 'pending', // Set as pending until agricultural admin approves
+          archived: false // Ensure archived field is set so pets appear in MyPetsScreen
         };
         
         const docRef = await addDoc(collection(db, 'pets'), petDocData);
@@ -1383,7 +1384,7 @@ const RegisterPetScreen = ({ navigation }) => {
                 style={[styles.qrModalButton, styles.viewPetsButton]}
                 onPress={() => {
                   setShowQRModal(false);
-                  navigation.navigate('Tabs', { screen: 'MyPets' });
+                  navigation.navigate('MyPets');
                 }}
               >
                 <Text style={styles.qrModalButtonText}>View My Pets</Text>

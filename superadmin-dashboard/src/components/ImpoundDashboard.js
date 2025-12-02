@@ -1642,6 +1642,7 @@ const ImpoundDashboard = () => {
         originalAdoptableId: selectedAdoptable.id,
         status: 'safe',
         registrationStatus: 'registered', // Enable QR code and report lost functionality
+        archived: false, // Ensure archived field is set so pets appear in MyPetsScreen
         vaccinated: selectedAdoptable.vaccinated || false,
         dewormed: selectedAdoptable.dewormed || false,
         antiRabies: selectedAdoptable.antiRabies || false,

@@ -1386,6 +1386,12 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
   }), [COLORS]);
 
   const isReporter = useMemo(() => currentUser?.uid === report?.userId, [currentUser?.uid, report?.userId]);
+  
+  // Only the user who found the pet (creator of "Found" report) can mark it as resolved
+  const isFoundUser = useMemo(() => {
+    // Check if report status is "Found" and current user is the one who created the report
+    return report?.status === 'Found' && currentUser?.uid === report?.userId;
+  }, [currentUser?.uid, report?.status, report?.userId]);
 
   if (!report || !currentUser) return null;
 
@@ -1693,7 +1699,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
                         showsHorizontalScrollIndicator={false}
                         style={styles.actionButtonsContainer}
                       >
-                        {isReporter && reportStatus !== 'Resolved' && report?.status !== 'Resolved' && (
+                        {isFoundUser && reportStatus !== 'Resolved' && report?.status !== 'Resolved' && (
                           <TouchableOpacity 
                             style={[styles.actionButton, styles.actionButtonResolved]}
                             onPress={handleMarkResolved}
@@ -1709,7 +1715,7 @@ const ReportChatModal = ({ visible, onClose, report, reporter, chatId }) => {
                           style={[
                             styles.actionButton, 
                             styles.actionButtonBlock,
-                            { marginLeft: isReporter ? 10 : 0 }
+                            { marginLeft: isFoundUser ? 10 : 0 }
                           ]}
                           onPress={handleBlockUser}
                           activeOpacity={0.8}

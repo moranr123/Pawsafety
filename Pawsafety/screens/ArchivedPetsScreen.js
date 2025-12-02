@@ -13,7 +13,7 @@ import {
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../services/firebase';
-import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, getDocs, getDoc, orderBy, limit } from 'firebase/firestore';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -50,28 +50,55 @@ const ArchivedPetsScreen = ({ navigation }) => {
     };
   }, [user]);
 
-  const handleUnarchivePet = (petId, petName) => {
-    Alert.alert(
-      'Restore Pet',
-      `Do you want to restore ${petName} back to your pets?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Restore',
-          onPress: async () => {
-            try {
-              await updateDoc(doc(db, 'pets', petId), {
-                archived: false,
-                archivedAt: null
-              });
-              Alert.alert('Success', `${petName} has been restored to your pets.`);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to restore pet. Please try again.');
+  const handleUnarchivePet = async (petId, petName) => {
+    try {
+      // Get the pet document first to check its current status
+      const petDoc = await getDoc(doc(db, 'pets', petId));
+      if (!petDoc.exists()) {
+        Alert.alert('Error', 'Pet not found.');
+        return;
+      }
+      
+      const petData = petDoc.data();
+      const wasRegistered = petData.registrationStatus === 'registered';
+      const wasDeceased = petData.status === 'deceased';
+      
+      Alert.alert(
+        'Restore Pet',
+        `Do you want to restore ${petName} back to your pets?${wasDeceased ? '\n\nNote: This will restore the pet to active status.' : ''}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Restore',
+            onPress: async () => {
+              try {
+                const updateData = {
+                  archived: false,
+                  archivedAt: null
+                };
+                
+                // If pet was registered, ensure registrationStatus is still 'registered'
+                if (wasRegistered) {
+                  updateData.registrationStatus = 'registered';
+                }
+                
+                // If pet was deceased, restore status to 'safe'
+                if (wasDeceased) {
+                  updateData.status = 'safe';
+                }
+                
+                await updateDoc(doc(db, 'pets', petId), updateData);
+                Alert.alert('Success', `${petName} has been restored to your pets.`);
+              } catch (error) {
+                Alert.alert('Error', 'Failed to restore pet. Please try again.');
+              }
             }
           }
-        }
-      ]
-    );
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load pet information. Please try again.');
+    }
   };
 
   const handleDeletePet = (petId, petName) => {

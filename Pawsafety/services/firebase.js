@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { initializeApp } from "firebase/app";
-import { getReactNativePersistence, initializeAuth } from "firebase/auth";
+import { initializeApp, getApps } from "firebase/app";
+import { getReactNativePersistence, initializeAuth, getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -16,16 +16,56 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Validate Firebase configuration
+const validateFirebaseConfig = () => {
+  const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+  const missingFields = requiredFields.filter(field => !firebaseConfig[field]);
+  
+  if (missingFields.length > 0) {
+    console.error('Missing Firebase configuration:', missingFields);
+    throw new Error(`Missing required Firebase configuration: ${missingFields.join(', ')}`);
+  }
+};
 
-// Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
+// Initialize Firebase with error handling
+let app;
+let auth;
+let db;
+let storage;
 
-// Initialize Firebase Storage and get a reference to the service
-export const storage = getStorage(app);
+try {
+  validateFirebaseConfig();
+  
+  // Initialize Firebase app (only if not already initialized)
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApps()[0];
+  }
 
-// Initialize Firebase Authentication
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+  // Initialize Cloud Firestore and get a reference to the service
+  db = getFirestore(app);
+
+  // Initialize Firebase Storage and get a reference to the service
+  storage = getStorage(app);
+
+  // Initialize Firebase Authentication with error handling
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch (error) {
+    // If auth is already initialized, get the existing instance
+    if (error.code === 'auth/already-initialized') {
+      auth = getAuth(app);
+    } else {
+      throw error;
+    }
+  }
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+  // Re-throw to prevent app from running with broken Firebase
+  throw error;
+}
+
+export { db, storage, auth };

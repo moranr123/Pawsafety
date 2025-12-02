@@ -44,7 +44,14 @@ const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onReportLost, onMarkFoun
             <Text style={{ fontSize: 20 }}>{pet.petType === 'dog' ? '🐕' : '🐱'}</Text>
           </View>
           <View style={styles.userDetails}>
-            <Text style={styles.userName}>{pet.petName}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.userName}>{pet.petName}</Text>
+              {pet.registrationStatus === 'pending' && (
+                <View style={styles.pendingBadge}>
+                  <Text style={styles.pendingBadgeText}>Pending</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.postTime}>
               {pet.petType?.charAt(0).toUpperCase() + pet.petType?.slice(1)} • {pet.breed || 'Mixed Breed'}
             </Text>
@@ -81,6 +88,13 @@ const PetCard = memo(({ pet, onUpdateStatus, onEditPet, onReportLost, onMarkFoun
           >
             <Text style={styles.statusButtonText}>🕊️ Mark Deceased</Text>
           </TouchableOpacity>
+        )}
+        {pet.registrationStatus === 'pending' && (
+          <View style={styles.pendingStatusContainer}>
+            <Text style={styles.pendingStatusText}>
+              ⏳ Your pet registration is pending approval. You'll receive a notification once it's reviewed.
+            </Text>
+          </View>
         )}
       </View>
 
@@ -255,6 +269,33 @@ const MyPetsScreen = ({ navigation }) => {
       color: '#65676b',
       marginLeft: 6,
     },
+    pendingBadge: {
+      backgroundColor: '#FEF3C7',
+      borderWidth: 1,
+      borderColor: '#F59E0B',
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    pendingBadgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#D97706',
+    },
+    pendingStatusContainer: {
+      backgroundColor: '#FEF3C7',
+      borderWidth: 1,
+      borderColor: '#F59E0B',
+      borderRadius: 8,
+      padding: 12,
+      marginTop: 8,
+    },
+    pendingStatusText: {
+      fontSize: 13,
+      color: '#D97706',
+      textAlign: 'center',
+      lineHeight: 18,
+    },
   });
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -305,19 +346,26 @@ const MyPetsScreen = ({ navigation }) => {
   useEffect(() => {
     if (!user) return;
 
-    // Optimized: Filter archived pets server-side and add limit
+    // Query all pets for the user (both pending and registered)
+    // Filter archived pets client-side to handle cases where archived field might not exist
     const q = query(
       collection(db, 'pets'),
-      where('userId', '==', user.uid),
-      where('archived', '==', false) // Filter server-side instead of client-side
+      where('userId', '==', user.uid)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const petList = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
+      const petList = snapshot.docs
+        .map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }))
+        // Filter out archived pets (treat undefined/null as not archived)
+        .filter(pet => pet.archived !== true);
+      
       setPets(petList);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching pets:', error);
       setLoading(false);
     });
 

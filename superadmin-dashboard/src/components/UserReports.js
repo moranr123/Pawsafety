@@ -19,7 +19,7 @@ const UserReports = () => {
   const [removeModalOpen, setRemoveModalOpen] = useState(false);
   const [removeReason, setRemoveReason] = useState('');
   const [contentToRemove, setContentToRemove] = useState(null);
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'history', or 'archive'
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'resolved', or 'archive'
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [selectedHistoryContent, setSelectedHistoryContent] = useState(null);
   const [archiveSearchTerm, setArchiveSearchTerm] = useState('');
@@ -809,7 +809,7 @@ const UserReports = () => {
 
   // Fetch user status for history items
   useEffect(() => {
-    if (activeTab !== 'history' || groupedHistoryContent.length === 0) {
+    if (activeTab !== 'resolved' || groupedHistoryContent.length === 0) {
       setHistoryUserStatus({});
       return;
     }
@@ -1017,16 +1017,16 @@ const UserReports = () => {
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('history')}
+              onClick={() => setActiveTab('resolved')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'history'
+                activeTab === 'resolved'
                   ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
               <div className="flex items-center justify-center gap-2">
                 <History className="w-4 h-4" />
-                History
+                Resolved
               </div>
             </button>
         </div>
@@ -1152,7 +1152,7 @@ const UserReports = () => {
                       </>
                     )}
 
-        {activeTab === 'history' && (
+        {activeTab === 'resolved' && (
           <>
             {/* Header with View Archive Button */}
             <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1175,18 +1175,6 @@ const UserReports = () => {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setActiveTab('archive')}
-                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-md transition-all duration-300 shadow-md hover:shadow-lg whitespace-nowrap"
-              >
-                <Archive className="h-4 w-4 mr-2" />
-                View Archive
-                {groupedArchivedContent.length > 0 && (
-                  <span className="ml-2 bg-white text-orange-600 text-xs rounded-full h-5 min-w-[1.25rem] px-1.5 flex items-center justify-center font-semibold">
-                    {groupedArchivedContent.length > 99 ? '99+' : groupedArchivedContent.length}
-                  </span>
-                )}
-              </button>
             </div>
 
             {filteredHistoryContent.length === 0 ? (
@@ -1206,7 +1194,6 @@ const UserReports = () => {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Content</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action Taken</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resolved At</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1272,24 +1259,13 @@ const UserReports = () => {
                           {getActionBadge(content.resolution)}
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-700">
-                          {formatTime(content.resolvedAt)}
+                          {content.resolvedAt?.toDate ? content.resolvedAt.toDate().toLocaleString() : 'N/A'}
                         </td>
-                        <td className="px-4 py-2 text-right text-sm">
-                          <div className="inline-flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <button 
-                              onClick={() => handleArchiveHistory(content)}
-                              className="px-3 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 transition-all duration-300 flex items-center"
-                            >
-                              <Archive className="h-3 w-3 mr-1" />
-                              Archive
-                            </button>
-                  </div>
-                </td>
               </tr>
             ))}
                     {filteredHistoryContent.length === 0 && (
               <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-600">
+                        <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-600">
                           {historySearchTerm ? 'No history found matching your search.' : 'No history found.'}
                 </td>
               </tr>
@@ -1306,9 +1282,9 @@ const UserReports = () => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setActiveTab('history')}
+                  onClick={() => setActiveTab('resolved')}
                   className="flex items-center justify-center p-2 text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-all duration-300 hover:shadow-md"
-                  title="Go back to History"
+                  title="Go back to Resolved"
                 >
                   <ArrowLeft className="h-5 w-5" />
                       </button>
@@ -1351,7 +1327,6 @@ const UserReports = () => {
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Content</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action Taken</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archived Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1417,23 +1392,13 @@ const UserReports = () => {
                         {getActionBadge(content.resolution)}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-700">
-                        {content.archivedAt?.toDate ? content.archivedAt.toDate().toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="px-4 py-2 text-right text-sm">
-                        <div className="inline-flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button 
-                            onClick={() => setSelectedHistoryContent(content)}
-                            className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
-                          >
-                            View
-                          </button>
-                        </div>
+                        {content.archivedAt?.toDate ? content.archivedAt.toDate().toLocaleString() : 'N/A'}
                       </td>
                     </tr>
                   ))}
                   {filteredArchivedContent.length === 0 && (
               <tr>
-                      <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-600">
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-600">
                         {archiveSearchTerm ? 'No archived reports match your search criteria' : 'No archived reports yet'}
                 </td>
               </tr>
@@ -1868,15 +1833,6 @@ const UserReports = () => {
 
             {/* Action Buttons */}
             <div className="p-6 border-t border-gray-200 bg-gray-50 flex flex-wrap justify-end gap-3">
-              <button 
-                onClick={() => {
-                  handleArchiveHistory(selectedHistoryContent);
-                }}
-                className="px-4 py-2 bg-orange-600 text-white font-medium hover:bg-orange-700 rounded-lg transition-colors shadow-sm flex items-center gap-2"
-              >
-                <Archive className="w-4 h-4" />
-                Archive
-              </button>
               <button 
                 onClick={() => setSelectedHistoryContent(null)}
                 className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors"
