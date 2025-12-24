@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "owner": "moranr123",
     "orientation": "portrait",
-    "icon": "./assets/LogoBlue.png",
+    "icon": "./assets/AppIcon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "plugins": [
@@ -23,7 +23,8 @@
           "defaultChannel": "default"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-font"
     ],
     "splash": {
       "image": "./assets/LogoBlue.png",
@@ -56,8 +57,6 @@
         "WRITE_EXTERNAL_STORAGE",
         "NOTIFICATIONS"
       ],
-      "enableProguardInReleaseBuilds": true,
-      "enableShrinkResourcesInReleaseBuilds": true,
       "config": {
         "googleMaps": {
           "apiKey": "${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}"
@@ -65,7 +64,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/AppIcon.png"
     },
     "extra": {
       "eas": {

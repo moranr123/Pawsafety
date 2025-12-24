@@ -20,16 +20,29 @@ if ! eas whoami &> /dev/null; then
     exit 1
 fi
 
-# Google Maps API Key
-echo "📋 Creating Google Maps API Key environment variable..."
-echo "   (Select 'Project' for visibility when prompted)"
-eas env:create --scope project --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value AIzaSyByXb-FgYHiNhVIsK00kM1jdXYr_OerV7Q
-if [ $? -eq 0 ]; then
-    echo "✅ Google Maps API Key secret created successfully!"
+# Google Maps API Key - Check if .env file exists
+if [ -f ".env" ]; then
+    source .env
+    if [ ! -z "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY" ] && [ "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY" != "your_google_maps_api_key_here" ]; then
+        echo "📋 Creating Google Maps API Key environment variable..."
+        echo "   (Select 'Project' for visibility when prompted)"
+        eas env:create --scope project --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
+        if [ $? -eq 0 ]; then
+            echo "✅ Google Maps API Key secret created successfully!"
+        else
+            echo "⚠️  Google Maps API Key secret may already exist or there was an error."
+        fi
+        echo ""
+    else
+        echo "⚠️  EXPO_PUBLIC_GOOGLE_MAPS_API_KEY not found in .env or is placeholder"
+        echo "   Please add EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to your .env file"
+        echo ""
+    fi
 else
-    echo "⚠️  Google Maps API Key secret may already exist or there was an error."
+    echo "⚠️  No .env file found. Cannot create Google Maps API Key secret."
+    echo "   Please create a .env file with EXPO_PUBLIC_GOOGLE_MAPS_API_KEY (see env.example)"
+    echo ""
 fi
-echo ""
 
 # Firebase Secrets - Check if .env file exists
 if [ -f ".env" ]; then

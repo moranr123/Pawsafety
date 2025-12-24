@@ -4,6 +4,7 @@
     "runtime": "nodejs20"
   },
   "hosting": {
+    "site": "pawsafetyadmin",
     "public": "build",
     "ignore": [
       "firebase.json",

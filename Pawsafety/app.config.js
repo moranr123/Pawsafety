@@ -1,0 +1,76 @@
+export default {
+  expo: {
+    name: "Pawsafety",
+    slug: "Pawsafety",
+    version: "1.0.0",
+    owner: "moranr123",
+    orientation: "portrait",
+    icon: "./assets/AppIcon.png",
+    userInterfaceStyle: "light",
+    newArchEnabled: true,
+    plugins: [
+      [
+        "expo-location",
+        {
+          locationAlwaysAndWhenInUsePermission: "Allow $(PRODUCT_NAME) to use your location."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/AppIcon.png",
+          color: "#667eea",
+          defaultChannel: "default"
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ],
+    splash: {
+      image: "./assets/LogoBlue.png",
+      resizeMode: "contain",
+      backgroundColor: "#ffffff"
+    },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.pawsafety.app",
+      buildNumber: "1",
+      infoPlist: {
+        UIBackgroundModes: [
+          "remote-notification"
+        ]
+      }
+    },
+    android: {
+      package: "com.pawsafety.app",
+      versionCode: 1,
+      adaptiveIcon: {
+        foregroundImage: "./assets/AppIcon.png",
+        backgroundColor: "#ffffff"
+      },
+      edgeToEdgeEnabled: true,
+      permissions: [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "NOTIFICATIONS"
+      ],
+      config: {
+        googleMaps: {
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+        }
+      }
+    },
+    web: {
+      favicon: "./assets/AppIcon.png"
+    },
+    extra: {
+      eas: {
+        projectId: "63058f10-fa5a-4742-ac05-06b303b85f69"
+      }
+    }
+  }
+};
+

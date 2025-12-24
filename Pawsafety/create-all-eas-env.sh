@@ -20,10 +20,24 @@ if ! eas whoami &> /dev/null; then
     exit 1
 fi
 
-echo "📋 Step 1: Creating Google Maps API Key environment variable..."
-echo "   (Select 'Project' for visibility when prompted)"
-eas env:create --scope project --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value AIzaSyByXb-FgYHiNhVIsK00kM1jdXYr_OerV7Q
-echo ""
+# Google Maps API Key - Check if .env file exists
+if [ -f ".env" ]; then
+    source .env
+    if [ ! -z "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY" ] && [ "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY" != "your_google_maps_api_key_here" ]; then
+        echo "📋 Step 1: Creating Google Maps API Key environment variable..."
+        echo "   (Select 'Project' for visibility when prompted)"
+        eas env:create --scope project --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
+        echo ""
+    else
+        echo "⚠️  EXPO_PUBLIC_GOOGLE_MAPS_API_KEY not found in .env or is placeholder"
+        echo "   Please add EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to your .env file"
+        echo ""
+    fi
+else
+    echo "⚠️  No .env file found. Cannot create Google Maps API Key environment variable."
+    echo "   Please create a .env file with EXPO_PUBLIC_GOOGLE_MAPS_API_KEY (see env.example)"
+    echo ""
+fi
 
 # Check if .env file exists
 if [ -f ".env" ]; then
