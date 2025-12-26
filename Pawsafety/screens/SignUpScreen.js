@@ -22,6 +22,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { validateEmail, validatePassword, validateName } from '../utils/validation';
 import { showAuthError, getAuthErrorMessage } from '../utils/authErrors';
+import { checkRateLimit, recordAttempt, formatTimeRemaining } from '../services/rateLimiter';
 
 const SignUpScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -39,6 +40,7 @@ const SignUpScreen = ({ navigation }) => {
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsModalVisible, setTermsModalVisible] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState(null);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -93,9 +95,32 @@ const SignUpScreen = ({ navigation }) => {
       return;
     }
 
+    // Check rate limit before attempting signup
+    const rateLimitCheck = await checkRateLimit('signup', email);
+    setRateLimitInfo(rateLimitCheck);
+
+    if (!rateLimitCheck.allowed) {
+      const timeRemaining = rateLimitCheck.resetTime 
+        ? formatTimeRemaining(new Date(rateLimitCheck.resetTime))
+        : '1 hour';
+      
+      Alert.alert(
+        'Too Many Sign-Up Attempts',
+        `You have exceeded the maximum number of sign-up attempts. Please try again in ${timeRemaining}.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     setLoading(true);
     try {
+      // Record the signup attempt (before authentication)
+      await recordAttempt('signup', email, false);
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Record successful signup attempt
+      await recordAttempt('signup', email, true);
       
       // Update the user's display name
       await updateProfile(userCredential.user, {
@@ -120,7 +145,20 @@ const SignUpScreen = ({ navigation }) => {
       // Show success modal
       setSuccessModalVisible(true);
     } catch (error) {
-      showAuthError(error, Alert);
+      // Check if it's a rate limit error from Firebase
+      if (error.code === 'auth/too-many-requests') {
+        Alert.alert(
+          'Too Many Requests',
+          'Too many sign-up attempts. Please try again later.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        showAuthError(error, Alert);
+      }
+      
+      // Update rate limit info after failed attempt
+      const updatedCheck = await checkRateLimit('signup', email);
+      setRateLimitInfo(updatedCheck);
     } finally {
       setLoading(false);
     }
@@ -167,11 +205,32 @@ const SignUpScreen = ({ navigation }) => {
       return;
     }
 
+    // Check rate limit for email verification resend
+    const rateLimitCheck = await checkRateLimit('emailVerification', email);
+    if (!rateLimitCheck.allowed) {
+      const timeRemaining = rateLimitCheck.resetTime 
+        ? formatTimeRemaining(new Date(rateLimitCheck.resetTime))
+        : '1 hour';
+      
+      Alert.alert(
+        'Too Many Requests',
+        `You have exceeded the maximum number of verification email requests. Please try again in ${timeRemaining}.`
+      );
+      setResendCooldown(300); // Set UI cooldown
+      return;
+    }
+
     try {
+      // Record the resend attempt
+      await recordAttempt('emailVerification', email, false);
+
       // Try to sign in with existing credentials to resend verification
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       await sendEmailVerification(userCredential.user);
       await signOut(auth);
+      
+      // Record successful resend
+      await recordAttempt('emailVerification', email, true);
       
       // Start cooldown (60 seconds)
       setResendCooldown(60);
@@ -347,19 +406,25 @@ const SignUpScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styleSheet.signUpButton, 
-                (loading || !acceptedTerms) && styleSheet.signUpButtonDisabled
+                (loading || !acceptedTerms || (rateLimitInfo && !rateLimitInfo.allowed)) && styleSheet.signUpButtonDisabled
               ]}
               onPress={handleSignUp}
-              disabled={loading || !acceptedTerms}
+              disabled={loading || !acceptedTerms || (rateLimitInfo && !rateLimitInfo.allowed)}
               activeOpacity={0.8}
             >
               <Text 
                 style={styleSheet.signUpButtonText}
                 numberOfLines={1}
               >
-                {loading ? 'Signing Up...' : 'Sign Up'}
+                {loading ? 'Signing Up...' : (rateLimitInfo && !rateLimitInfo.allowed) ? 'Rate Limited' : 'Sign Up'}
               </Text>
             </TouchableOpacity>
+            
+            {rateLimitInfo && rateLimitInfo.remainingAttempts < 3 && rateLimitInfo.remainingAttempts > 0 && (
+              <Text style={styleSheet.rateLimitWarning}>
+                {rateLimitInfo.remainingAttempts} attempt{rateLimitInfo.remainingAttempts !== 1 ? 's' : ''} remaining
+              </Text>
+            )}
 
             <View style={styleSheet.divider}>
               <View style={styleSheet.dividerLine} />
@@ -917,6 +982,14 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS, facebookBlue) => StyleS
     fontSize: FONTS.sizes.medium,
     fontFamily: FONTS.family,
     fontWeight: FONTS.weights.bold,
+  },
+  rateLimitWarning: {
+    fontSize: 12,
+    fontFamily: FONTS.family,
+    color: '#FF6B6B',
+    textAlign: 'center',
+    marginTop: SPACING.xs,
+    fontWeight: '500',
   },
 });
 

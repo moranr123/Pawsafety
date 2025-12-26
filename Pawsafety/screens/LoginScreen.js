@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   Alert,
   ScrollView,
   Image,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
@@ -23,6 +24,7 @@ import { createUserDocument } from '../services/userService';
 import { getResponsiveDimensions } from '../utils/responsive';
 import { ResponsiveText, ResponsiveView, ResponsiveButton, ResponsiveInput, ResponsiveContainer } from '../components/ResponsiveComponents';
 import { getAuthErrorMessage } from '../utils/authErrors';
+import { checkRateLimit, recordAttempt, formatTimeRemaining, subscribeToRateLimit, resetFailedAttempts } from '../services/rateLimiter';
 
 const LoginScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -33,6 +35,19 @@ const LoginScreen = ({ navigation }) => {
   const [canResend, setCanResend] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
+  const [rateLimitInfo, setRateLimitInfo] = useState(null);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(null);
+  const rateLimitCheckTimeout = useRef(null);
+
+  // Memoized toggle password visibility handler
+  const togglePasswordVisibility = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
+
+  // Memoized navigation handler
+  const handleNavigateToSignUp = useCallback(() => {
+    navigation.navigate('SignUp');
+  }, [navigation]);
 
   // Handle screen dimension changes
   useEffect(() => {
@@ -41,6 +56,44 @@ const LoginScreen = ({ navigation }) => {
     });
     return () => subscription?.remove();
   }, []);
+
+  // Real-time rate limit listener when email changes
+  useEffect(() => {
+    // Clear previous timeout
+    if (rateLimitCheckTimeout.current) {
+      clearTimeout(rateLimitCheckTimeout.current);
+    }
+
+    let unsubscribe = null;
+
+    if (email && email.includes('@')) {
+      // Initial check with debounce
+      rateLimitCheckTimeout.current = setTimeout(() => {
+        checkRateLimit('login', email).then(info => {
+          setRateLimitInfo(info);
+        }).catch(() => {
+          // Silently fail - don't break the app
+        });
+
+        // Set up real-time listener for rate limit changes
+        unsubscribe = subscribeToRateLimit('login', email, (updatedInfo) => {
+          setRateLimitInfo(updatedInfo);
+        });
+      }, 300); // 300ms debounce for initial check
+    } else {
+      setRateLimitInfo(null);
+      setRateLimitCountdown(null);
+    }
+
+    return () => {
+      if (rateLimitCheckTimeout.current) {
+        clearTimeout(rateLimitCheckTimeout.current);
+      }
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [email]);
 
   // Cooldown timer effect
   React.useEffect(() => {
@@ -62,15 +115,88 @@ const LoginScreen = ({ navigation }) => {
     };
   }, [resendCooldown]);
 
-  const handleLogin = async () => {
+  // Rate limit countdown timer effect (optimized)
+  React.useEffect(() => {
+    let interval;
+    if (rateLimitInfo && rateLimitInfo.resetTime && !rateLimitInfo.allowed) {
+      const updateCountdown = () => {
+        const resetTime = new Date(rateLimitInfo.resetTime);
+        const now = new Date();
+        const diff = resetTime - now;
+
+        if (diff <= 0) {
+          setRateLimitCountdown(null);
+          // Recheck rate limit when countdown expires (non-blocking)
+          checkRateLimit('login', email).then(updatedInfo => {
+            setRateLimitInfo(updatedInfo);
+          }).catch(() => {
+            // Silently fail
+          });
+          return;
+        }
+
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        setRateLimitCountdown({ minutes, seconds, totalSeconds: Math.floor(diff / 1000) });
+      };
+
+      // Update immediately
+      updateCountdown();
+
+      // Update every second
+      interval = setInterval(updateCountdown, 1000);
+    } else {
+      setRateLimitCountdown(null);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [rateLimitInfo?.resetTime, rateLimitInfo?.allowed, email]);
+
+  const handleLogin = useCallback(async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    // Check rate limit before attempting login (optimized - don't await if already checked)
+    let rateLimitCheck = rateLimitInfo;
+    if (!rateLimitCheck || rateLimitCheck.identifier !== email.toLowerCase()) {
+      rateLimitCheck = await checkRateLimit('login', email);
+      setRateLimitInfo(rateLimitCheck);
+    }
+
+    if (!rateLimitCheck.allowed) {
+      const timeRemaining = rateLimitCheck.resetTime 
+        ? formatTimeRemaining(new Date(rateLimitCheck.resetTime))
+        : '15 minutes';
+      
+      Alert.alert(
+        'Too Many Login Attempts',
+        `You have exceeded the maximum number of login attempts. Please try again in ${timeRemaining}.`,
+        [{ text: 'OK' }]
+      );
       return;
     }
 
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Successful login - reset all failed attempts for this email
+      await resetFailedAttempts('login', email).catch(() => {
+        // Silently fail - don't block login
+      });
+      
+      // Update rate limit info to reflect reset (all attempts cleared)
+      const resetInfo = {
+        allowed: true,
+        remainingAttempts: 5, // Reset to max attempts
+        resetTime: null,
+        attemptCount: 0
+      };
+      setRateLimitInfo(resetInfo);
+      
       const user = userCredential.user;
       
       // Check if email is verified
@@ -78,6 +204,8 @@ const LoginScreen = ({ navigation }) => {
         // Store user reference before signing out
         const unverifiedUser = user;
         await auth.signOut();
+        // Clear password field for security
+        setPassword('');
         Alert.alert(
           'Email Not Verified',
           'Please verify your email address before signing in. Check your email for the verification link.\n\n📁 Please also check your spam/junk folder if you don\'t see the email in your inbox.',
@@ -124,6 +252,8 @@ const LoginScreen = ({ navigation }) => {
         if (userData.status === 'deactivated') {
           // User is deactivated, sign them out immediately
           await auth.signOut();
+          // Clear password field for security
+          setPassword('');
           Alert.alert(
             'Account Deactivated',
             'Your account has been deactivated by an administrator. Please contact support for assistance.',
@@ -138,12 +268,36 @@ const LoginScreen = ({ navigation }) => {
       
       // Navigation will be handled by auth state change
     } catch (error) {
-      const { title, message } = getAuthErrorMessage(error);
-      Alert.alert(title, message);
+      // Clear password field on any login error
+      setPassword('');
+      
+      // Record failed login attempt (only failed attempts count towards rate limit)
+      await recordAttempt('login', email, false).catch(() => {
+        // Silently fail - don't block error handling
+      });
+      
+      // Update rate limit info immediately after failed attempt (real-time update)
+      const updatedCheck = await checkRateLimit('login', email).catch(() => {
+        // Return current info if check fails
+        return rateLimitInfo;
+      });
+      setRateLimitInfo(updatedCheck);
+      
+      // Check if it's a rate limit error from Firebase
+      if (error.code === 'auth/too-many-requests') {
+        Alert.alert(
+          'Too Many Requests',
+          'Too many failed login attempts. Please try again later or reset your password.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        const { title, message } = getAuthErrorMessage(error);
+        Alert.alert(title, message);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, rateLimitInfo, canResend, resendCooldown]);
 
   // Dynamic responsive calculations based on current screen data
   const currentWidth = screenData.width;
@@ -244,6 +398,14 @@ const LoginScreen = ({ navigation }) => {
       textAlignVertical: 'center',
       includeFontPadding: false,
     },
+    loadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    spinner: {
+      marginRight: SPACING.sm,
+    },
     forgotPasswordContainer: {
       alignItems: 'center',
       marginTop: SPACING.md,
@@ -276,12 +438,19 @@ const LoginScreen = ({ navigation }) => {
       height: 50,
       marginTop: SPACING.md,
     },
+    signupButtonDisabled: {
+      backgroundColor: '#BCC0C4',
+      opacity: 0.6,
+    },
     signupButtonText: {
       color: '#FFFFFF',
       fontSize: 17,
       fontFamily: FONTS.family,
       fontWeight: '700',
       textAlign: 'center',
+    },
+    signupButtonTextDisabled: {
+      color: '#8A8D91',
     },
     passwordInputContainer: {
       flexDirection: 'row',
@@ -315,6 +484,46 @@ const LoginScreen = ({ navigation }) => {
       height: '100%',
       minWidth: 35,
       maxWidth: 40,
+    },
+    rateLimitWarning: {
+      fontSize: 12,
+      fontFamily: FONTS.family,
+      color: '#FF6B6B',
+      textAlign: 'center',
+      marginTop: SPACING.xs,
+      fontWeight: '500',
+    },
+    rateLimitContainer: {
+      backgroundColor: '#FFF3CD',
+      borderWidth: 1,
+      borderColor: '#FFC107',
+      borderRadius: 8,
+      padding: SPACING.md,
+      marginTop: SPACING.md,
+      alignItems: 'center',
+    },
+    rateLimitTitle: {
+      fontSize: 16,
+      fontFamily: FONTS.family,
+      fontWeight: '700',
+      color: '#856404',
+      marginBottom: SPACING.xs,
+      textAlign: 'center',
+    },
+    rateLimitMessage: {
+      fontSize: 14,
+      fontFamily: FONTS.family,
+      color: '#856404',
+      marginBottom: SPACING.xs,
+      textAlign: 'center',
+    },
+    rateLimitCountdown: {
+      fontSize: 24,
+      fontFamily: FONTS.family,
+      fontWeight: '700',
+      color: '#FF6B6B',
+      textAlign: 'center',
+      letterSpacing: 1,
     },
   }), [COLORS, currentWidth, currentHeight, isSmallDevice, isTablet]);
 
@@ -372,7 +581,7 @@ const LoginScreen = ({ navigation }) => {
                 />
                 <TouchableOpacity
                   style={styles.eyeIcon}
-                  onPress={() => setShowPassword(!showPassword)}
+                  onPress={togglePasswordVisibility}
                 >
                   <MaterialIcons
                     name={showPassword ? 'visibility' : 'visibility-off'}
@@ -384,18 +593,48 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+              style={[styles.loginButton, (loading || (rateLimitInfo && !rateLimitInfo.allowed)) && styles.loginButtonDisabled]}
               onPress={handleLogin}
-              disabled={loading}
+              disabled={loading || (rateLimitInfo && !rateLimitInfo.allowed)}
               activeOpacity={0.8}
             >
-              <Text 
-                style={styles.loginButtonText}
-                numberOfLines={1}
-              >
-                {loading ? 'Logging in...' : 'Log In'}
-              </Text>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FFFFFF" style={styles.spinner} />
+                  <Text style={styles.loginButtonText}>Logging in...</Text>
+                </View>
+              ) : (
+                <Text 
+                  style={styles.loginButtonText}
+                  numberOfLines={1}
+                >
+                  {(rateLimitInfo && !rateLimitInfo.allowed) ? 'Rate Limited' : 'Log In'}
+                </Text>
+              )}
             </TouchableOpacity>
+            
+            {/* Rate Limit Countdown Display */}
+            {rateLimitInfo && !rateLimitInfo.allowed && rateLimitCountdown && (
+              <View style={styles.rateLimitContainer}>
+                <Text style={styles.rateLimitTitle}>Too Many Login Attempts</Text>
+                <Text style={styles.rateLimitMessage}>
+                  Please try again in:
+                </Text>
+                <Text style={styles.rateLimitCountdown}>
+                  {rateLimitCountdown.minutes > 0 
+                    ? `${rateLimitCountdown.minutes}:${String(rateLimitCountdown.seconds).padStart(2, '0')}`
+                    : `${rateLimitCountdown.seconds}s`
+                  }
+                </Text>
+              </View>
+            )}
+            
+            {/* Remaining Attempts Warning */}
+            {rateLimitInfo && rateLimitInfo.allowed && rateLimitInfo.remainingAttempts < 5 && rateLimitInfo.remainingAttempts > 0 && (
+              <Text style={styles.rateLimitWarning}>
+                {rateLimitInfo.remainingAttempts} attempt{rateLimitInfo.remainingAttempts !== 1 ? 's' : ''} remaining
+              </Text>
+            )}
 
             <View style={styles.forgotPasswordContainer}>
               <TouchableOpacity>
@@ -408,11 +647,14 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <TouchableOpacity
-              style={styles.signupButton}
-              onPress={() => navigation.navigate('SignUp')}
+              style={[styles.signupButton, loading && styles.signupButtonDisabled]}
+              onPress={handleNavigateToSignUp}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.signupButtonText}>Create New Account</Text>
+              <Text style={[styles.signupButtonText, loading && styles.signupButtonTextDisabled]}>
+                Create New Account
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

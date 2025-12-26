@@ -346,3 +346,145 @@ exports.deleteAdminUser = onCall({
     }
   }
 });
+
+// Rate limiting configurations
+const RATE_LIMIT_CONFIGS = {
+  login_attempt: {
+    maxAttempts: 5,
+    windowMinutes: 15
+  },
+  signup_attempt: {
+    maxAttempts: 3,
+    windowMinutes: 60
+  },
+  email_verification_resend: {
+    maxAttempts: 3,
+    windowMinutes: 60
+  }
+};
+
+/**
+ * Check rate limit for authentication actions
+ * This function is called from the client to verify if an action is allowed
+ */
+exports.checkRateLimit = onCall({
+  maxInstances: 20,
+  region: 'us-central1'
+}, async (request) => {
+  const { data } = request;
+  const { action, identifier } = data || {};
+
+  if (!action || !identifier) {
+    throw new HttpsError('invalid-argument', 'Missing action or identifier');
+  }
+
+  const config = RATE_LIMIT_CONFIGS[action];
+  if (!config) {
+    // Unknown action, allow it
+    return {
+      allowed: true,
+      remainingAttempts: Infinity,
+      resetTime: null,
+      attemptCount: 0
+    };
+  }
+
+  try {
+    // Calculate window start time
+    const windowStart = new Date();
+    windowStart.setMinutes(windowStart.getMinutes() - config.windowMinutes);
+
+    // Query recent attempts
+    const attemptsRef = admin.firestore().collection('rate_limits');
+    // Query by action and identifier, then filter by timestamp in memory
+    // This avoids needing a composite index
+    const snapshot = await attemptsRef
+      .where('action', '==', action)
+      .where('identifier', '==', identifier.toLowerCase())
+      .get();
+    
+    // Filter by timestamp in memory and only count FAILED attempts (success = false)
+    const windowStartTimestamp = admin.firestore.Timestamp.fromDate(windowStart);
+    const validAttempts = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      // Only count failed attempts (success === false or undefined)
+      if (data.timestamp && data.timestamp >= windowStartTimestamp && data.success === false) {
+        validAttempts.push(data);
+      }
+    });
+
+    const attemptCount = validAttempts.length;
+    const remainingAttempts = Math.max(0, config.maxAttempts - attemptCount);
+    const allowed = attemptCount < config.maxAttempts;
+
+    // Calculate reset time
+    let resetTime = null;
+    if (!allowed && validAttempts.length > 0) {
+      const timestamps = validAttempts
+        .map(attempt => attempt.timestamp ? attempt.timestamp.toDate() : null)
+        .filter(t => t !== null);
+      
+      if (timestamps.length > 0) {
+        const oldestAttempt = new Date(Math.min(...timestamps.map(t => t.getTime())));
+        resetTime = new Date(oldestAttempt.getTime() + config.windowMinutes * 60 * 1000);
+      }
+    }
+
+    return {
+      allowed,
+      remainingAttempts,
+      resetTime: resetTime ? resetTime.toISOString() : null,
+      attemptCount,
+      maxAttempts: config.maxAttempts,
+      windowMinutes: config.windowMinutes
+    };
+  } catch (error) {
+    console.error('Error checking rate limit:', error);
+    // On error, allow the action (fail open)
+    return {
+      allowed: true,
+      remainingAttempts: Infinity,
+      resetTime: null,
+      attemptCount: 0
+    };
+  }
+});
+
+/**
+ * Record a rate limit attempt
+ * This is called after an authentication attempt to track it
+ */
+exports.recordRateLimitAttempt = onCall({
+  maxInstances: 20,
+  region: 'us-central1'
+}, async (request) => {
+  const { data } = request;
+  const { action, identifier, success = false } = data || {};
+
+  if (!action || !identifier) {
+    throw new HttpsError('invalid-argument', 'Missing action or identifier');
+  }
+
+  const config = RATE_LIMIT_CONFIGS[action];
+  if (!config) {
+    // Unknown action, don't record
+    return { success: true };
+  }
+
+  try {
+    await admin.firestore().collection('rate_limits').add({
+      action,
+      identifier: identifier.toLowerCase(),
+      success,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error recording rate limit attempt:', error);
+    // Don't throw - rate limiting shouldn't break the app
+    return { success: false, error: error.message };
+  }
+});

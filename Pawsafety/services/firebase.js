@@ -78,4 +78,4 @@ try {
   global.firebaseInitError = error;
 }
 
-export { db, storage, auth };
+export { db, storage, auth, app };
