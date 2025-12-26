@@ -37,6 +37,7 @@ const LoginScreen = ({ navigation }) => {
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
   const [rateLimitInfo, setRateLimitInfo] = useState(null);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(null);
+  const [emailVerificationRateLimit, setEmailVerificationRateLimit] = useState(null);
   const rateLimitCheckTimeout = useRef(null);
 
   // Memoized toggle password visibility handler
@@ -217,6 +218,23 @@ const LoginScreen = ({ navigation }) => {
                   Alert.alert('Please Wait', `You can resend the email in ${resendCooldown} seconds.`);
                   return;
                 }
+
+                // Check rate limit for email verification resend
+                const emailVerificationCheck = await checkRateLimit('emailVerification', email);
+                setEmailVerificationRateLimit(emailVerificationCheck);
+
+                if (!emailVerificationCheck.allowed) {
+                  const timeRemaining = emailVerificationCheck.resetTime 
+                    ? formatTimeRemaining(new Date(emailVerificationCheck.resetTime))
+                    : '1 hour';
+                  
+                  Alert.alert(
+                    'Too Many Requests',
+                    `You have exceeded the maximum number of verification email requests. Please try again in ${timeRemaining}.`
+                  );
+                  setResendCooldown(300); // Set UI cooldown
+                  return;
+                }
                 
                 try {
                   // Re-authenticate to send verification email
@@ -224,10 +242,35 @@ const LoginScreen = ({ navigation }) => {
                   await sendEmailVerification(tempUserCredential.user);
                   await auth.signOut(); // Sign out again
                   
+                  // Successful resend - reset failed attempts
+                  await resetFailedAttempts('emailVerification', email).catch(() => {
+                    // Silently fail
+                  });
+                  
+                  // Update rate limit info
+                  const resetInfo = {
+                    allowed: true,
+                    remainingAttempts: 3,
+                    resetTime: null,
+                    attemptCount: 0
+                  };
+                  setEmailVerificationRateLimit(resetInfo);
+                  
                   // Start cooldown (60 seconds)
                   setResendCooldown(60);
                   Alert.alert('Success', 'Verification email has been resent!\n\n📁 Please check your spam/junk folder if you don\'t see the email.');
                 } catch (error) {
+                  // Record failed attempt
+                  await recordAttempt('emailVerification', email, false).catch(() => {
+                    // Silently fail
+                  });
+                  
+                  // Update rate limit info
+                  const updatedCheck = await checkRateLimit('emailVerification', email).catch(() => {
+                    return emailVerificationCheck;
+                  });
+                  setEmailVerificationRateLimit(updatedCheck);
+                  
                   const { title, message } = getAuthErrorMessage(error);
                   if (error.code === 'auth/too-many-requests') {
                     setResendCooldown(300); // 5 minute cooldown for rate limiting

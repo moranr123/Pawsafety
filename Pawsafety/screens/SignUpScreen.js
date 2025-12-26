@@ -12,17 +12,18 @@ import {
   ScrollView,
   Image,
   Modal,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { createUserDocument } from '../services/userService';
 import { useTheme } from '../contexts/ThemeContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { validateEmail, validatePassword, validateName } from '../utils/validation';
 import { showAuthError, getAuthErrorMessage } from '../utils/authErrors';
-import { checkRateLimit, recordAttempt, formatTimeRemaining } from '../services/rateLimiter';
+import { checkRateLimit, recordAttempt, formatTimeRemaining, resetFailedAttempts } from '../services/rateLimiter';
 
 const SignUpScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
@@ -31,10 +32,6 @@ const SignUpScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [successModalVisible, setSuccessModalVisible] = useState(false);
-  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [canResend, setCanResend] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [screenData, setScreenData] = useState(Dimensions.get('window'));
@@ -114,37 +111,52 @@ const SignUpScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Record the signup attempt (before authentication)
-      await recordAttempt('signup', email, false);
-
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Record successful signup attempt
-      await recordAttempt('signup', email, true);
-      
-      // Update the user's display name
-      await updateProfile(userCredential.user, {
-        displayName: fullName.trim()
+      // Successful signup - reset all failed attempts for this email
+      await resetFailedAttempts('signup', email).catch(() => {
+        // Silently fail - don't block signup
       });
       
-      // Create user document in Firestore
-      const userDocCreated = await createUserDocument(userCredential.user);
-      if (!userDocCreated) {
-        // User document creation failed - non-critical
-      }
+      // Update rate limit info to reflect reset
+      const resetInfo = {
+        allowed: true,
+        remainingAttempts: 3,
+        resetTime: null,
+        attemptCount: 0
+      };
+      setRateLimitInfo(resetInfo);
+      
+      // Update the user's display name (non-blocking)
+      updateProfile(userCredential.user, {
+        displayName: fullName.trim()
+      }).catch(() => {
+        // Silently fail - non-critical
+      });
+      
+      // Create user document in Firestore (non-blocking)
+      createUserDocument(userCredential.user).catch(() => {
+        // Silently fail - non-critical
+      });
       
       // Send email verification
       await sendEmailVerification(userCredential.user);
-      setEmailVerificationSent(true);
-      
-      // Start cooldown immediately after sending verification email
-      setResendCooldown(60);
       
       // Sign out the user so they're not automatically logged in
       await signOut(auth);
-      // Show success modal
-      setSuccessModalVisible(true);
+      
+      // Navigate to email verification screen
+      navigation.navigate('EmailVerification', {
+        email: email,
+        password: password // Store password temporarily for resend functionality
+      });
+      
     } catch (error) {
+      // Record failed signup attempt (only failed attempts count)
+      await recordAttempt('signup', email, false).catch(() => {
+        // Silently fail - don't block error handling
+      });
+      
       // Check if it's a rate limit error from Firebase
       if (error.code === 'auth/too-many-requests') {
         Alert.alert(
@@ -157,92 +169,15 @@ const SignUpScreen = ({ navigation }) => {
       }
       
       // Update rate limit info after failed attempt
-      const updatedCheck = await checkRateLimit('signup', email);
+      const updatedCheck = await checkRateLimit('signup', email).catch(() => {
+        return rateLimitInfo;
+      });
       setRateLimitInfo(updatedCheck);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSuccessModalClose = () => {
-    setSuccessModalVisible(false);
-    // Reset form
-    setFullName('');
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setEmailVerificationSent(false);
-    setResendCooldown(0);
-    setCanResend(true);
-    setAcceptedTerms(false);
-    // Navigate to login
-    navigation.navigate('Login');
-  };
-
-  // Cooldown timer effect
-  React.useEffect(() => {
-    let interval;
-    if (resendCooldown > 0) {
-      setCanResend(false);
-      interval = setInterval(() => {
-        setResendCooldown((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [resendCooldown]);
-
-  const resendVerificationEmail = async () => {
-    if (!canResend) {
-      Alert.alert('Please Wait', `You can resend the email in ${resendCooldown} seconds.`);
-      return;
-    }
-
-    // Check rate limit for email verification resend
-    const rateLimitCheck = await checkRateLimit('emailVerification', email);
-    if (!rateLimitCheck.allowed) {
-      const timeRemaining = rateLimitCheck.resetTime 
-        ? formatTimeRemaining(new Date(rateLimitCheck.resetTime))
-        : '1 hour';
-      
-      Alert.alert(
-        'Too Many Requests',
-        `You have exceeded the maximum number of verification email requests. Please try again in ${timeRemaining}.`
-      );
-      setResendCooldown(300); // Set UI cooldown
-      return;
-    }
-
-    try {
-      // Record the resend attempt
-      await recordAttempt('emailVerification', email, false);
-
-      // Try to sign in with existing credentials to resend verification
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      await sendEmailVerification(userCredential.user);
-      await signOut(auth);
-      
-      // Record successful resend
-      await recordAttempt('emailVerification', email, true);
-      
-      // Start cooldown (60 seconds)
-      setResendCooldown(60);
-      Alert.alert('Success', 'Verification email has been resent!\n\n📁 Please check your spam/junk folder if you don\'t see the email.');
-    } catch (error) {
-      const { title, message } = getAuthErrorMessage(error);
-      if (error.code === 'auth/too-many-requests') {
-        setResendCooldown(300); // 5 minute cooldown for rate limiting
-      }
-      Alert.alert(title, message);
-    }
-  };
 
   // Handle screen dimension changes
   useEffect(() => {
@@ -251,6 +186,7 @@ const SignUpScreen = ({ navigation }) => {
     });
     return () => subscription?.remove();
   }, []);
+
 
   // Dynamic responsive calculations based on current screen data
   const currentWidth = screenData.width;
@@ -412,12 +348,19 @@ const SignUpScreen = ({ navigation }) => {
               disabled={loading || !acceptedTerms || (rateLimitInfo && !rateLimitInfo.allowed)}
               activeOpacity={0.8}
             >
-              <Text 
-                style={styleSheet.signUpButtonText}
-                numberOfLines={1}
-              >
-                {loading ? 'Signing Up...' : (rateLimitInfo && !rateLimitInfo.allowed) ? 'Rate Limited' : 'Sign Up'}
-              </Text>
+              {loading ? (
+                <View style={styleSheet.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FFFFFF" style={styleSheet.spinner} />
+                  <Text style={styleSheet.signUpButtonText}>Signing Up...</Text>
+                </View>
+              ) : (
+                <Text 
+                  style={styleSheet.signUpButtonText}
+                  numberOfLines={1}
+                >
+                  {(rateLimitInfo && !rateLimitInfo.allowed) ? 'Rate Limited' : 'Sign Up'}
+                </Text>
+              )}
             </TouchableOpacity>
             
             {rateLimitInfo && rateLimitInfo.remainingAttempts < 3 && rateLimitInfo.remainingAttempts > 0 && (
@@ -432,11 +375,14 @@ const SignUpScreen = ({ navigation }) => {
 
             <View style={styleSheet.loginContainer}>
               <TouchableOpacity 
-                style={styleSheet.loginButton}
+                style={[styleSheet.loginButton, loading && styleSheet.loginButtonDisabled]}
                 onPress={() => navigation.navigate('Login')}
+                disabled={loading}
                 activeOpacity={0.8}
               >
-                <Text style={styleSheet.loginButtonText}>Already have an account?</Text>
+                <Text style={[styleSheet.loginButtonText, loading && styleSheet.loginButtonTextDisabled]}>
+                  Already have an account?
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -541,65 +487,6 @@ const SignUpScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Success Modal */}
-      <Modal
-        visible={successModalVisible}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={handleSuccessModalClose}
-      >
-        <View style={styleSheet.modalOverlay}>
-          <View style={styleSheet.modalContent}>
-            <View style={styleSheet.modalHeader}>
-              <Text style={styleSheet.successIcon}>✅</Text>
-              <Text style={styleSheet.modalTitle}>Account Created!</Text>
-            </View>
-            
-            <View style={styleSheet.modalBody}>
-              {emailVerificationSent ? (
-                <>
-                  <Text style={styleSheet.modalMessage}>
-                    Your PawSafety account has been created successfully!
-                  </Text>
-                  <Text style={styleSheet.verificationMessage}>
-                    📧 We've sent a verification email to:
-                  </Text>
-                  <Text style={styleSheet.emailText}>{email}</Text>
-                  <Text style={styleSheet.verificationInstructions}>
-                    Please check your email and click the verification link before signing in.
-                  </Text>
-                  <Text style={styleSheet.spamFolderReminder}>
-                    📁 <Text style={styleSheet.spamFolderHighlight}>Please check your spam/junk folder</Text> if you don't see the email in your inbox.
-                  </Text>
-                  <TouchableOpacity 
-                    style={[styleSheet.resendButton, !canResend && styleSheet.resendButtonDisabled]}
-                    onPress={resendVerificationEmail}
-                    disabled={!canResend}
-                  >
-                    <Text style={[styleSheet.resendButtonText, !canResend && styleSheet.resendButtonTextDisabled]}>
-                      {canResend 
-                        ? 'Resend Verification Email' 
-                        : `Resend in ${resendCooldown}s`
-                      }
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={styleSheet.modalMessage}>
-                  Your PawSafety account has been successfully created. You can now sign in with your credentials.
-                </Text>
-              )}
-            </View>
-            
-            <TouchableOpacity 
-              style={styleSheet.modalButton}
-              onPress={handleSuccessModalClose}
-            >
-              <Text style={styleSheet.modalButtonText}>Go to Sign In</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -691,6 +578,14 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS, facebookBlue) => StyleS
     textAlignVertical: 'center',
     includeFontPadding: false,
   },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinner: {
+    marginRight: SPACING.sm,
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -716,12 +611,19 @@ const styles = (isSmallDevice, isTablet, wp, hp, COLORS, facebookBlue) => StyleS
     height: 50,
     width: '100%',
   },
+  loginButtonDisabled: {
+    backgroundColor: '#BCC0C4',
+    opacity: 0.6,
+  },
   loginButtonText: {
     color: '#FFFFFF',
     fontSize: 17,
     fontFamily: FONTS.family,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  loginButtonTextDisabled: {
+    color: '#8A8D91',
   },
   
   // Modal Styles

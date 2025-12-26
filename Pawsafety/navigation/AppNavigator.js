@@ -11,6 +11,7 @@ import NotificationService from '../services/NotificationService';
 // Import screens
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
+import EmailVerificationScreen from '../screens/EmailVerificationScreen';
 import LoadingScreen from '../screens/LoadingScreen';
 import { createUserDocument, getUserDocument } from '../services/userService';
 import TabNavigator from './TabNavigator';
@@ -273,6 +274,10 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="SignUp" 
               component={SignUpScreen}
+            />
+            <Stack.Screen 
+              name="EmailVerification" 
+              component={EmailVerificationScreen}
             />
           </>
         )}
