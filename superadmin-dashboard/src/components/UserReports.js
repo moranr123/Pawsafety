@@ -188,10 +188,17 @@ const UserReports = () => {
       const pendingReports = content.reports.filter(r => !r.status || r.status === 'pending');
       const batch = writeBatch(db);
       
-      // Delete the reported content
+      // Mark the reported content as deleted (DO NOT actually delete from Firestore)
       if (content.type === 'post' && content.contentId) {
         const postRef = doc(db, 'posts', content.contentId);
-        batch.delete(postRef);
+        // IMPORTANT: Mark as deleted instead of deleting the document
+        // This allows for recovery and audit trails
+        batch.update(postRef, { 
+          deleted: true, 
+          deletedAt: serverTimestamp(),
+          deletedBy: 'admin',
+          deletionReason: reasonText
+        });
       } else if (content.type === 'message' && content.contentId) {
         // Find the message collection from the first report
         const firstReport = pendingReports[0] || content.reports[0];

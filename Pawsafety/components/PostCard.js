@@ -1669,7 +1669,21 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
           onPress: async () => {
             // User confirmed, proceed with report submission
             try {
-              await addDoc(collection(db, 'post_reports'), {
+              // ============================================
+              // CRITICAL: Post Reporting - NO AUTO-DELETION
+              // ============================================
+              // When a user reports a post:
+              // 1. A report document is created in 'post_reports' collection with status 'pending'
+              // 2. The post is ONLY hidden locally for the reporter (via AsyncStorage)
+              // 3. The post remains in Firestore and visible to all other users
+              // 4. ONLY admins can delete posts after reviewing the report in the admin dashboard
+              // 
+              // DO NOT DELETE POSTS HERE - Posts must be verified by admins first!
+              // ============================================
+              
+              // Create report document - post is NOT deleted, only reported for admin review
+              console.log('📝 Creating report for post:', post.id, '- Post should NOT be deleted');
+              const reportRef = await addDoc(collection(db, 'post_reports'), {
                 postId: post.id,
                 postContent: post.text || '',
                 postImages: post.images || [],
@@ -1679,17 +1693,26 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
                 reportedByName: user.displayName || 'Unknown',
                 reportedAt: serverTimestamp(),
                 reason: reason,
-                status: 'pending'
+                status: 'pending'  // Status is 'pending' until admin reviews
               });
+              console.log('✅ Report created:', reportRef.id, '- Post should still exist in Firestore');
 
-              // Hide the reported post from the user who reported it
+              // Log post reporting for debugging (no alert or modal shown to user)
+              console.log('✅ Post reported successfully. It will remain visible until admin reviews it.');
+
+              // IMPORTANT: Only hide the post locally for the reporter - DO NOT delete the post
+              // The post will remain visible to others until an admin reviews and decides to delete it
+              // This is a LOCAL hide only (AsyncStorage) - the post is NOT deleted from Firestore
+              // CRITICAL: Use user-specific key to prevent hiding posts for other users on the same device
               try {
-                const hiddenPosts = await AsyncStorage.getItem('hidden_posts');
+                const userSpecificKey = `hidden_posts_${user.uid}`;
+                const hiddenPosts = await AsyncStorage.getItem(userSpecificKey);
                 const hiddenArray = hiddenPosts ? JSON.parse(hiddenPosts) : [];
                 if (!hiddenArray.includes(post.id)) {
                   hiddenArray.push(post.id);
-                  await AsyncStorage.setItem('hidden_posts', JSON.stringify(hiddenArray));
+                  await AsyncStorage.setItem(userSpecificKey, JSON.stringify(hiddenArray));
                   if (onPostHidden) onPostHidden(post.id);
+                  console.log('✅ Post hidden locally for reporter (user-specific, not deleted from Firestore):', post.id);
                 }
               } catch (hideError) {
                 console.error('Error hiding post:', hideError);

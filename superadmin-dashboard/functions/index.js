@@ -1,5 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -541,3 +541,10 @@ exports.onAdminActionNotificationCreated = onDocumentCreated({
     // Don't throw - notification was already created in Firestore
   }
 });
+
+// SAFEGUARD FUNCTIONS REMOVED
+// These were causing issues by restoring posts that admins were trying to delete
+// The mobile app code does NOT delete posts when reporting - only hides them locally
+// Only admins can delete posts through the dashboard
+
+// Safeguard function removed - it was causing issues
