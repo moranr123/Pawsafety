@@ -21,7 +21,7 @@ import { Image as RNImage } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -85,6 +85,7 @@ const HomeTabScreen = ({ navigation }) => {
   const scrollTimeout = useRef(null);
   const [friends, setFriends] = useState([]); // Array of friend IDs
   const [announcements, setAnnouncements] = useState([]); // Announcements from admin
+  const seenNotificationIds = useRef(new Set()); // Track seen notification IDs to avoid duplicate alerts
 
   const handleScroll = (event) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
@@ -212,7 +213,19 @@ const HomeTabScreen = ({ navigation }) => {
     } catch (_) {}
   };
 
-  const handleDeleteNotif = (type, id) => {
+  const handleDeleteNotif = async (type, id) => {
+    const notificationService = NotificationService.getInstance();
+    
+    // Delete from Firestore for notification types stored in Firestore
+    if (type === 'social' || type === 'announcement' || type === 'admin_action' || type === 'friend_request' || type === 'friend_request_accepted') {
+      try {
+        await notificationService.deleteNotification(id);
+      } catch (error) {
+        console.error('Error deleting notification from Firestore:', error);
+      }
+    }
+    
+    // Update local state
     if (type === 'app') {
       setAppNotifs((prev) => prev.filter((a) => a.id !== id));
       setHiddenAppIds((prev) => {
@@ -277,6 +290,10 @@ const HomeTabScreen = ({ navigation }) => {
         persistHiddenSets(null, null, null, null, null, null, null, next);
         return next;
       });
+    } else if (type === 'social') {
+      setSocialNotifs((prev) => prev.filter((s) => s.id !== id));
+    } else if (type === 'announcement') {
+      setAnnouncementNotifs((prev) => prev.filter((an) => an.id !== id));
     } else {
       setPetNotifs((prev) => prev.filter((p) => p.id !== id));
       setHiddenPetIds((prev) => {
@@ -765,6 +782,28 @@ const HomeTabScreen = ({ navigation }) => {
     );
     unsubscribers.push(
       onSnapshot(adminActionNotifQ, (snap) => {
+        // Check for new post deletion notifications
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            const notificationId = change.doc.id;
+            
+            // Only show alert if we haven't seen this notification before
+            if (!seenNotificationIds.current.has(notificationId)) {
+              seenNotificationIds.current.add(notificationId);
+              
+              // Show alert popup for post deletion notifications
+              if (data.title === 'Post Deleted' || (data.title === 'Content Removed' && data.body?.includes('posted feed'))) {
+                Alert.alert(
+                  'Post Deleted',
+                  data.body || 'Your posted feed has been deleted for being reported.',
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          }
+        });
+        
         const items = snap.docs.map((d) => {
           const data = d.data();
           return {
@@ -867,7 +906,7 @@ const HomeTabScreen = ({ navigation }) => {
     } catch (e) {}
   };
 
-  const handleDeleteAllCombined = () => {
+  const handleDeleteAllCombined = async () => {
     Alert.alert(
       'Delete All Notifications',
       'Are you sure you want to delete all notifications? This action cannot be undone.',
@@ -879,56 +918,111 @@ const HomeTabScreen = ({ navigation }) => {
         {
           text: 'Delete All',
           style: 'destructive',
-          onPress: () => {
-            setAppNotifs((prev) => {
-              const allIds = new Set(hiddenAppIds);
-              for (const a of prev) allIds.add(a.id);
-              setHiddenAppIds(allIds);
-              persistHiddenSets(allIds, null, null, null, null, null);
-              return [];
-            });
-            setPetNotifs((prev) => {
-              const allIds = new Set(hiddenPetIds);
-              for (const p of prev) allIds.add(p.id);
-              setHiddenPetIds(allIds);
-              persistHiddenSets(null, allIds, null, null, null, null);
-              return [];
-            });
-            setRegistrationNotifs((prev) => {
-              const allIds = new Set(hiddenRegistrationIds);
-              for (const r of prev) allIds.add(r.id);
-              setHiddenRegistrationIds(allIds);
-              persistHiddenSets(null, null, null, allIds, null, null);
-              return [];
-            });
-            setIncidentNotifs((prev) => {
-              const allIds = new Set(hiddenIncidentIds);
-              for (const i of prev) allIds.add(i.id);
-              setHiddenIncidentIds(allIds);
-              persistHiddenSets(null, null, null, null, allIds, null);
-              return [];
-            });
-            setFoundPetNotifs((prev) => {
-              const allIds = new Set(hiddenFoundPetIds);
-              for (const f of prev) allIds.add(f.id);
-              setHiddenFoundPetIds(allIds);
-              persistHiddenSets(null, null, null, null, null, allIds, null);
-              return [];
-            });
-            setFriendRequestNotifs((prev) => {
-              const allIds = new Set(hiddenFriendRequestIds);
-              for (const fr of prev) allIds.add(fr.id);
-              setHiddenFriendRequestIds(allIds);
-              persistHiddenSets(null, null, null, null, null, null, allIds);
-              return [];
-            });
-            setFriendRequestAcceptedNotifs((prev) => {
-              const allIds = new Set(hiddenFriendRequestIds);
-              for (const fra of prev) allIds.add(fra.id);
-              setHiddenFriendRequestIds(allIds);
-              persistHiddenSets(null, null, null, null, null, null, allIds);
-              return [];
-            });
+          onPress: async () => {
+            try {
+              const notificationService = NotificationService.getInstance();
+              
+              // Delete Firestore notifications from 'notifications' collection
+              // Note: appNotifs and petNotifs are from adoption_applications and adoptable_pets collections, not notifications
+              const notificationsToDelete = [
+                ...(socialNotifs || []),
+                ...(announcementNotifs || []),
+                ...(adminActionNotifs || []),
+                ...(friendRequestNotifs || []),
+                ...(friendRequestAcceptedNotifs || []),
+                ...(registrationNotifs || []),
+                ...(foundPetNotifs || [])
+              ];
+              
+              // Delete from 'notifications' collection in batches
+              const batch = writeBatch(db);
+              let batchCount = 0;
+              const maxBatchSize = 500; // Firestore batch limit
+              
+              for (const notif of notificationsToDelete) {
+                if (notif.id) {
+                  const notifRef = doc(db, 'notifications', notif.id);
+                  batch.delete(notifRef);
+                  batchCount++;
+                  
+                  // Commit batch if it reaches the limit
+                  if (batchCount >= maxBatchSize) {
+                    await batch.commit();
+                    batchCount = 0;
+                  }
+                }
+              }
+              
+              // Commit remaining deletes
+              if (batchCount > 0) {
+                await batch.commit();
+              }
+              
+              // Delete from 'user_notifications' collection (transfers and incidents)
+              const userNotificationsToDelete = [
+                ...(transferNotifs || []),
+                ...(incidentNotifs || [])
+              ];
+              
+              const userBatch = writeBatch(db);
+              let userBatchCount = 0;
+              
+              for (const notif of userNotificationsToDelete) {
+                if (notif.id) {
+                  const notifRef = doc(db, 'user_notifications', notif.id);
+                  userBatch.delete(notifRef);
+                  userBatchCount++;
+                  
+                  // Commit batch if it reaches the limit
+                  if (userBatchCount >= maxBatchSize) {
+                    await userBatch.commit();
+                    userBatchCount = 0;
+                  }
+                }
+              }
+              
+              // Commit remaining deletes
+              if (userBatchCount > 0) {
+                await userBatch.commit();
+              }
+              
+              // Hide app and pet notifications locally (they're from adoption_applications and adoptable_pets, not notifications collection)
+              const allAppIds = new Set(hiddenAppIds);
+              for (const a of appNotifs || []) allAppIds.add(a.id);
+              setHiddenAppIds(allAppIds);
+              
+              const allPetIds = new Set(hiddenPetIds);
+              for (const p of petNotifs || []) allPetIds.add(p.id);
+              setHiddenPetIds(allPetIds);
+              
+              // Clear all notification states
+              setAppNotifs([]);
+              setPetNotifs([]);
+              setTransferNotifs([]);
+              setRegistrationNotifs([]);
+              setIncidentNotifs([]);
+              setFoundPetNotifs([]);
+              setSocialNotifs([]);
+              setAnnouncementNotifs([]);
+              setAdminActionNotifs([]);
+              setFriendRequestNotifs([]);
+              setFriendRequestAcceptedNotifs([]);
+              
+              // Clear hidden sets for Firestore-based notifications
+              setHiddenTransferIds(new Set());
+              setHiddenRegistrationIds(new Set());
+              setHiddenIncidentIds(new Set());
+              setHiddenFoundPetIds(new Set());
+              setHiddenFriendRequestIds(new Set());
+              setHiddenAdminActionIds(new Set());
+              
+              // Persist cleared hidden sets (keep app and pet hidden sets, clear others)
+              await persistHiddenSets(allAppIds, allPetIds, new Set(), new Set(), new Set(), new Set(), new Set(), new Set());
+              
+            } catch (error) {
+              console.error('Error deleting all notifications:', error);
+              Alert.alert('Error', 'Failed to delete some notifications. Please try again.');
+            }
           },
         },
       ]

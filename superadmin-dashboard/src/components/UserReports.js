@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, addDoc, serverTimestamp, Timestamp, writeBatch, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, addDoc, serverTimestamp, Timestamp, writeBatch, getDocs, where, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { UserX, MessageSquare, FileText, Flag, X, Clock, User, Trash2, Ban, History, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -91,8 +91,30 @@ const UserReports = () => {
   const sendNotification = async (userId, title, body, data = {}) => {
     if (!userId) return;
     try {
+      // Check for duplicate notifications (same userId, title, and action within last 5 seconds)
+      const recentNotificationsQuery = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId),
+        where('title', '==', title),
+        where('type', '==', 'admin_action'),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
+      
+      const recentSnapshot = await getDocs(recentNotificationsQuery);
+      if (!recentSnapshot.empty) {
+        const recentNotif = recentSnapshot.docs[0].data();
+        const recentTime = recentNotif.createdAt?.toDate ? recentNotif.createdAt.toDate().getTime() : 0;
+        const now = Date.now();
+        // If notification was created within last 5 seconds with same title, skip to prevent duplicates
+        if (now - recentTime < 5000 && recentNotif.body === body) {
+          console.log('Duplicate notification prevented for user:', userId, 'title:', title);
+          return;
+        }
+      }
+
       // Create notification document in Firestore
-      await addDoc(collection(db, 'notifications'), {
+      const notificationRef = await addDoc(collection(db, 'notifications'), {
         userId,
         title,
         body,
@@ -102,49 +124,12 @@ const UserReports = () => {
         createdAt: serverTimestamp()
       });
 
-      // Send push notification
-      try {
-        const tokenDoc = await getDoc(doc(db, 'user_push_tokens', userId));
-        
-        if (tokenDoc.exists()) {
-          const tokenData = tokenDoc.data();
-          const token = tokenData?.expoPushToken || tokenData?.pushToken;
-          
-          if (token) {
-            // Send push notification via Expo API
-            const response = await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: {
-                'Accept': 'application/json',
-                'Accept-Encoding': 'gzip, deflate',
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify([{
-                to: token,
-                sound: 'default',
-                title: title,
-                body: body,
-                data: {
-                  type: 'admin_action',
-                  userId: userId,
-                  ...data
-                },
-                priority: 'high',
-                channelId: 'default'
-              }])
-            });
-            
-            if (!response.ok) {
-              console.error('Failed to send push notification:', response.statusText);
-            }
-          }
-        }
-      } catch (pushError) {
-        console.error('Error sending push notification:', pushError);
-        // Don't throw - Firestore notification was already created
-      }
+      console.log('Notification created in Firestore:', notificationRef.id, 'for user:', userId, 'title:', title);
+      
+      // Note: Push notifications are handled by Cloud Function trigger (onNotificationCreated)
+      // The mobile app will also receive the notification via Firestore listener
     } catch (error) {
-      console.error('Error sending notification:', error);
+      console.error('Error sending notification:', error, 'for user:', userId);
     }
   };
 
@@ -196,6 +181,8 @@ const UserReports = () => {
     }
 
     const content = contentToRemove;
+    // Preserve the reason before clearing state
+    const reasonText = removeReason.trim();
     
     try {
       const pendingReports = content.reports.filter(r => !r.status || r.status === 'pending');
@@ -241,19 +228,58 @@ const UserReports = () => {
       
       await batch.commit();
       
-      const userId = content.ownerId || content.reportOwnerId || content.commentOwnerId;
-      if (userId) {
-        const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : content.type === 'report' ? 'stray report' : 'comment';
-        await sendNotification(userId, 'Content Removed', `Your ${contentType} has been removed. Reason: ${removeReason.trim()}`);
+      // Send notification to the content owner (only once, no duplicates)
+      let userId = content.ownerId || content.reportOwnerId || content.commentOwnerId || content.reportedUser;
+      
+      // For posts, if we don't have userId from content object, try to get it from the post document
+      if (!userId && content.type === 'post' && content.contentId) {
+        try {
+          const postDoc = await getDoc(doc(db, 'posts', content.contentId));
+          if (postDoc.exists()) {
+            userId = postDoc.data().userId;
+          }
+        } catch (error) {
+          console.error('Error fetching post document:', error);
+        }
       }
       
+      // Also check the first report for postOwnerId as fallback
+      if (!userId && content.type === 'post' && content.reports && content.reports.length > 0) {
+        userId = content.reports[0].postOwnerId || content.reports[0].reportedUser;
+      }
+      
+      if (userId) {
+        // For posts, use more specific message
+        if (content.type === 'post') {
+          await sendNotification(
+            userId, 
+            'Post Deleted', 
+            `Your posted feed has been deleted for being reported. Reason: ${reasonText}`,
+            { postId: content.contentId, action: 'post_deleted', reason: reasonText }
+          );
+        } else {
+          const contentType = content.type === 'message' ? 'message' : content.type === 'report' ? 'stray report' : 'comment';
+          await sendNotification(
+            userId, 
+            'Content Removed', 
+            `Your ${contentType} has been removed. Reason: ${reasonText}`,
+            { contentId: content.contentId, contentType: content.type, action: 'content_removed', reason: reasonText }
+          );
+        }
+      } else {
+        console.error('Could not find userId for content:', content.type, 'contentId:', content.contentId, 'content object:', content);
+        toast.error('Could not find user ID to send notification. Post was deleted but notification was not sent.');
+      }
+      
+      // Send notifications to reporters (only unique reporters, no duplicates)
       const uniqueReporters = [...new Set(pendingReports.map(r => r.reportedBy || r.reporterId).filter(id => id))];
       uniqueReporters.forEach(reporterId => {
         const contentType = content.type === 'post' ? 'post' : content.type === 'message' ? 'message' : content.type === 'report' ? 'stray report' : 'comment';
         sendNotification(
           reporterId, 
           'Report Resolved - Content Removed', 
-          `We have reviewed your report and removed the reported ${contentType}. Reason: ${removeReason.trim()}`
+          `We have reviewed your report and removed the reported ${contentType}. Reason: ${reasonText}`,
+          { contentId: content.contentId, contentType: content.type, action: 'report_resolved', reason: reasonText }
         );
       });
       

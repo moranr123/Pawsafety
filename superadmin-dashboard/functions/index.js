@@ -488,3 +488,56 @@ exports.recordRateLimitAttempt = onCall({
     return { success: false, error: error.message };
   }
 });
+
+/**
+ * Trigger: Send push notification when admin_action notification is created
+ * This handles push notifications for admin actions (post deleted, content removed, etc.)
+ * from the admin dashboard, avoiding CORS issues by sending from server-side
+ */
+exports.onAdminActionNotificationCreated = onDocumentCreated({ 
+  region: 'us-central1', 
+  document: 'notifications/{notificationId}' 
+}, async (event) => {
+  try {
+    const notificationData = event.data?.data();
+    if (!notificationData) {
+      console.log('No notification data found');
+      return;
+    }
+
+    // Only process admin_action notifications
+    if (notificationData.type !== 'admin_action') {
+      return;
+    }
+
+    const userId = notificationData.userId;
+    if (!userId) {
+      console.log('No userId found in notification');
+      return;
+    }
+
+    const title = notificationData.title;
+    const body = notificationData.body;
+    const data = notificationData.data || {};
+
+    // Get user's push token
+    const tokenDoc = await admin.firestore().collection('user_push_tokens').doc(userId).get();
+    const token = tokenDoc.exists ? (tokenDoc.data().expoPushToken || tokenDoc.data().pushToken) : null;
+
+    if (token) {
+      // Send push notification
+      await sendExpoPush(token, title, body, {
+        type: 'admin_action',
+        userId: userId,
+        notificationId: event.params.notificationId,
+        ...data
+      });
+      console.log('✅ Push notification sent for admin action:', title, 'to user:', userId);
+    } else {
+      console.log('No push token found for user:', userId);
+    }
+  } catch (error) {
+    console.error('Error in onAdminActionNotificationCreated:', error);
+    // Don't throw - notification was already created in Firestore
+  }
+});
