@@ -1531,7 +1531,7 @@ const HomeTabScreen = ({ navigation }) => {
               onPress={() => navigation.navigate('CreatePost')}
             >
               <Text style={styles.createPostPlaceholder}>
-                What's on your mind?
+                Tell us something about your pet 🐶🐱
               </Text>
             </TouchableOpacity>
           </View>

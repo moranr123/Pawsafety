@@ -2788,7 +2788,7 @@ const PostCard = ({ post, onPostDeleted, onPostHidden }) => {
               value={editText}
               onChangeText={setEditText}
               multiline
-              placeholder="What's on your mind?"
+              placeholder="Tell us something about your pet 🐶🐱"
             />
             
             {/* Image Editing Section */}

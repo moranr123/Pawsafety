@@ -327,7 +327,7 @@ const CreatePostScreen = ({ navigation }) => {
           <View style={{ position: 'relative' }}>
             <TextInput
               style={styles.textInput}
-              placeholder="What's on your mind?"
+              placeholder="Tell us something about your pet 🐶🐱"
               placeholderTextColor="#8a8d91"
               value={postText}
               onChangeText={setPostText}
