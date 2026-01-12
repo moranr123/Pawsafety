@@ -1491,19 +1491,40 @@ const AdoptScreen = () => {
               </Text>
             )}
             {pet.vaccinated && (pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate) && (
-              <Text style={styles.detailText}>
-                Vaccinated: {formatDate(pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate)}
-              </Text>
+              <View>
+                <Text style={styles.detailText}>
+                  Vaccinated: {formatDate(pet.vaccinatedDate || pet.vaccineDate || pet.vaccinationDate)}
+                </Text>
+                {pet.vaccinatedPlace && (
+                  <Text style={[styles.detailText, { fontSize: 11, color: COLORS.textSecondary, marginLeft: 8 }]}>
+                    📍 {pet.vaccinatedPlace}
+                  </Text>
+                )}
+              </View>
             )}
             {pet.dewormed && (pet.dewormedDate || pet.dewormDate) && (
-              <Text style={styles.detailText}>
-                Dewormed: {formatDate(pet.dewormedDate || pet.dewormDate)}
-              </Text>
+              <View>
+                <Text style={styles.detailText}>
+                  Dewormed: {formatDate(pet.dewormedDate || pet.dewormDate)}
+                </Text>
+                {pet.dewormedPlace && (
+                  <Text style={[styles.detailText, { fontSize: 11, color: COLORS.textSecondary, marginLeft: 8 }]}>
+                    📍 {pet.dewormedPlace}
+                  </Text>
+                )}
+              </View>
             )}
             {pet.antiRabies && (pet.antiRabiesDate || pet.antiRabiesVaccineDate) && (
-              <Text style={styles.detailText}>
-                Anti-Rabies: {formatDate(pet.antiRabiesDate || pet.antiRabiesVaccineDate)}
-              </Text>
+              <View>
+                <Text style={styles.detailText}>
+                  Anti-Rabies: {formatDate(pet.antiRabiesDate || pet.antiRabiesVaccineDate)}
+                </Text>
+                {pet.antiRabiesPlace && (
+                  <Text style={[styles.detailText, { fontSize: 11, color: COLORS.textSecondary, marginLeft: 8 }]}>
+                    📍 {pet.antiRabiesPlace}
+                  </Text>
+                )}
+              </View>
             )}
           </View>
 
@@ -1560,8 +1581,11 @@ const AdoptScreen = () => {
       prevProps.pet.dewormed === nextProps.pet.dewormed &&
       prevProps.pet.antiRabies === nextProps.pet.antiRabies &&
       prevProps.pet.vaccinatedDate === nextProps.pet.vaccinatedDate &&
+      prevProps.pet.vaccinatedPlace === nextProps.pet.vaccinatedPlace &&
       prevProps.pet.dewormedDate === nextProps.pet.dewormedDate &&
-      prevProps.pet.antiRabiesDate === nextProps.pet.antiRabiesDate
+      prevProps.pet.dewormedPlace === nextProps.pet.dewormedPlace &&
+      prevProps.pet.antiRabiesDate === nextProps.pet.antiRabiesDate &&
+      prevProps.pet.antiRabiesPlace === nextProps.pet.antiRabiesPlace
     );
   });
 

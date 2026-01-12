@@ -3946,7 +3946,7 @@ const ImpoundDashboard = () => {
                                 className={inputBase}
                                 value={putForAdoptionForm.vaccinatedPlace}
                                 onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, vaccinatedPlace: e.target.value }))}
-                                placeholder="e.g., City Veterinary Clinic, Manila"
+                                placeholder="e.g., City Veterinary Clinic, Bacolod City"
                                 required
                               />
                             </div>
@@ -3974,7 +3974,7 @@ const ImpoundDashboard = () => {
                                 className={inputBase}
                                 value={putForAdoptionForm.dewormedPlace}
                                 onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, dewormedPlace: e.target.value }))}
-                                placeholder="e.g., City Veterinary Clinic, Manila"
+                                placeholder="e.g., City Veterinary Clinic, Bacolod City"
                                 required
                               />
                             </div>
@@ -4002,7 +4002,7 @@ const ImpoundDashboard = () => {
                                 className={inputBase}
                                 value={putForAdoptionForm.antiRabiesPlace}
                                 onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, antiRabiesPlace: e.target.value }))}
-                                placeholder="e.g., City Veterinary Clinic, Manila"
+                                placeholder="e.g., City Veterinary Clinic, Bacolod City"
                                 required
                               />
                             </div>
