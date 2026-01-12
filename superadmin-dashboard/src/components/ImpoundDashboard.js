@@ -10,6 +10,7 @@ import {
   deleteDoc,
   doc,
   addDoc,
+  setDoc,
   serverTimestamp,
   where,
   writeBatch,
@@ -424,6 +425,73 @@ const ImageWithLoading = ({ src, alt, className, imageId, fallbackContent }) => 
 
 const ImpoundDashboard = () => {
   const { currentUser, logout } = useAuth();
+  
+  // Helper function to generate sequential ID numbers
+  const generatePetId = async () => {
+    try {
+      const counterRef = doc(db, 'counters', 'petId');
+      const counterSnap = await getDoc(counterRef);
+      
+      let currentCount = 1;
+      if (counterSnap.exists()) {
+        currentCount = (counterSnap.data().count || 0) + 1;
+      }
+      
+      // Update counter
+      if (counterSnap.exists()) {
+        await updateDoc(counterRef, { count: currentCount });
+      } else {
+        await setDoc(counterRef, { count: currentCount });
+      }
+      
+      return `PET-${String(currentCount).padStart(4, '0')}`;
+    } catch (error) {
+      console.error('Error generating pet ID:', error);
+      // Fallback to timestamp-based ID
+      return `PET-${Date.now().toString().slice(-6)}`;
+    }
+  };
+
+  const generateStrayId = async () => {
+    try {
+      const counterRef = doc(db, 'counters', 'strayId');
+      const counterSnap = await getDoc(counterRef);
+      
+      let currentCount = 1;
+      if (counterSnap.exists()) {
+        currentCount = (counterSnap.data().count || 0) + 1;
+      }
+      
+      // Update counter
+      if (counterSnap.exists()) {
+        await updateDoc(counterRef, { count: currentCount });
+      } else {
+        await setDoc(counterRef, { count: currentCount });
+      }
+      
+      return `STRAY-${String(currentCount).padStart(4, '0')}`;
+    } catch (error) {
+      console.error('Error generating stray ID:', error);
+      // Fallback to timestamp-based ID
+      return `STRAY-${Date.now().toString().slice(-6)}`;
+    }
+  };
+
+  // Helper function to add history entry
+  const addHistoryEntry = async (petId, type, details, createdBy = 'system') => {
+    try {
+      await addDoc(collection(db, 'pet_history'), {
+        petId,
+        type, // 'vaccination', 'placement', 'deworm', 'anti_rabies'
+        details,
+        createdAt: serverTimestamp(),
+        createdBy
+      });
+    } catch (error) {
+      console.error('Error adding history entry:', error);
+    }
+  };
+  
   const [userSearchQuery, setUserSearchQuery] = useState('');
   
   // Helper function to log admin activities
@@ -535,6 +603,20 @@ const ImpoundDashboard = () => {
   const [showStrayFormModal, setShowStrayFormModal] = useState(false);
   const [editingStray, setEditingStray] = useState(null);
   const [submittingStray, setSubmittingStray] = useState(false);
+  const [showAdoptionModal, setShowAdoptionModal] = useState(false);
+  const [strayForAdoption, setStrayForAdoption] = useState(null);
+  const [putForAdoptionForm, setPutForAdoptionForm] = useState({
+    description: '',
+    vaccinated: false,
+    vaccinatedDate: '',
+    vaccinatedPlace: '',
+    dewormed: false,
+    dewormedDate: '',
+    dewormedPlace: '',
+    antiRabies: false,
+    antiRabiesDate: '',
+    antiRabiesPlace: ''
+  });
   const [strayForm, setStrayForm] = useState({
     petName: '',
     petType: '',
@@ -680,13 +762,17 @@ const ImpoundDashboard = () => {
     description: '',
     vaccinated: false,
     vaccinatedDate: '',
+    vaccinatedPlace: '',
     dewormed: false,
     dewormedDate: '',
+    dewormedPlace: '',
     antiRabies: false,
     antiRabiesDate: '',
+    antiRabiesPlace: '',
     readyForAdoption: true,
     imageFile: null,
-    daysAtImpound: ''
+    daysAtImpound: '',
+    showBreedDropdown: false
   });
   const [savingAdoptable, setSavingAdoptable] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -927,10 +1013,13 @@ const ImpoundDashboard = () => {
         description: editingAdoptable.description || '',
         vaccinated: !!editingAdoptable.vaccinated,
         vaccinatedDate: editingAdoptable.vaccinatedDate || '',
+        vaccinatedPlace: editingAdoptable.vaccinatedPlace || '',
         dewormed: !!editingAdoptable.dewormed,
         dewormedDate: editingAdoptable.dewormedDate || '',
+        dewormedPlace: editingAdoptable.dewormedPlace || '',
         antiRabies: !!editingAdoptable.antiRabies,
         antiRabiesDate: editingAdoptable.antiRabiesDate || '',
+        antiRabiesPlace: editingAdoptable.antiRabiesPlace || '',
         readyForAdoption: editingAdoptable.readyForAdoption !== false,
         imageFile: null,
         daysAtImpound: editingAdoptable.daysAtImpound || '',
@@ -948,17 +1037,17 @@ const ImpoundDashboard = () => {
       return;
     }
 
-    // Validate medical treatment dates if treatments are checked
-    if (editAdoptForm.vaccinated && !editAdoptForm.vaccinatedDate) {
-      toast.error('Please provide vaccination date');
+    // Validate medical treatment dates and places if treatments are checked
+    if (editAdoptForm.vaccinated && (!editAdoptForm.vaccinatedDate || !editAdoptForm.vaccinatedPlace)) {
+      toast.error('Please provide vaccination date and place');
       return;
     }
-    if (editAdoptForm.dewormed && !editAdoptForm.dewormedDate) {
-      toast.error('Please provide deworm date');
+    if (editAdoptForm.dewormed && (!editAdoptForm.dewormedDate || !editAdoptForm.dewormedPlace)) {
+      toast.error('Please provide deworm date and place');
       return;
     }
-    if (editAdoptForm.antiRabies && !editAdoptForm.antiRabiesDate) {
-      toast.error('Please provide anti-rabies date');
+    if (editAdoptForm.antiRabies && (!editAdoptForm.antiRabiesDate || !editAdoptForm.antiRabiesPlace)) {
+      toast.error('Please provide anti-rabies date and place');
       return;
     }
 
@@ -979,10 +1068,13 @@ const ImpoundDashboard = () => {
         description: editAdoptForm.description,
         vaccinated: !!editAdoptForm.vaccinated,
         vaccinatedDate: editAdoptForm.vaccinatedDate || '',
+        vaccinatedPlace: editAdoptForm.vaccinatedPlace || '',
         dewormed: !!editAdoptForm.dewormed,
         dewormedDate: editAdoptForm.dewormedDate || '',
+        dewormedPlace: editAdoptForm.dewormedPlace || '',
         antiRabies: !!editAdoptForm.antiRabies,
         antiRabiesDate: editAdoptForm.antiRabiesDate || '',
+        antiRabiesPlace: editAdoptForm.antiRabiesPlace || '',
         daysAtImpound: editAdoptForm.daysAtImpound || '',
         readyForAdoption: !!editAdoptForm.readyForAdoption,
         ...(imageUrl ? { imageUrl } : {}),
@@ -1638,6 +1730,11 @@ const ImpoundDashboard = () => {
         imageUrl = await getDownloadURL(fileRef);
       }
       
+      let strayIdNumber = editingStray?.idNumber;
+      if (!editingStray) {
+        strayIdNumber = await generateStrayId();
+      }
+      
       const strayData = {
         petName: strayForm.petName,
         petType: strayForm.petType,
@@ -1646,6 +1743,7 @@ const ImpoundDashboard = () => {
         imageUrl,
         capturedDate: strayForm.capturedDate,
         daysAtImpound: strayForm.daysAtImpound || '',
+        idNumber: strayIdNumber,
         createdAt: editingStray ? editingStray.createdAt : serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdBy: currentUser?.email || 'impound_admin'
@@ -1656,7 +1754,7 @@ const ImpoundDashboard = () => {
         toast.success('Stray updated successfully');
       } else {
         await addDoc(collection(db, 'impound_strays'), strayData);
-        toast.success('Captured stray added successfully');
+        toast.success(`Captured stray added successfully. ID: ${strayIdNumber}`);
       }
       
       setShowStrayFormModal(false);
@@ -1716,41 +1814,154 @@ const ImpoundDashboard = () => {
     }
   };
   
-  const handlePutForAdoption = async (stray) => {
-    if (!window.confirm(`Put ${stray.petName || 'this stray'} up for adoption?`)) {
+  const handlePutForAdoption = (stray) => {
+    setStrayForAdoption(stray);
+    setPutForAdoptionForm({
+      description: '',
+      vaccinated: false,
+      vaccinatedDate: '',
+      vaccinatedPlace: '',
+      dewormed: false,
+      dewormedDate: '',
+      dewormedPlace: '',
+      antiRabies: false,
+      antiRabiesDate: '',
+      antiRabiesPlace: ''
+    });
+    setShowAdoptionModal(true);
+  };
+  
+  const handleSubmitAdoption = async (e) => {
+    e.preventDefault();
+    
+    if (!strayForAdoption) return;
+    
+    // Validate medical dates and places if checked
+    if (putForAdoptionForm.vaccinated && (!putForAdoptionForm.vaccinatedDate || !putForAdoptionForm.vaccinatedPlace)) {
+      toast.error('Please provide vaccine date and place if vaccinated');
+      return;
+    }
+    if (putForAdoptionForm.dewormed && (!putForAdoptionForm.dewormedDate || !putForAdoptionForm.dewormedPlace)) {
+      toast.error('Please provide deworm date and place if dewormed');
+      return;
+    }
+    if (putForAdoptionForm.antiRabies && (!putForAdoptionForm.antiRabiesDate || !putForAdoptionForm.antiRabiesPlace)) {
+      toast.error('Please provide anti-rabies date and place if treated');
       return;
     }
     
     setSubmittingStray(true);
     try {
       const storage = getStorage();
-      let imageUrl = stray.imageUrl || '';
+      let imageUrl = strayForAdoption.imageUrl || '';
       
       // Copy image if needed
       if (imageUrl && !imageUrl.startsWith('http')) {
         // If image is not a URL, we'll use the existing one
-        imageUrl = stray.imageUrl;
+        imageUrl = strayForAdoption.imageUrl;
       }
       
       // Add to adoptable_pets collection
-      await addDoc(collection(db, 'adoptable_pets'), {
-        petName: stray.petName,
-        petType: stray.petType,
-        breed: stray.breed,
-        gender: stray.gender,
+      const adoptablePetRef = await addDoc(collection(db, 'adoptable_pets'), {
+        petName: strayForAdoption.petName,
+        petType: strayForAdoption.petType,
+        breed: strayForAdoption.breed,
+        gender: strayForAdoption.gender,
+        description: putForAdoptionForm.description || '',
         imageUrl,
-        daysAtImpound: stray.daysAtImpound || '',
+        vaccinated: !!putForAdoptionForm.vaccinated,
+        vaccinatedDate: putForAdoptionForm.vaccinatedDate || '',
+        vaccinatedPlace: putForAdoptionForm.vaccinatedPlace || '',
+        dewormed: !!putForAdoptionForm.dewormed,
+        dewormedDate: putForAdoptionForm.dewormedDate || '',
+        dewormedPlace: putForAdoptionForm.dewormedPlace || '',
+        antiRabies: !!putForAdoptionForm.antiRabies,
+        antiRabiesDate: putForAdoptionForm.antiRabiesDate || '',
+        antiRabiesPlace: putForAdoptionForm.antiRabiesPlace || '',
+        daysAtImpound: strayForAdoption.daysAtImpound || '',
         readyForAdoption: true,
         createdAt: serverTimestamp(),
         createdBy: currentUser?.email || 'impound_admin',
         transferredFrom: 'impound_strays',
-        originalStrayId: stray.id
+        originalStrayId: strayForAdoption.id,
+        idNumber: strayForAdoption.idNumber || `STRAY-${strayForAdoption.id.slice(0, 6)}`
       });
       
-      // Delete from impound_strays
-      await deleteDoc(doc(db, 'impound_strays', stray.id));
+      // Add history entries for medical treatments
+      if (putForAdoptionForm.vaccinated && putForAdoptionForm.vaccinatedDate) {
+        await addHistoryEntry(
+          adoptablePetRef.id,
+          'vaccination',
+          {
+            date: putForAdoptionForm.vaccinatedDate,
+            type: 'vaccine',
+            petName: strayForAdoption.petName,
+            idNumber: strayForAdoption.idNumber
+          },
+          currentUser?.email || 'impound_admin'
+        );
+      }
+      if (putForAdoptionForm.dewormed && putForAdoptionForm.dewormedDate) {
+        await addHistoryEntry(
+          adoptablePetRef.id,
+          'deworm',
+          {
+            date: putForAdoptionForm.dewormedDate,
+            type: 'deworm',
+            petName: strayForAdoption.petName,
+            idNumber: strayForAdoption.idNumber
+          },
+          currentUser?.email || 'impound_admin'
+        );
+      }
+      if (putForAdoptionForm.antiRabies && putForAdoptionForm.antiRabiesDate) {
+        await addHistoryEntry(
+          adoptablePetRef.id,
+          'anti_rabies',
+          {
+            date: putForAdoptionForm.antiRabiesDate,
+            type: 'anti-rabies',
+            petName: strayForAdoption.petName,
+            idNumber: strayForAdoption.idNumber
+          },
+          currentUser?.email || 'impound_admin'
+        );
+      }
       
-      toast.success(`${stray.petName || 'Stray'} is now available for adoption`);
+      // Add placement history
+      await addHistoryEntry(
+        adoptablePetRef.id,
+        'placement',
+        {
+          action: 'put_for_adoption',
+          petName: strayForAdoption.petName,
+          idNumber: strayForAdoption.idNumber,
+          from: 'impound_strays',
+          to: 'adoptable_pets'
+        },
+        currentUser?.email || 'impound_admin'
+      );
+      
+      // Delete from impound_strays
+      await deleteDoc(doc(db, 'impound_strays', strayForAdoption.id));
+      
+      toast.success(`${strayForAdoption.petName || 'Stray'} is now available for adoption`);
+      
+      // Close modal and reset
+      setShowAdoptionModal(false);
+      setStrayForAdoption(null);
+      setPutForAdoptionForm({
+        description: '',
+        vaccinated: false,
+        vaccinatedDate: '',
+        vaccinatedPlace: '',
+        dewormed: false,
+        dewormedDate: '',
+        dewormedPlace: '',
+        antiRabies: false,
+        antiRabiesDate: '',
+        antiRabiesPlace: ''
+      });
     } catch (error) {
       console.error('Error putting stray for adoption:', error);
       toast.error('Failed to put stray for adoption');
@@ -1845,6 +2056,9 @@ const ImpoundDashboard = () => {
     
     setTransferring(true);
     try {
+      // Generate pet ID number
+      const petIdNumber = await generatePetId();
+      
       // Create pet document and get its ID
       const petRef = await addDoc(collection(db, 'pets'), {
         petName: selectedAdoptable.petName,
@@ -1861,6 +2075,7 @@ const ImpoundDashboard = () => {
         transferredFrom: 'impound',
         transferredAt: serverTimestamp(),
         originalAdoptableId: selectedAdoptable.id,
+        idNumber: petIdNumber,
         status: 'safe',
         registrationStatus: 'registered', // Enable QR code and report lost functionality
         archived: false, // Ensure archived field is set so pets appear in MyPetsScreen
@@ -1871,6 +2086,21 @@ const ImpoundDashboard = () => {
       });
 
       const petId = petRef.id;
+      
+      // Add placement history
+      await addHistoryEntry(
+        petId,
+        'placement',
+        {
+          action: 'transferred_to_owner',
+          petName: selectedAdoptable.petName,
+          idNumber: petIdNumber,
+          ownerName: selectedUser.displayName,
+          from: 'adoptable_pets',
+          to: 'registered_pets'
+        },
+        currentUser?.email || 'impound_admin'
+      );
 
       // Create notification for the user
       await addDoc(collection(db, 'user_notifications'), {
@@ -2948,7 +3178,14 @@ const ImpoundDashboard = () => {
                     <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">No Image</div>
                   )}
                   <div className="p-4 flex flex-col items-center text-center flex-1">
-                    <p className="text-base font-semibold text-gray-900 truncate w-full">{p.petName || 'Unnamed Pet'}</p>
+                    <div className="w-full flex items-center justify-between mb-2">
+                      <p className="text-base font-semibold text-gray-900 truncate flex-1 text-left">{p.petName || 'Unnamed Pet'}</p>
+                      {p.idNumber && (
+                        <span className="text-xs font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded ml-2 whitespace-nowrap">
+                          {p.idNumber}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-4 grid grid-cols-3 gap-2 w-full">
                       <button onClick={() => { setSelectedAdoptable(p); setShowTransferModal(true); fetchRegisteredUsers(); }} className="px-3 py-2 text-sm rounded-md border font-medium bg-green-600 text-white border-green-600 hover:bg-green-700 transition-colors">Transfer</button>
                       <button onClick={() => { setEditingAdoptable(p); setShowEditAdoptableModal(true); }} className="px-3 py-2 text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors">Edit</button>
@@ -3258,7 +3495,14 @@ const ImpoundDashboard = () => {
                           </div>
                         )}
                         <div className="p-3 sm:p-4 flex-1 flex flex-col">
-                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">{stray.petName || 'Unnamed Pet'}</h3>
+                          <div className="flex items-start justify-between mb-1">
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900">{stray.petName || 'Unnamed Pet'}</h3>
+                            {stray.idNumber && (
+                              <span className="text-xs font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                {stray.idNumber}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs sm:text-sm text-gray-600 capitalize">{stray.petType || 'Unknown'}</span>
                             {stray.breed && <span className="text-xs sm:text-sm text-gray-500">• {stray.breed}</span>}
@@ -3590,6 +3834,200 @@ const ImpoundDashboard = () => {
                         className="px-4 py-2 rounded-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
                       >
                         {submittingStray ? 'Saving...' : (editingStray ? 'Update Stray' : 'Add Stray')}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+            
+            {/* Put for Adoption Modal */}
+            {showAdoptionModal && strayForAdoption && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Put {strayForAdoption.petName || 'Stray'} for Adoption
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setShowAdoptionModal(false);
+                        setStrayForAdoption(null);
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <form onSubmit={handleSubmitAdoption} className="p-6 space-y-4">
+                    <div>
+                      <label className={labelBase}>Description</label>
+                      <textarea
+                        className={inputBase}
+                        rows={4}
+                        value={putForAdoptionForm.description || ''}
+                        onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, description: e.target.value }))}
+                        placeholder="Add notes about the pet's personality, behavior, and needs"
+                      />
+                    </div>
+                    
+                    {/* Medical treatments section */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-800 mb-3">Medical Treatments</label>
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div className="flex items-center space-x-2">
+                          <input 
+                            id="adoption-vaccinated" 
+                            type="checkbox" 
+                            checked={!!putForAdoptionForm.vaccinated} 
+                            onChange={(e) => setPutForAdoptionForm((p) => ({ 
+                              ...p, 
+                              vaccinated: e.target.checked,
+                              vaccinatedDate: e.target.checked ? p.vaccinatedDate : '',
+                              vaccinatedPlace: e.target.checked ? p.vaccinatedPlace : ''
+                            }))} 
+                            className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+                          />
+                          <label htmlFor="adoption-vaccinated" className="text-base text-gray-800">Vaccine</label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input 
+                            id="adoption-dewormed" 
+                            type="checkbox" 
+                            checked={!!putForAdoptionForm.dewormed} 
+                            onChange={(e) => setPutForAdoptionForm((p) => ({ 
+                              ...p, 
+                              dewormed: e.target.checked,
+                              dewormedDate: e.target.checked ? p.dewormedDate : '',
+                              dewormedPlace: e.target.checked ? p.dewormedPlace : ''
+                            }))} 
+                            className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+                          />
+                          <label htmlFor="adoption-dewormed" className="text-base text-gray-800">Deworm</label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input 
+                            id="adoption-antiRabies" 
+                            type="checkbox" 
+                            checked={!!putForAdoptionForm.antiRabies} 
+                            onChange={(e) => setPutForAdoptionForm((p) => ({ 
+                              ...p, 
+                              antiRabies: e.target.checked,
+                              antiRabiesDate: e.target.checked ? p.antiRabiesDate : '',
+                              antiRabiesPlace: e.target.checked ? p.antiRabiesPlace : ''
+                            }))} 
+                            className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
+                          />
+                          <label htmlFor="adoption-antiRabies" className="text-base text-gray-800">Anti-rabies</label>
+                        </div>
+                      </div>
+                      
+                      {/* Date and Place fields for checked treatments */}
+                      {putForAdoptionForm.vaccinated && (
+                        <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                          <h4 className="text-sm font-semibold text-gray-800 mb-3">Vaccine Information</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelBase}>Vaccine Date *</label>
+                              <input
+                                type="date"
+                                className={inputBase}
+                                value={putForAdoptionForm.vaccinatedDate}
+                                onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, vaccinatedDate: e.target.value }))}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className={labelBase}>Place Where Shot Was Taken *</label>
+                              <input
+                                type="text"
+                                className={inputBase}
+                                value={putForAdoptionForm.vaccinatedPlace}
+                                onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, vaccinatedPlace: e.target.value }))}
+                                placeholder="e.g., City Veterinary Clinic, Manila"
+                                required
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {putForAdoptionForm.dewormed && (
+                        <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                          <h4 className="text-sm font-semibold text-gray-800 mb-3">Deworm Information</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelBase}>Deworm Date *</label>
+                              <input
+                                type="date"
+                                className={inputBase}
+                                value={putForAdoptionForm.dewormedDate}
+                                onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, dewormedDate: e.target.value }))}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className={labelBase}>Place Where Shot Was Taken *</label>
+                              <input
+                                type="text"
+                                className={inputBase}
+                                value={putForAdoptionForm.dewormedPlace}
+                                onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, dewormedPlace: e.target.value }))}
+                                placeholder="e.g., City Veterinary Clinic, Manila"
+                                required
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {putForAdoptionForm.antiRabies && (
+                        <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                          <h4 className="text-sm font-semibold text-gray-800 mb-3">Anti-rabies Information</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelBase}>Anti-rabies Date *</label>
+                              <input
+                                type="date"
+                                className={inputBase}
+                                value={putForAdoptionForm.antiRabiesDate}
+                                onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, antiRabiesDate: e.target.value }))}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className={labelBase}>Place Where Shot Was Taken *</label>
+                              <input
+                                type="text"
+                                className={inputBase}
+                                value={putForAdoptionForm.antiRabiesPlace}
+                                onChange={(e) => setPutForAdoptionForm((p) => ({ ...p, antiRabiesPlace: e.target.value }))}
+                                placeholder="e.g., City Veterinary Clinic, Manila"
+                                required
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAdoptionModal(false);
+                          setStrayForAdoption(null);
+                        }}
+                        className="px-4 py-2 rounded-md text-base font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submittingStray}
+                        className="px-4 py-2 rounded-md text-base font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {submittingStray ? 'Processing...' : 'Put for Adoption'}
                       </button>
                     </div>
                   </form>
@@ -4178,7 +4616,8 @@ const ImpoundDashboard = () => {
                           onChange={(e) => setEditAdoptForm((p) => ({ 
                             ...p, 
                             vaccinated: e.target.checked,
-                            vaccinatedDate: e.target.checked ? p.vaccinatedDate : ''
+                            vaccinatedDate: e.target.checked ? p.vaccinatedDate : '',
+                            vaccinatedPlace: e.target.checked ? p.vaccinatedPlace : ''
                           }))} 
                           className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
                         />
@@ -4192,7 +4631,8 @@ const ImpoundDashboard = () => {
                           onChange={(e) => setEditAdoptForm((p) => ({ 
                             ...p, 
                             dewormed: e.target.checked,
-                            dewormedDate: e.target.checked ? p.dewormedDate : ''
+                            dewormedDate: e.target.checked ? p.dewormedDate : '',
+                            dewormedPlace: e.target.checked ? p.dewormedPlace : ''
                           }))} 
                           className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
                         />
@@ -4206,7 +4646,8 @@ const ImpoundDashboard = () => {
                           onChange={(e) => setEditAdoptForm((p) => ({ 
                             ...p, 
                             antiRabies: e.target.checked,
-                            antiRabiesDate: e.target.checked ? p.antiRabiesDate : ''
+                            antiRabiesDate: e.target.checked ? p.antiRabiesDate : '',
+                            antiRabiesPlace: e.target.checked ? p.antiRabiesPlace : ''
                           }))} 
                           className="h-5 w-5 text-indigo-600 border-2 border-gray-400 rounded" 
                         />
@@ -4214,45 +4655,91 @@ const ImpoundDashboard = () => {
                       </div>
                     </div>
                     
-                    {/* Date fields for checked treatments in edit form */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {editAdoptForm.vaccinated && (
-                        <div>
-                          <label className={labelBase}>Vaccine Date</label>
-                          <input
-                            type="date"
-                            className={inputBase}
-                            value={editAdoptForm.vaccinatedDate}
-                            onChange={(e) => setEditAdoptForm((p) => ({ ...p, vaccinatedDate: e.target.value }))}
-                            required
-                          />
+                    {/* Date and Place fields for checked treatments in edit form */}
+                    {editAdoptForm.vaccinated && (
+                      <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-3">Vaccine Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className={labelBase}>Vaccine Date *</label>
+                            <input
+                              type="date"
+                              className={inputBase}
+                              value={editAdoptForm.vaccinatedDate}
+                              onChange={(e) => setEditAdoptForm((p) => ({ ...p, vaccinatedDate: e.target.value }))}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className={labelBase}>Place Where Shot Was Taken *</label>
+                            <input
+                              type="text"
+                              className={inputBase}
+                              value={editAdoptForm.vaccinatedPlace}
+                              onChange={(e) => setEditAdoptForm((p) => ({ ...p, vaccinatedPlace: e.target.value }))}
+                              placeholder="e.g., City Veterinary Clinic, Manila"
+                              required
+                            />
+                          </div>
                         </div>
-                      )}
-                      {editAdoptForm.dewormed && (
-                        <div>
-                          <label className={labelBase}>Deworm Date</label>
-                          <input
-                            type="date"
-                            className={inputBase}
-                            value={editAdoptForm.dewormedDate}
-                            onChange={(e) => setEditAdoptForm((p) => ({ ...p, dewormedDate: e.target.value }))}
-                            required
-                          />
+                      </div>
+                    )}
+                    {editAdoptForm.dewormed && (
+                      <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-3">Deworm Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className={labelBase}>Deworm Date *</label>
+                            <input
+                              type="date"
+                              className={inputBase}
+                              value={editAdoptForm.dewormedDate}
+                              onChange={(e) => setEditAdoptForm((p) => ({ ...p, dewormedDate: e.target.value }))}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className={labelBase}>Place Where Shot Was Taken *</label>
+                            <input
+                              type="text"
+                              className={inputBase}
+                              value={editAdoptForm.dewormedPlace}
+                              onChange={(e) => setEditAdoptForm((p) => ({ ...p, dewormedPlace: e.target.value }))}
+                              placeholder="e.g., City Veterinary Clinic, Manila"
+                              required
+                            />
+                          </div>
                         </div>
-                      )}
-                      {editAdoptForm.antiRabies && (
-                        <div>
-                          <label className={labelBase}>Anti-rabies Date</label>
-                          <input
-                            type="date"
-                            className={inputBase}
-                            value={editAdoptForm.antiRabiesDate}
-                            onChange={(e) => setEditAdoptForm((p) => ({ ...p, antiRabiesDate: e.target.value }))}
-                            required
-                          />
+                      </div>
+                    )}
+                    {editAdoptForm.antiRabies && (
+                      <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-3">Anti-rabies Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className={labelBase}>Anti-rabies Date *</label>
+                            <input
+                              type="date"
+                              className={inputBase}
+                              value={editAdoptForm.antiRabiesDate}
+                              onChange={(e) => setEditAdoptForm((p) => ({ ...p, antiRabiesDate: e.target.value }))}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className={labelBase}>Place Where Shot Was Taken *</label>
+                            <input
+                              type="text"
+                              className={inputBase}
+                              value={editAdoptForm.antiRabiesPlace}
+                              onChange={(e) => setEditAdoptForm((p) => ({ ...p, antiRabiesPlace: e.target.value }))}
+                              placeholder="e.g., City Veterinary Clinic, Manila"
+                              required
+                            />
+                          </div>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                   <div className="md:col-span-2 max-w-md">
                     <label className={labelBase}>Image</label>
