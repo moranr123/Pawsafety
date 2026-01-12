@@ -22,7 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { auth, db, storage } from '../services/firebase';
-import { collection, query, where, onSnapshot, doc, addDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, addDoc, updateDoc, serverTimestamp, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -298,6 +298,10 @@ const MyPetsScreen = ({ navigation }) => {
     },
   });
   const [pets, setPets] = useState([]);
+  const [loadingMorePets, setLoadingMorePets] = useState(false);
+  const [hasMorePets, setHasMorePets] = useState(true);
+  const lastPetDoc = useRef(null);
+  const PETS_PER_PAGE = 20;
   const [loading, setLoading] = useState(true);
   const [selectedPetQR, setSelectedPetQR] = useState(null);
   const [showReportLostModal, setShowReportLostModal] = useState(false);
@@ -343,17 +347,49 @@ const MyPetsScreen = ({ navigation }) => {
 
 
 
-  useEffect(() => {
-    if (!user) return;
+  // Load pets with pagination
+  const loadPets = async (isInitial = false) => {
+    if (!user || loadingMorePets) return;
 
-    // Query all pets for the user (both pending and registered)
-    // Filter archived pets client-side to handle cases where archived field might not exist
-    const q = query(
-      collection(db, 'pets'),
-      where('userId', '==', user.uid)
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    try {
+      if (isInitial) {
+        setLoading(true);
+        lastPetDoc.current = null;
+        setHasMorePets(true);
+      } else {
+        setLoadingMorePets(true);
+      }
+
+      let petsQuery;
+      if (isInitial || !lastPetDoc.current) {
+        petsQuery = query(
+          collection(db, 'pets'),
+          where('userId', '==', user.uid),
+          orderBy('createdAt', 'desc'),
+          limit(PETS_PER_PAGE)
+        );
+      } else {
+        petsQuery = query(
+          collection(db, 'pets'),
+          where('userId', '==', user.uid),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastPetDoc.current),
+          limit(PETS_PER_PAGE)
+        );
+      }
+
+      const snapshot = await getDocs(petsQuery);
+      
+      if (snapshot.empty) {
+        setHasMorePets(false);
+        if (isInitial) {
+          setPets([]);
+        }
+        setLoading(false);
+        setLoadingMorePets(false);
+        return;
+      }
+
       const petList = snapshot.docs
         .map(doc => ({ 
           id: doc.id, 
@@ -361,18 +397,72 @@ const MyPetsScreen = ({ navigation }) => {
         }))
         // Filter out archived pets (treat undefined/null as not archived)
         .filter(pet => pet.archived !== true);
-      
-      setPets(petList);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching pets:', error);
-      setLoading(false);
-    });
 
-    return () => {
-      unsubscribe();
-    };
+      if (isInitial) {
+        setPets(petList);
+      } else {
+        setPets(prev => [...prev, ...petList]);
+      }
+
+      lastPetDoc.current = snapshot.docs[snapshot.docs.length - 1];
+      setHasMorePets(snapshot.docs.length === PETS_PER_PAGE);
+    } catch (error) {
+      console.error('Error fetching pets:', error);
+      // If orderBy fails, fallback to simple query without orderBy
+      if (error.code === 'failed-precondition') {
+        try {
+          let fallbackQuery;
+          if (isInitial || !lastPetDoc.current) {
+            fallbackQuery = query(
+              collection(db, 'pets'),
+              where('userId', '==', user.uid),
+              limit(PETS_PER_PAGE)
+            );
+          } else {
+            // Can't paginate without orderBy, so just load initial
+            fallbackQuery = query(
+              collection(db, 'pets'),
+              where('userId', '==', user.uid),
+              limit(PETS_PER_PAGE)
+            );
+            lastPetDoc.current = null;
+          }
+          const fallbackSnapshot = await getDocs(fallbackQuery);
+          const petList = fallbackSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(pet => pet.archived !== true);
+          
+          if (isInitial) {
+            setPets(petList);
+          } else {
+            setPets(prev => [...prev, ...petList]);
+          }
+          
+          if (fallbackSnapshot.docs.length < PETS_PER_PAGE) {
+            setHasMorePets(false);
+          }
+        } catch (fallbackError) {
+          console.error('Error with fallback query:', fallbackError);
+        }
+      }
+    } finally {
+      setLoading(false);
+      setLoadingMorePets(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    if (!user) return;
+    loadPets(true);
   }, [user]);
+
+  // Load more pets when scrolling near bottom
+  const handleLoadMorePets = () => {
+    if (!loadingMorePets && hasMorePets && user) {
+      loadPets(false);
+    }
+  };
 
 
   const handleArchivePet = (petId, petName) => {
@@ -2325,6 +2415,14 @@ Thank you for helping reunite pets with their families! ❤️`;
       <ScrollView 
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
+        onScroll={(event) => {
+          const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+          const paddingToBottom = 400;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+            handleLoadMorePets();
+          }
+        }}
+        scrollEventThrottle={400}
       >
 
         <View style={styles.content}>
@@ -2364,6 +2462,21 @@ Thank you for helping reunite pets with their families! ❤️`;
                   />
                 ))}
               </View>
+
+              {/* Loading more indicator */}
+              {loadingMorePets && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={COLORS.mediumBlue} />
+                  <Text style={{ marginTop: 8, fontSize: 14, color: COLORS.secondaryText }}>Loading more pets...</Text>
+                </View>
+              )}
+
+              {/* End of list indicator */}
+              {!hasMorePets && pets.length > 0 && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, color: COLORS.secondaryText }}>No more pets to load</Text>
+                </View>
+              )}
               
               <TouchableOpacity 
                 style={styles.addPetButton}

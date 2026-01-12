@@ -15,7 +15,9 @@ import {
   where,
   writeBatch,
   getDocs,
-  getDoc
+  getDoc,
+  limit,
+  startAfter
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase/config';
@@ -33,7 +35,8 @@ import {
   Plus,
   Edit,
   Trash2,
-  ArrowRight
+  ArrowRight,
+  ChevronRight
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 
@@ -786,6 +789,17 @@ const ImpoundDashboard = () => {
   const appsSeenRef = useRef(new Set());
   const initialAppsLoadedRef = useRef(false);
   
+  // Pagination state
+  const reportsPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const appsPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const petsPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const straysPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const [loadingMoreReports, setLoadingMoreReports] = useState(false);
+  const [loadingMoreApps, setLoadingMoreApps] = useState(false);
+  const [loadingMorePets, setLoadingMorePets] = useState(false);
+  const [loadingMoreStrays, setLoadingMoreStrays] = useState(false);
+  const ITEMS_PER_PAGE = 25;
+  
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [showAppModal, setShowAppModal] = useState(false);
   const [adoptionForm, setAdoptionForm] = useState({
@@ -811,12 +825,23 @@ const ImpoundDashboard = () => {
       Notification.requestPermission().catch(() => {});
     }
 
-    const qReports = query(collection(db, 'stray_reports'), orderBy('reportTime', 'desc'));
+    const qReports = query(
+      collection(db, 'stray_reports'),
+      orderBy('reportTime', 'desc'),
+      limit(ITEMS_PER_PAGE)
+    );
     const unsubscribe = onSnapshot(
       qReports, 
       (snap) => {
         try {
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
+      // Initialize pagination ref
+      if (!reportsPaginationRef.current.lastDoc) {
+        reportsPaginationRef.current.lastDoc = snap.docs[snap.docs.length - 1];
+        reportsPaginationRef.current.hasMore = snap.docs.length === ITEMS_PER_PAGE;
+      }
+      
       const filteredNotifications = rows.filter((r) => 
         !r.hiddenImpoundNotification && 
         (r.status || '').toLowerCase() !== 'resolved' &&
@@ -870,10 +895,161 @@ const ImpoundDashboard = () => {
     return unsubscribe;
   }, []);
 
+  // Load more reports function
+  const loadMoreReports = async () => {
+    if (loadingMoreReports || !reportsPaginationRef.current.hasMore) return;
+    
+    try {
+      setLoadingMoreReports(true);
+      const qReports = query(
+        collection(db, 'stray_reports'),
+        orderBy('reportTime', 'desc'),
+        startAfter(reportsPaginationRef.current.lastDoc),
+        limit(ITEMS_PER_PAGE)
+      );
+      
+      const snapshot = await getDocs(qReports);
+      if (snapshot.empty) {
+        reportsPaginationRef.current.hasMore = false;
+        setLoadingMoreReports(false);
+        return;
+      }
+      
+      const newRows = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const currentReports = [...strayReports, ...lostReports, ...incidentReports, ...foundReports];
+      const allReports = [...currentReports, ...newRows];
+      
+      setStrayReports(allReports.filter((r) => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'));
+      setAllStrayReports(prev => [...prev, ...newRows]);
+      setLostReports(allReports.filter((r) => (r.status || '').toLowerCase() === 'lost'));
+      setIncidentReports(allReports.filter((r) => (r.status || '').toLowerCase() === 'incident'));
+      setFoundReports(allReports.filter((r) => (r.status || '').toLowerCase() === 'found' && r.foundBy !== 'owner'));
+      
+      reportsPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      reportsPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+    } catch (error) {
+      console.error('Error loading more reports:', error);
+      toast.error('Failed to load more reports');
+    } finally {
+      setLoadingMoreReports(false);
+    }
+  };
+
+  // Load more adoption applications function
+  const loadMoreApps = async () => {
+    if (loadingMoreApps || !appsPaginationRef.current.hasMore) return;
+    
+    try {
+      setLoadingMoreApps(true);
+      const qApps = query(
+        collection(db, 'adoption_applications'),
+        orderBy('createdAt', 'desc'),
+        startAfter(appsPaginationRef.current.lastDoc),
+        limit(ITEMS_PER_PAGE)
+      );
+      
+      const snapshot = await getDocs(qApps);
+      if (snapshot.empty) {
+        appsPaginationRef.current.hasMore = false;
+        setLoadingMoreApps(false);
+        return;
+      }
+      
+      const newApps = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setAdoptionApplications(prev => [...prev, ...newApps]);
+      
+      appsPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      appsPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+    } catch (error) {
+      console.error('Error loading more applications:', error);
+      toast.error('Failed to load more applications');
+    } finally {
+      setLoadingMoreApps(false);
+    }
+  };
+
+  // Load more adoptable pets function
+  const loadMorePets = async () => {
+    if (loadingMorePets || !petsPaginationRef.current.hasMore) return;
+    
+    try {
+      setLoadingMorePets(true);
+      const qPets = query(
+        collection(db, 'adoptable_pets'),
+        orderBy('createdAt', 'desc'),
+        startAfter(petsPaginationRef.current.lastDoc),
+        limit(ITEMS_PER_PAGE)
+      );
+      
+      const snapshot = await getDocs(qPets);
+      if (snapshot.empty) {
+        petsPaginationRef.current.hasMore = false;
+        setLoadingMorePets(false);
+        return;
+      }
+      
+      const newPets = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setAdoptablePets(prev => [...prev, ...newPets]);
+      
+      petsPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      petsPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+    } catch (error) {
+      console.error('Error loading more pets:', error);
+      toast.error('Failed to load more pets');
+    } finally {
+      setLoadingMorePets(false);
+    }
+  };
+
+  // Load more impound strays function
+  const loadMoreStrays = async () => {
+    if (loadingMoreStrays || !straysPaginationRef.current.hasMore) return;
+    
+    try {
+      setLoadingMoreStrays(true);
+      const qStrays = query(
+        collection(db, 'impound_strays'),
+        orderBy('capturedDate', 'desc'),
+        startAfter(straysPaginationRef.current.lastDoc),
+        limit(ITEMS_PER_PAGE)
+      );
+      
+      const snapshot = await getDocs(qStrays);
+      if (snapshot.empty) {
+        straysPaginationRef.current.hasMore = false;
+        setLoadingMoreStrays(false);
+        return;
+      }
+      
+      const newStrays = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setImpoundStrays(prev => [...prev, ...newStrays]);
+      
+      straysPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      straysPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+    } catch (error) {
+      console.error('Error loading more strays:', error);
+      toast.error('Failed to load more strays');
+    } finally {
+      setLoadingMoreStrays(false);
+    }
+  };
+
   useEffect(() => {
-    const qApps = query(collection(db, 'adoption_applications'), orderBy('createdAt', 'desc'));
+    const qApps = query(
+      collection(db, 'adoption_applications'),
+      orderBy('createdAt', 'desc'),
+      limit(ITEMS_PER_PAGE)
+    );
     const unsubscribe = onSnapshot(qApps, (snap) => {
-      setAdoptionApplications(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const apps = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
+      // Initialize pagination ref
+      if (!appsPaginationRef.current.lastDoc) {
+        appsPaginationRef.current.lastDoc = snap.docs[snap.docs.length - 1];
+        appsPaginationRef.current.hasMore = snap.docs.length === ITEMS_PER_PAGE;
+      }
+      
+      setAdoptionApplications(apps);
 
       // Push notifications for new applications
       if (!initialAppsLoadedRef.current) {
@@ -899,18 +1075,42 @@ const ImpoundDashboard = () => {
   }, []);
 
   useEffect(() => {
-    const qPets = query(collection(db, 'adoptable_pets'), orderBy('createdAt', 'desc'));
+    const qPets = query(
+      collection(db, 'adoptable_pets'),
+      orderBy('createdAt', 'desc'),
+      limit(ITEMS_PER_PAGE)
+    );
     const unsubscribe = onSnapshot(qPets, (snap) => {
-      setAdoptablePets(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const pets = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
+      // Initialize pagination ref
+      if (!petsPaginationRef.current.lastDoc) {
+        petsPaginationRef.current.lastDoc = snap.docs[snap.docs.length - 1];
+        petsPaginationRef.current.hasMore = snap.docs.length === ITEMS_PER_PAGE;
+      }
+      
+      setAdoptablePets(pets);
     });
     return unsubscribe;
   }, []);
 
   // Fetch impound strays
   useEffect(() => {
-    const qStrays = query(collection(db, 'impound_strays'), orderBy('capturedDate', 'desc'));
+    const qStrays = query(
+      collection(db, 'impound_strays'),
+      orderBy('capturedDate', 'desc'),
+      limit(ITEMS_PER_PAGE)
+    );
     const unsubscribe = onSnapshot(qStrays, (snap) => {
-      setImpoundStrays(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const strays = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
+      // Initialize pagination ref
+      if (!straysPaginationRef.current.lastDoc) {
+        straysPaginationRef.current.lastDoc = snap.docs[snap.docs.length - 1];
+        straysPaginationRef.current.hasMore = snap.docs.length === ITEMS_PER_PAGE;
+      }
+      
+      setImpoundStrays(strays);
     });
     return unsubscribe;
   }, []);
@@ -2884,6 +3084,29 @@ const ImpoundDashboard = () => {
               </div>
                 </div>
               ))}
+              {/* Pagination Controls */}
+              {reportsPaginationRef.current.hasMore && (
+                <div className="col-span-full flex justify-center mt-4">
+                  <button
+                    onClick={loadMoreReports}
+                    disabled={loadingMoreReports}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  >
+                    {loadingMoreReports ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Loading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Load More Reports</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
               {strayReports.length === 0 && (
                 <div className="col-span-full text-center text-sm text-orange-600 py-8">
                   <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -3194,6 +3417,29 @@ const ImpoundDashboard = () => {
               </div>
             </div>
               ))}
+              {/* Pagination Controls */}
+              {petsPaginationRef.current.hasMore && (
+                <div className="col-span-full flex justify-center mt-4">
+                  <button
+                    onClick={loadMorePets}
+                    disabled={loadingMorePets}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  >
+                    {loadingMorePets ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Loading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Load More Pets</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
               {adoptablePets.length === 0 && (
                 <div className="col-span-full text-center text-sm text-emerald-600 py-8">
                   <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -3441,6 +3687,29 @@ const ImpoundDashboard = () => {
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination Controls for Applications */}
+            {appsPaginationRef.current.hasMore && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={loadMoreApps}
+                  disabled={loadingMoreApps}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                >
+                  {loadingMoreApps ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Load More Applications</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

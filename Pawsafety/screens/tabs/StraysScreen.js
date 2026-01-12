@@ -24,7 +24,7 @@ import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTabBarVisibility } from '../../contexts/TabBarVisibilityContext';
 import { db } from '../../services/firebase';
-import { collection, onSnapshot, query, orderBy, limit, doc, getDoc, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, getDoc, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, startAfter } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import ReportChatModal from '../../components/ReportChatModal';
@@ -263,6 +263,10 @@ const StrayPetCard = React.memo(({
 
 const StraysScreen = ({ navigation }) => {
   const { colors: COLORS } = useTheme();
+  const lastReportDoc = useRef(null);
+  const [loadingMoreReports, setLoadingMoreReports] = useState(false);
+  const [hasMoreReports, setHasMoreReports] = useState(true);
+  const REPORTS_PER_PAGE = 20;
   const { setIsVisible } = useTabBarVisibility();
   const [reports, setReports] = useState([]);
   const [reportUsers, setReportUsers] = useState({});

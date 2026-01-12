@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, addDoc, serverTimestamp, Timestamp, writeBatch, getDocs, where, limit } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, addDoc, serverTimestamp, Timestamp, writeBatch, getDocs, where, limit, startAfter } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { UserX, MessageSquare, FileText, Flag, X, Clock, User, Trash2, Ban, History, ArrowLeft } from 'lucide-react';
+import { UserX, MessageSquare, FileText, Flag, X, Clock, User, Trash2, Ban, History, ArrowLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const UserReports = () => {
@@ -28,10 +28,147 @@ const UserReports = () => {
   const [isRestricting, setIsRestricting] = useState(false);
   const [isCheckingBan, setIsCheckingBan] = useState(false);
   const [isBanning, setIsBanning] = useState(false);
+  
+  // Pagination state
+  const [loadingMoreReports, setLoadingMoreReports] = useState(false);
+  const [hasMoreReports, setHasMoreReports] = useState(true);
+  const postReportsPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const messageReportsPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const reportReportsPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const commentReportsPaginationRef = useRef({ lastDoc: null, hasMore: true });
+  const ITEMS_PER_PAGE = 25;
+
+  // Load more reports function
+  const loadMoreReports = useCallback(async () => {
+    if (loadingMoreReports || !hasMoreReports) return;
+    
+    try {
+      setLoadingMoreReports(true);
+      
+      const [postSnapshot, messageSnapshot, reportSnapshot, commentSnapshot] = await Promise.all([
+        postReportsPaginationRef.current.hasMore && postReportsPaginationRef.current.lastDoc
+          ? getDocs(query(
+              collection(db, 'post_reports'),
+              orderBy('reportedAt', 'desc'),
+              startAfter(postReportsPaginationRef.current.lastDoc),
+              limit(ITEMS_PER_PAGE)
+            ))
+          : Promise.resolve({ docs: [], empty: true }),
+        messageReportsPaginationRef.current.hasMore && messageReportsPaginationRef.current.lastDoc
+          ? getDocs(query(
+              collection(db, 'message_reports'),
+              orderBy('createdAt', 'desc'),
+              startAfter(messageReportsPaginationRef.current.lastDoc),
+              limit(ITEMS_PER_PAGE)
+            ))
+          : Promise.resolve({ docs: [], empty: true }),
+        reportReportsPaginationRef.current.hasMore && reportReportsPaginationRef.current.lastDoc
+          ? getDocs(query(
+              collection(db, 'report_reports'),
+              orderBy('reportedAt', 'desc'),
+              startAfter(reportReportsPaginationRef.current.lastDoc),
+              limit(ITEMS_PER_PAGE)
+            ))
+          : Promise.resolve({ docs: [], empty: true }),
+        commentReportsPaginationRef.current.hasMore && commentReportsPaginationRef.current.lastDoc
+          ? getDocs(query(
+              collection(db, 'comment_reports'),
+              orderBy('reportedAt', 'desc'),
+              startAfter(commentReportsPaginationRef.current.lastDoc),
+              limit(ITEMS_PER_PAGE)
+            ))
+          : Promise.resolve({ docs: [], empty: true })
+      ]);
+      
+      const newPostReports = postSnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        type: 'post', 
+        reportedAt: doc.data().reportedAt,
+        ...doc.data() 
+      }));
+      
+      const newMessageReports = messageSnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        type: 'message', 
+        reportedAt: doc.data().createdAt, 
+        ...doc.data() 
+      }));
+      
+      const newReportReports = reportSnapshot.docs.map(doc => ({
+        id: doc.id,
+        type: 'report',
+        reportedAt: doc.data().reportedAt,
+        ...doc.data()
+      }));
+      
+      const newCommentReports = commentSnapshot.docs.map(doc => ({
+        id: doc.id,
+        type: 'comment',
+        reportedAt: doc.data().reportedAt,
+        ...doc.data()
+      }));
+      
+      // Update pagination refs
+      if (!postSnapshot.empty) {
+        postReportsPaginationRef.current.lastDoc = postSnapshot.docs[postSnapshot.docs.length - 1];
+        postReportsPaginationRef.current.hasMore = postSnapshot.docs.length === ITEMS_PER_PAGE;
+      } else {
+        postReportsPaginationRef.current.hasMore = false;
+      }
+      
+      if (!messageSnapshot.empty) {
+        messageReportsPaginationRef.current.lastDoc = messageSnapshot.docs[messageSnapshot.docs.length - 1];
+        messageReportsPaginationRef.current.hasMore = messageSnapshot.docs.length === ITEMS_PER_PAGE;
+      } else {
+        messageReportsPaginationRef.current.hasMore = false;
+      }
+      
+      if (!reportSnapshot.empty) {
+        reportReportsPaginationRef.current.lastDoc = reportSnapshot.docs[reportSnapshot.docs.length - 1];
+        reportReportsPaginationRef.current.hasMore = reportSnapshot.docs.length === ITEMS_PER_PAGE;
+      } else {
+        reportReportsPaginationRef.current.hasMore = false;
+      }
+      
+      if (!commentSnapshot.empty) {
+        commentReportsPaginationRef.current.lastDoc = commentSnapshot.docs[commentSnapshot.docs.length - 1];
+        commentReportsPaginationRef.current.hasMore = commentSnapshot.docs.length === ITEMS_PER_PAGE;
+      } else {
+        commentReportsPaginationRef.current.hasMore = false;
+      }
+      
+      // Check if any collection has more
+      const anyHasMore = postReportsPaginationRef.current.hasMore || 
+                        messageReportsPaginationRef.current.hasMore || 
+                        reportReportsPaginationRef.current.hasMore || 
+                        commentReportsPaginationRef.current.hasMore;
+      setHasMoreReports(anyHasMore);
+      
+      // Merge with existing reports
+      const allNewReports = [...newPostReports, ...newMessageReports, ...newReportReports, ...newCommentReports];
+      if (allNewReports.length > 0) {
+        setReports(prev => {
+          const merged = [...prev, ...allNewReports];
+          return merged.sort((a, b) => 
+            (b.reportedAt?.toMillis() || 0) - (a.reportedAt?.toMillis() || 0)
+          );
+        });
+      }
+    } catch (error) {
+      console.error('Error loading more reports:', error);
+      toast.error('Failed to load more reports');
+    } finally {
+      setLoadingMoreReports(false);
+    }
+  }, [loadingMoreReports, hasMoreReports]);
 
   useEffect(() => {
-    // Fetch post_reports, message_reports, and report_reports
-    const unsubPost = onSnapshot(query(collection(db, 'post_reports'), orderBy('reportedAt', 'desc')), (snapshot) => {
+    // Fetch post_reports, message_reports, and report_reports - Limited initial load
+    const unsubPost = onSnapshot(query(
+      collection(db, 'post_reports'), 
+      orderBy('reportedAt', 'desc'),
+      limit(ITEMS_PER_PAGE)
+    ), (snapshot) => {
       const postReports = snapshot.docs.map(doc => ({ 
         id: doc.id, 
         type: 'post', 
@@ -39,10 +176,18 @@ const UserReports = () => {
         ...doc.data() 
       }));
       
-      // Fetch message reports inside to combine
-      // Note: In a real app with many reports, separate listeners or pagination would be better
-      // But here we combine them client-side for simplicity
-      const unsubMessage = onSnapshot(query(collection(db, 'message_reports'), orderBy('createdAt', 'desc')), (msgSnapshot) => {
+      // Initialize pagination ref
+      if (!postReportsPaginationRef.current.lastDoc && !snapshot.empty) {
+        postReportsPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        postReportsPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+      }
+      
+      // Fetch message reports inside to combine - Limited initial load
+      const unsubMessage = onSnapshot(query(
+        collection(db, 'message_reports'), 
+        orderBy('createdAt', 'desc'),
+        limit(ITEMS_PER_PAGE)
+      ), (msgSnapshot) => {
         const messageReports = msgSnapshot.docs.map(doc => ({ 
           id: doc.id, 
           type: 'message', 
@@ -50,8 +195,18 @@ const UserReports = () => {
           ...doc.data() 
         }));
         
-        // Fetch report_reports (reports about stray reports)
-        const unsubReport = onSnapshot(query(collection(db, 'report_reports'), orderBy('reportedAt', 'desc')), (reportSnapshot) => {
+        // Initialize pagination ref
+        if (!messageReportsPaginationRef.current.lastDoc && !msgSnapshot.empty) {
+          messageReportsPaginationRef.current.lastDoc = msgSnapshot.docs[msgSnapshot.docs.length - 1];
+          messageReportsPaginationRef.current.hasMore = msgSnapshot.docs.length === ITEMS_PER_PAGE;
+        }
+        
+        // Fetch report_reports (reports about stray reports) - Limited initial load
+        const unsubReport = onSnapshot(query(
+          collection(db, 'report_reports'), 
+          orderBy('reportedAt', 'desc'),
+          limit(ITEMS_PER_PAGE)
+        ), (reportSnapshot) => {
           const reportReports = reportSnapshot.docs.map(doc => ({
             id: doc.id,
             type: 'report',
@@ -59,14 +214,37 @@ const UserReports = () => {
             ...doc.data()
           }));
           
-          // Fetch comment_reports (reports about comments)
-          const unsubComment = onSnapshot(query(collection(db, 'comment_reports'), orderBy('reportedAt', 'desc')), (commentSnapshot) => {
+          // Initialize pagination ref
+          if (!reportReportsPaginationRef.current.lastDoc && !reportSnapshot.empty) {
+            reportReportsPaginationRef.current.lastDoc = reportSnapshot.docs[reportSnapshot.docs.length - 1];
+            reportReportsPaginationRef.current.hasMore = reportSnapshot.docs.length === ITEMS_PER_PAGE;
+          }
+          
+          // Fetch comment_reports (reports about comments) - Limited initial load
+          const unsubComment = onSnapshot(query(
+            collection(db, 'comment_reports'), 
+            orderBy('reportedAt', 'desc'),
+            limit(ITEMS_PER_PAGE)
+          ), (commentSnapshot) => {
             const commentReports = commentSnapshot.docs.map(doc => ({
               id: doc.id,
               type: 'comment',
               reportedAt: doc.data().reportedAt,
               ...doc.data()
             }));
+            
+            // Initialize pagination ref
+            if (!commentReportsPaginationRef.current.lastDoc && !commentSnapshot.empty) {
+              commentReportsPaginationRef.current.lastDoc = commentSnapshot.docs[commentSnapshot.docs.length - 1];
+              commentReportsPaginationRef.current.hasMore = commentSnapshot.docs.length === ITEMS_PER_PAGE;
+            }
+            
+            // Check if any collection has more
+            const anyHasMore = postReportsPaginationRef.current.hasMore || 
+                              messageReportsPaginationRef.current.hasMore || 
+                              reportReportsPaginationRef.current.hasMore || 
+                              commentReportsPaginationRef.current.hasMore;
+            setHasMoreReports(anyHasMore);
             
             // Merge and sort
             const allReports = [...postReports, ...messageReports, ...reportReports, ...commentReports].sort((a, b) => 
@@ -1209,6 +1387,29 @@ const UserReports = () => {
             ))}
           </div>
         )}
+        
+        {/* Pagination Controls - Only show when not searching */}
+        {activeTab === 'pending' && groupedContent.length > 0 && hasMoreReports && (
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={loadMoreReports}
+              disabled={loadingMoreReports}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+            >
+              {loadingMoreReports ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <span>Load More Reports</span>
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
                       </>
                     )}
 
@@ -1477,6 +1678,29 @@ const UserReports = () => {
           </tbody>
         </table>
             </div>
+            
+            {/* Pagination Controls for Archive Tab */}
+            {activeTab === 'archive' && filteredArchivedContent.length > 0 && hasMoreReports && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={loadMoreReports}
+                  disabled={loadingMoreReports}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                >
+                  {loadingMoreReports ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Load More Reports</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -21,7 +21,7 @@ import { Image as RNImage } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, where, doc, getDoc, deleteDoc, writeBatch, getDocs, startAfter } from 'firebase/firestore';
 import { FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -86,6 +86,10 @@ const HomeTabScreen = ({ navigation }) => {
   const [friends, setFriends] = useState([]); // Array of friend IDs
   const [announcements, setAnnouncements] = useState([]); // Announcements from admin
   const seenNotificationIds = useRef(new Set()); // Track seen notification IDs to avoid duplicate alerts
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const lastPostDoc = useRef(null);
+  const POSTS_PER_PAGE = 20;
 
   const handleScroll = (event) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
@@ -435,24 +439,42 @@ const HomeTabScreen = ({ navigation }) => {
     return () => unsubscribe();
   }, [user?.uid]);
 
-  // Fetch posts from Firestore
-  useEffect(() => {
-    if (!user?.uid) return;
+  // Fetch posts from Firestore with pagination
+  const loadPosts = async (isInitial = false) => {
+    if (!user?.uid || loadingMorePosts) return;
 
-    const postsQuery = query(
-      collection(db, 'posts'),
-      orderBy('createdAt', 'desc'),
-      limit(50)
-    );
+    try {
+      setLoadingMorePosts(true);
+      
+      let postsQuery;
+      if (isInitial || !lastPostDoc.current) {
+        postsQuery = query(
+          collection(db, 'posts'),
+          orderBy('createdAt', 'desc'),
+          limit(POSTS_PER_PAGE)
+        );
+      } else {
+        postsQuery = query(
+          collection(db, 'posts'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastPostDoc.current),
+          limit(POSTS_PER_PAGE)
+        );
+      }
 
-    const unsubscribe = onSnapshot(
-      postsQuery,
-      (snapshot) => {
-        const postsData = snapshot.docs
-          .map(doc => ({
+      const snapshot = await getDocs(postsQuery);
+      
+      if (snapshot.empty) {
+        setHasMorePosts(false);
+        setLoadingMorePosts(false);
+        return;
+      }
+
+      const postsData = snapshot.docs
+        .map(doc => ({
           id: doc.id,
           ...doc.data()
-          }))
+        }))
         .filter(post => {
           // IMPORTANT: Posts marked as deleted by admins should be hidden from everyone EXCEPT the owner
           // The owner should see a notification that their post was deleted
@@ -470,15 +492,37 @@ const HomeTabScreen = ({ navigation }) => {
           
           return isOwnPost || isFriendPost;
         });
-        setPosts(postsData);
-      },
-      (error) => {
-        // Error handled silently
-      }
-    );
 
-    return () => unsubscribe();
+      if (isInitial) {
+        setPosts(postsData);
+      } else {
+        setPosts(prev => [...prev, ...postsData]);
+      }
+
+      // Update last document for pagination
+      lastPostDoc.current = snapshot.docs[snapshot.docs.length - 1];
+      setHasMorePosts(snapshot.docs.length === POSTS_PER_PAGE);
+    } catch (error) {
+      console.error('Error loading posts:', error);
+    } finally {
+      setLoadingMorePosts(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    if (!user?.uid || friends.length === 0) return;
+    lastPostDoc.current = null;
+    setHasMorePosts(true);
+    loadPosts(true);
   }, [user?.uid, friends]);
+
+  // Load more posts when scrolling near bottom
+  const handleLoadMore = () => {
+    if (!loadingMorePosts && hasMorePosts && user?.uid) {
+      loadPosts(false);
+    }
+  };
 
   // Fetch announcements
   useEffect(() => {
@@ -1590,7 +1634,15 @@ const HomeTabScreen = ({ navigation }) => {
         ref={scrollViewRef}
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
+        onScroll={(event) => {
+          handleScroll(event);
+          // Load more when near bottom
+          const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+          const paddingToBottom = 400;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+            handleLoadMore();
+          }
+        }}
         scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
@@ -1695,11 +1747,26 @@ const HomeTabScreen = ({ navigation }) => {
           </View>
         ))}
         
-        {combinedFeed.length === 0 && (
+        {combinedFeed.length === 0 && !loading && (
           <View style={{ padding: 40, alignItems: 'center' }}>
             <Text style={{ fontSize: 16, color: '#65676b', textAlign: 'center' }}>
               No posts yet. Be the first to share something!
             </Text>
+          </View>
+        )}
+
+        {/* Loading more indicator */}
+        {loadingMorePosts && (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#1877f2" />
+            <Text style={{ marginTop: 8, fontSize: 14, color: '#65676b' }}>Loading more posts...</Text>
+          </View>
+        )}
+
+        {/* End of feed indicator */}
+        {!hasMorePosts && combinedFeed.length > 0 && (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <Text style={{ fontSize: 14, color: '#65676b' }}>No more posts to load</Text>
           </View>
         )}
 

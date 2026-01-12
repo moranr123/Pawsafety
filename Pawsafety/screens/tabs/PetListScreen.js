@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,10 @@ const PetListScreen = ({ navigation }) => {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedPet, setSelectedPet] = useState(null);
   const [detailsVisible, setDetailsVisible] = useState(false);
+  const [loadingMorePets, setLoadingMorePets] = useState(false);
+  const [hasMorePets, setHasMorePets] = useState(true);
+  const lastPetDoc = useRef(null);
+  const PETS_PER_PAGE = 20;
   const { colors: COLORS } = useTheme();
 
   const styles = useMemo(() => StyleSheet.create({
@@ -464,65 +468,111 @@ const PetListScreen = ({ navigation }) => {
     },
   }), [COLORS]);
 
-  useEffect(() => {
-    // Query all pets without requiring createdAt field for ordering
-    // Optimized: Add query with orderBy and limit
-    const q = query(
-      collection(db, 'pets'),
-      orderBy('createdAt', 'desc'),
-      limit(100) // Limit to most recent 100 pets
-    );
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-         const petsData = snapshot.docs.map(doc => ({
-           id: doc.id,
-           ...doc.data()
-         }));
-         
-         // Process pets data
-         
-         // Filter out pets that are not properly registered and only show approved pets
-         const registeredPets = petsData.filter(pet => {
-           const isValid = pet.petName && 
-                  pet.petName.trim() !== '' && 
-                  pet.petType && 
-                  (pet.ownerName || pet.ownerFullName) && 
-                  (pet.ownerName?.trim() !== '' || pet.ownerFullName?.trim() !== '') &&
-                  pet.registrationStatus === 'registered'; // Only show approved pets
-           
-           if (!isValid) {
-             // Pet filtered out
-           }
-           
-           return isValid;
-         });
-         
-         // Sort pets manually by createdAt, registeredDate, or transferredAt
-         const sortedPets = registeredPets.sort((a, b) => {
-           const getTimestamp = (pet) => {
-             if (pet.createdAt?.toDate) return pet.createdAt.toDate().getTime();
-             if (pet.transferredAt?.toDate) return pet.transferredAt.toDate().getTime();
-             if (pet.registeredDate) return new Date(pet.registeredDate).getTime();
-             return 0;
-           };
-           return getTimestamp(b) - getTimestamp(a); // Descending order (newest first)
-         });
-         
-         // Pets processed
-         
-         setPets(sortedPets);
-         setLastUpdated(new Date());
-         setLoading(false);
-       },
-      (error) => {
-        // Error handled silently
-        setLoading(false);
-      }
-    );
+  // Load pets with pagination
+  const loadPets = async (isInitial = false) => {
+    if (loadingMorePets && !isInitial) return;
 
-    return () => unsubscribe();
+    try {
+      if (isInitial) {
+        setLoading(true);
+        lastPetDoc.current = null;
+        setHasMorePets(true);
+      } else {
+        setLoadingMorePets(true);
+      }
+
+      let petsQuery;
+      if (isInitial || !lastPetDoc.current) {
+        petsQuery = query(
+          collection(db, 'pets'),
+          orderBy('createdAt', 'desc'),
+          limit(PETS_PER_PAGE)
+        );
+      } else {
+        petsQuery = query(
+          collection(db, 'pets'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastPetDoc.current),
+          limit(PETS_PER_PAGE)
+        );
+      }
+
+      const snapshot = await getDocs(petsQuery);
+      
+      if (snapshot.empty) {
+        setHasMorePets(false);
+        if (isInitial) {
+          setPets([]);
+        }
+        setLoading(false);
+        setLoadingMorePets(false);
+        setLastUpdated(new Date());
+        return;
+      }
+
+      const petsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Filter out pets that are not properly registered and only show approved pets
+      const registeredPets = petsData.filter(pet => {
+        const isValid = pet.petName && 
+               pet.petName.trim() !== '' && 
+               pet.petType && 
+               (pet.ownerName || pet.ownerFullName) && 
+               (pet.ownerName?.trim() !== '' || pet.ownerFullName?.trim() !== '') &&
+               pet.registrationStatus === 'registered'; // Only show approved pets
+        
+        return isValid;
+      });
+      
+      // Sort pets manually by createdAt, registeredDate, or transferredAt
+      const sortedPets = registeredPets.sort((a, b) => {
+        const getTimestamp = (pet) => {
+          if (pet.createdAt?.toDate) return pet.createdAt.toDate().getTime();
+          if (pet.transferredAt?.toDate) return pet.transferredAt.toDate().getTime();
+          if (pet.registeredDate) return new Date(pet.registeredDate).getTime();
+          return 0;
+        };
+        return getTimestamp(b) - getTimestamp(a); // Descending order (newest first)
+      });
+
+      if (isInitial) {
+        setPets(sortedPets);
+      } else {
+        setPets(prev => [...prev, ...sortedPets]);
+      }
+
+      lastPetDoc.current = snapshot.docs[snapshot.docs.length - 1];
+      setHasMorePets(snapshot.docs.length === PETS_PER_PAGE);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error loading pets:', error);
+    } finally {
+      setLoading(false);
+      setLoadingMorePets(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    loadPets(true);
   }, []);
+
+  // Load more pets when scrolling near bottom
+  const handleLoadMorePets = () => {
+    if (!loadingMorePets && hasMorePets && !loading) {
+      loadPets(false);
+    }
+  };
+
+  // Load more pets when scrolling near bottom
+  const handleLoadMorePets = () => {
+    if (!loadingMorePets && hasMorePets) {
+      loadPets(false);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);

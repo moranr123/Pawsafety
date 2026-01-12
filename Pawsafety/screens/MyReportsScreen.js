@@ -16,7 +16,7 @@ import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { db, auth } from '../services/firebase';
-import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -27,27 +27,88 @@ const MyReportsScreen = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'archived'
+  const [loadingMoreReports, setLoadingMoreReports] = useState(false);
+  const [hasMoreReports, setHasMoreReports] = useState(true);
+  const lastReportDoc = useRef(null);
+  const REPORTS_PER_PAGE = 20;
 
+  // Load reports with pagination
+  const loadReports = async (isInitial = false) => {
+    if (!auth.currentUser || (loadingMoreReports && !isInitial)) return;
+
+    try {
+      if (isInitial) {
+        lastReportDoc.current = null;
+        setHasMoreReports(true);
+      } else {
+        setLoadingMoreReports(true);
+      }
+
+      let reportsQuery;
+      if (isInitial || !lastReportDoc.current) {
+        reportsQuery = query(
+          collection(db, 'stray_reports'),
+          where('userId', '==', auth.currentUser.uid),
+          orderBy('reportTime', 'desc'),
+          limit(REPORTS_PER_PAGE)
+        );
+      } else {
+        reportsQuery = query(
+          collection(db, 'stray_reports'),
+          where('userId', '==', auth.currentUser.uid),
+          orderBy('reportTime', 'desc'),
+          startAfter(lastReportDoc.current),
+          limit(REPORTS_PER_PAGE)
+        );
+      }
+
+      const snapshot = await getDocs(reportsQuery);
+      
+      if (snapshot.empty) {
+        setHasMoreReports(false);
+        if (isInitial) {
+          setUserReports([]);
+        }
+        setLoadingMoreReports(false);
+        return;
+      }
+
+      const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (isInitial) {
+        setUserReports(reports);
+      } else {
+        setUserReports(prev => [...prev, ...reports]);
+      }
+
+      lastReportDoc.current = snapshot.docs[snapshot.docs.length - 1];
+      setHasMoreReports(snapshot.docs.length === REPORTS_PER_PAGE);
+    } catch (error) {
+      console.error('Error loading reports:', error);
+    } finally {
+      setLoadingMoreReports(false);
+    }
+  };
+
+  // Initial load
   useEffect(() => {
     if (auth.currentUser) {
-      // Optimized: Add orderBy server-side and limit to reduce reads
-      const q = query(
-        collection(db, 'stray_reports'),
-        where('userId', '==', auth.currentUser.uid),
-        orderBy('reportTime', 'desc'), // Sort server-side instead of client-side
-        limit(100) // Add reasonable limit
-      );
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setUserReports(reports);
-      });
-      return unsubscribe;
+      loadReports(true);
     }
-  }, []);
+  }, [auth.currentUser]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    lastReportDoc.current = null;
+    setHasMoreReports(true);
+    loadReports(true).finally(() => setRefreshing(false));
+  };
+
+  // Load more reports when scrolling near bottom
+  const handleLoadMoreReports = () => {
+    if (!loadingMoreReports && hasMoreReports && auth.currentUser) {
+      loadReports(false);
+    }
   };
 
   const handleDeleteReport = (reportId) => {
@@ -649,8 +710,16 @@ const MyReportsScreen = ({ navigation }) => {
       </View>
 
       <ScrollView 
-        style={styles.scrollView} 
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        onScroll={(event) => {
+          const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+          const paddingToBottom = 400;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+            handleLoadMoreReports();
+          }
+        }}
+        scrollEventThrottle={400}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -682,9 +751,26 @@ const MyReportsScreen = ({ navigation }) => {
             )}
           </View>
         ) : (
-          getFilteredReports().map((report) => (
-            <ReportCard key={report.id} report={report} />
-          ))
+          <>
+            {getFilteredReports().map((report) => (
+              <ReportCard key={report.id} report={report} />
+            ))}
+            
+            {/* Loading more indicator */}
+            {loadingMoreReports && (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={COLORS.darkPurple} />
+                <Text style={{ marginTop: 8, fontSize: 14, color: COLORS.secondaryText }}>Loading more reports...</Text>
+              </View>
+            )}
+
+            {/* End of list indicator */}
+            {!hasMoreReports && getFilteredReports().length > 0 && (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, color: COLORS.secondaryText }}>No more reports to load</Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 

@@ -15,7 +15,9 @@ import {
   writeBatch,
   getDocs,
   getDoc,
-  Timestamp
+  Timestamp,
+  limit,
+  startAfter
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -46,11 +48,14 @@ import {
   MessageSquare,
   XCircle,
   Edit,
-  Trash2
+  Trash2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 import LogoBlue from '../assets/LogoBlue.png';
 import UserReports from './UserReports';
+import AllPostsScreen from './AllPostsScreen';
 
 // eslint-disable-next-line no-unused-vars
 const TabButton = React.memo(({ active, label, icon: Icon, onClick, badge = 0 }) => (
@@ -112,6 +117,13 @@ const AgriculturalDashboard = () => {
   const [deactivatedUsers, setDeactivatedUsers] = useState([]);
   const [archivedUsers, setArchivedUsers] = useState([]);
   const [showArchivedUsers, setShowArchivedUsers] = useState(false);
+  
+  // Pagination state
+  const petsPaginationRef = useRef({ lastDoc: null, page: 1, hasMore: true });
+  const usersPaginationRef = useRef({ lastDoc: null, page: 1, hasMore: true });
+  const [loadingMorePets, setLoadingMorePets] = useState(false);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
+  const ITEMS_PER_PAGE = 25;
   const [selectedPet, setSelectedPet] = useState(null);
   const [showPetModal, setShowPetModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -268,12 +280,87 @@ const AgriculturalDashboard = () => {
     return `M ${firstPoint} L ${points.slice(1).join(' L ')} L ${lastPoint.split(',')[0]},180 L 20,180 Z`;
   }, []);
 
-  // Firebase data listeners
+  // Load more pets function
+  const loadMorePets = useCallback(async () => {
+    if (loadingMorePets || !petsPaginationRef.current.hasMore) return;
+    
+    try {
+      setLoadingMorePets(true);
+      const petsQuery = query(
+        collection(db, 'pets'),
+        orderBy('createdAt', 'desc'),
+        startAfter(petsPaginationRef.current.lastDoc),
+        limit(ITEMS_PER_PAGE)
+      );
+      
+      const snapshot = await getDocs(petsQuery);
+      if (snapshot.empty) {
+        petsPaginationRef.current.hasMore = false;
+        setLoadingMorePets(false);
+        return;
+      }
+      
+      const newPets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPets(prev => [...prev, ...newPets]);
+      petsPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      petsPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+      
+      // Update derived lists
+      const allPets = [...pets, ...newPets];
+      const registered = allPets
+        .filter(pet => pet.registrationStatus === 'registered' && (!pet.archived || pet.status === 'deceased'))
+        .sort((a, b) => {
+          const dateA = a.registeredAt?.toDate ? a.registeredAt.toDate() : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0));
+          const dateB = b.registeredAt?.toDate ? b.registeredAt.toDate() : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0));
+          return dateB.getTime() - dateA.getTime();
+        });
+      const pending = allPets.filter(pet => 
+        (pet.registrationStatus === 'pending' || (!pet.registrationStatus && pet.petName && pet.ownerFullName)) &&
+        !pet.archived
+      );
+      const archived = allPets
+        .filter(pet => (pet.archived === true && pet.registrationStatus === 'rejected') || pet.registrationStatus === 'rejected')
+        .sort((a, b) => {
+          const dateA = a.rejectedAt?.toDate ? a.rejectedAt.toDate() : (a.archivedAt?.toDate ? a.archivedAt.toDate() : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0)));
+          const dateB = b.rejectedAt?.toDate ? b.rejectedAt.toDate() : (b.archivedAt?.toDate ? b.archivedAt.toDate() : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0)));
+          return dateB.getTime() - dateA.getTime();
+        });
+      const archivedRegistered = allPets
+        .filter(pet => pet.registrationStatus === 'registered' && pet.archived === true)
+        .sort((a, b) => {
+          const dateA = a.archivedAt?.toDate ? a.archivedAt.toDate() : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0));
+          const dateB = b.archivedAt?.toDate ? b.archivedAt.toDate() : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0));
+          return dateB.getTime() - dateA.getTime();
+        });
+      
+      setRegisteredPets(registered);
+      setPendingPets(pending);
+      setArchivedPets(archived);
+      setArchivedRegisteredPets(archivedRegistered);
+    } catch (error) {
+      console.error('Error loading more pets:', error);
+      toast.error('Failed to load more pets');
+    } finally {
+      setLoadingMorePets(false);
+    }
+  }, [loadingMorePets, pets]);
+
+  // Firebase data listeners - Limited initial load
   useEffect(() => {
-    // Listen to pets collection
-    const petsQuery = query(collection(db, 'pets'), orderBy('createdAt', 'desc'));
+    // Listen to pets collection - limited to first page
+    const petsQuery = query(
+      collection(db, 'pets'),
+      orderBy('createdAt', 'desc'),
+      limit(ITEMS_PER_PAGE)
+    );
     const unsubscribePets = onSnapshot(petsQuery, (snapshot) => {
       const allPets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Initialize pagination ref
+      if (!petsPaginationRef.current.lastDoc) {
+        petsPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        petsPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+      }
       
       snapshot.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
@@ -394,8 +481,18 @@ const AgriculturalDashboard = () => {
       setChartData(generateChartData(registered, selectedYear));
     });
 
-    const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+    // Listen to users collection - limited to first page
+    const usersQuery = query(
+      collection(db, 'users'),
+      orderBy('createdAt', 'desc'),
+      limit(ITEMS_PER_PAGE)
+    );
     const unsubscribeUsers = onSnapshot(usersQuery, async (snapshot) => {
+      // Initialize pagination ref
+      if (!usersPaginationRef.current.lastDoc) {
+        usersPaginationRef.current.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        usersPaginationRef.current.hasMore = snapshot.docs.length === ITEMS_PER_PAGE;
+      }
       const userMap = new Map();
       
       snapshot.docs.forEach(doc => {
@@ -2321,6 +2418,22 @@ const AgriculturalDashboard = () => {
                   User Reports
                 </div>
               </button>
+
+              <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">Content Management</div>
+
+              <button
+                onClick={() => handleTabChange('posts')}
+                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'posts'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <div className="flex items-center">
+                  <FileText className="h-5 w-5 mr-3" />
+                  All Posts
+                </div>
+              </button>
               
             </nav>
           </div>
@@ -2455,6 +2568,17 @@ const AgriculturalDashboard = () => {
             >
               <Flag className="h-5 w-5" />
               {(sidebarOpen || sidebarHovered) && <span className="ml-3">User Reports</span>}
+            </button>
+            <button
+              onClick={() => handleTabChange('posts')}
+              className={`w-full p-3 rounded-xl transition-all duration-300 ${
+                activeTab === 'posts'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                  : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
+              } flex items-center`}
+            >
+              <FileText className="h-5 w-5" />
+              {(sidebarOpen || sidebarHovered) && <span className="ml-3">All Posts</span>}
             </button>
 
             {/* Notifications quick button removed; now at top */}
@@ -3120,6 +3244,29 @@ const AgriculturalDashboard = () => {
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination Controls for Pending Pets - Desktop */}
+            {!searchTerm && filterType === 'all' && petsPaginationRef.current.hasMore && (
+              <div className="mt-4 flex items-center justify-center">
+                <button
+                  onClick={loadMorePets}
+                  disabled={loadingMorePets}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                >
+                  {loadingMorePets ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Load More</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -3387,6 +3534,29 @@ const AgriculturalDashboard = () => {
               </table>
           </div>
 
+            {/* Pagination Controls - Only show when not searching/filtering */}
+            {!searchTerm && filterType === 'all' && filterGender === 'all' && filterBreed === 'all' && filterDate === 'all' && petsPaginationRef.current.hasMore && (
+              <div className="mt-4 flex items-center justify-center">
+                <button
+                  onClick={loadMorePets}
+                  disabled={loadingMorePets}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                >
+                  {loadingMorePets ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Load More Pets</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* Summary Stats */}
             {registeredPets.length > 0 && (
               <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -3430,6 +3600,10 @@ const AgriculturalDashboard = () => {
 
         {!isLoading && activeTab === 'reports' && (
           <UserReports />
+        )}
+
+        {!isLoading && activeTab === 'posts' && (
+          <AllPostsScreen currentUser={currentUser} logActivity={logActivity} />
         )}
 
         {!isLoading && activeTab === 'users' && (
