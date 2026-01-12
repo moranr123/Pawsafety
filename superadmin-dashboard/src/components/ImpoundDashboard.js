@@ -27,7 +27,8 @@ import {
   ShieldCheck,
   List,
   BarChart3,
-  FileText
+  FileText,
+  Package
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 
@@ -524,6 +525,8 @@ const ImpoundDashboard = () => {
   const [selectedYearStray, setSelectedYearStray] = useState(new Date().getFullYear());
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [adoptionExpanded, setAdoptionExpanded] = useState(true);
+  const [straysInventoryPage, setStraysInventoryPage] = useState(1);
+  const [straysInventoryItemsPerPage] = useState(12);
   
   // Database totals for insights
   const [dbTotals, setDbTotals] = useState({
@@ -1948,6 +1951,24 @@ const ImpoundDashboard = () => {
                   </span>
                 )}
               </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('straysInventory');
+                  setStraysInventoryPage(1);
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-all ${
+                  activeTab === 'straysInventory'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-l-4 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <div className="flex items-center">
+                  <Package className="h-5 w-5 mr-3" />
+                  Strays Inventory
+                </div>
+              </button>
             </nav>
           </div>
         </>
@@ -2140,7 +2161,7 @@ const ImpoundDashboard = () => {
               <button
                 onClick={() => setAdoptionExpanded(!adoptionExpanded)}
                 className={`w-full p-3 rounded-xl transition-all duration-300 ${
-                  ['adoption', 'adoptionList', 'applications'].includes(activeTab)
+                  ['adoption', 'adoptionList', 'applications', 'straysInventory'].includes(activeTab)
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                     : 'bg-gradient-to-br from-blue-50 to-purple-100 text-blue-700 border border-blue-200 hover:shadow'
                 } flex items-center justify-between`}
@@ -2211,6 +2232,22 @@ const ImpoundDashboard = () => {
                         {(adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length > 99 ? '99+' : (adoptionApplications || []).filter(a => (a.status || 'Submitted') === 'Submitted').length}
                       </span>
                     )}
+                  </button>
+
+                  {/* Strays Inventory */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('straysInventory');
+                      setStraysInventoryPage(1);
+                    }}
+                    className={`w-full p-2.5 rounded-lg transition-all duration-300 ${
+                      activeTab === 'straysInventory'
+                        ? 'bg-slate-700 text-white shadow-md'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    } flex items-center text-sm`}
+                  >
+                    <Package className="h-4 w-4" />
+                    <span className="ml-2 flex-1 text-left">Strays Inventory</span>
                   </button>
                 </div>
               )}
@@ -2964,6 +3001,240 @@ const ImpoundDashboard = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'straysInventory' && (
+          <div className="bg-gradient-to-b from-blue-50 to-indigo-50 shadow-2xl rounded-xl p-4 sm:p-6 border border-blue-200">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 flex items-center">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+              </div>
+              Strays Inventory
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">Complete inventory of every stray that has been put in the impound facility</p>
+            
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Strays</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{allStrayReports.length}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">In Progress</p>
+                <p className="text-xl sm:text-2xl font-bold text-orange-600">
+                  {allStrayReports.filter(r => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress').length}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Resolved</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600">
+                  {allStrayReports.filter(r => (r.status || '').toLowerCase() === 'resolved').length}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Completed</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-600">
+                  {allStrayReports.filter(r => (r.status || '').toLowerCase() === 'completed').length}
+                </p>
+              </div>
+            </div>
+
+            {/* Inventory Grid */}
+            {(() => {
+              const totalPages = Math.ceil(allStrayReports.length / straysInventoryItemsPerPage);
+              const startIndex = (straysInventoryPage - 1) * straysInventoryItemsPerPage;
+              const endIndex = startIndex + straysInventoryItemsPerPage;
+              const currentPageReports = allStrayReports.slice(startIndex, endIndex);
+              
+              return (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                    {currentPageReports.map((r) => (
+                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                  {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
+                    <ImageWithLoading
+                      src={r.imageUrl}
+                      alt="Stray Pet"
+                      className="w-full h-40 object-cover"
+                      imageId={`inventory-${r.id}`}
+                      fallbackContent={
+                        <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                          <span className="text-slate-400 text-sm">No image</span>
+                        </div>
+                      }
+                    />
+                  ) : (
+                    <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                      <span className="text-slate-400 text-sm">No image</span>
+                    </div>
+                  )}
+                  <div className="p-3 sm:p-4 flex-1 flex flex-col">
+                    {/* Status Badge */}
+                    <div className="mb-2">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        (r.status || '').toLowerCase() === 'resolved' || (r.status || '').toLowerCase() === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'
+                          ? 'bg-orange-100 text-orange-800'
+                          : (r.status || '').toLowerCase() === 'declined'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {r.status || 'Unknown'}
+                      </span>
+                    </div>
+                    
+                    <p className="text-xs sm:text-sm font-medium text-gray-900 mb-2 line-clamp-3">
+                      {r.description ? r.description.substring(0, 100) + (r.description.length > 100 ? '...' : '') : 'No description'}
+                    </p>
+                    
+                    {/* Report Time */}
+                    {r.reportTime && (
+                      <div className="flex items-center mb-1.5 sm:mb-2">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-xs sm:text-sm text-gray-600">
+                          {r.reportTime?.seconds ? new Date(r.reportTime.seconds * 1000).toLocaleDateString() : 'N/A'}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Location */}
+                    <div className="flex items-center mb-1.5 sm:mb-2">
+                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <button 
+                        onClick={() => openGoogleMaps(r.location, r.locationName)}
+                        className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline truncate cursor-pointer text-left"
+                        title="Click to open in Google Maps"
+                      >
+                        {r.locationName || 'N/A'}
+                      </button>
+                    </div>
+                    
+                    {/* Contact Number */}
+                    {r.contactNumber && (
+                      <div className="flex items-center mb-2 sm:mb-3">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <p className="text-xs sm:text-sm text-gray-600 truncate">{r.contactNumber}</p>
+                      </div>
+                    )}
+                    
+                    {/* Processed By */}
+                    {r.processedBy && (
+                      <div className="flex items-center mb-2 sm:mb-3">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <p className="text-xs sm:text-sm text-gray-600 truncate">Processed by: {r.processedBy}</p>
+                      </div>
+                    )}
+                    
+                    {/* Actions */}
+                    <div className="grid grid-cols-1 gap-1.5 sm:gap-2 w-full mt-auto">
+                      <button 
+                        onClick={() => openReportDetails(r)} 
+                        className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+                    {allStrayReports.length === 0 && (
+                      <div className="col-span-full text-center text-sm text-blue-600 py-8">
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <Package className="w-8 h-8 text-blue-500" />
+                        </div>
+                        No strays in inventory at the moment
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {allStrayReports.length > 0 && totalPages > 1 && (
+                    <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="text-sm text-gray-600">
+                        Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                        <span className="font-medium">{Math.min(endIndex, allStrayReports.length)}</span> of{' '}
+                        <span className="font-medium">{allStrayReports.length}</span> strays
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* Previous Button */}
+                        <button
+                          onClick={() => setStraysInventoryPage(prev => Math.max(1, prev - 1))}
+                          disabled={straysInventoryPage === 1}
+                          className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                            straysInventoryPage === 1
+                              ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900'
+                          }`}
+                        >
+                          Previous
+                        </button>
+
+                        {/* Page Numbers */}
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                            // Show first page, last page, current page, and pages around current
+                            if (
+                              pageNum === 1 ||
+                              pageNum === totalPages ||
+                              (pageNum >= straysInventoryPage - 1 && pageNum <= straysInventoryPage + 1)
+                            ) {
+                              return (
+                                <button
+                                  key={pageNum}
+                                  onClick={() => setStraysInventoryPage(pageNum)}
+                                  className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                                    straysInventoryPage === pageNum
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900'
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            } else if (
+                              pageNum === straysInventoryPage - 2 ||
+                              pageNum === straysInventoryPage + 2
+                            ) {
+                              return (
+                                <span key={pageNum} className="px-2 text-gray-500">
+                                  ...
+                                </span>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+
+                        {/* Next Button */}
+                        <button
+                          onClick={() => setStraysInventoryPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={straysInventoryPage === totalPages}
+                          className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                            straysInventoryPage === totalPages
+                              ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900'
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
