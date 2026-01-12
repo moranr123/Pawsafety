@@ -28,7 +28,11 @@ import {
   List,
   BarChart3,
   FileText,
-  Package
+  Package,
+  Plus,
+  Edit,
+  Trash2,
+  ArrowRight
 } from 'lucide-react';
 import LogoWhite from '../assets/Logowhite.png';
 
@@ -527,6 +531,20 @@ const ImpoundDashboard = () => {
   const [adoptionExpanded, setAdoptionExpanded] = useState(true);
   const [straysInventoryPage, setStraysInventoryPage] = useState(1);
   const [straysInventoryItemsPerPage] = useState(12);
+  const [impoundStrays, setImpoundStrays] = useState([]);
+  const [showStrayFormModal, setShowStrayFormModal] = useState(false);
+  const [editingStray, setEditingStray] = useState(null);
+  const [submittingStray, setSubmittingStray] = useState(false);
+  const [strayForm, setStrayForm] = useState({
+    petName: '',
+    petType: '',
+    breed: '',
+    gender: '',
+    imageFile: null,
+    capturedDate: new Date().toISOString().split('T')[0],
+    daysAtImpound: '',
+    showBreedDropdown: false
+  });
   
   // Database totals for insights
   const [dbTotals, setDbTotals] = useState({
@@ -801,6 +819,29 @@ const ImpoundDashboard = () => {
     });
     return unsubscribe;
   }, []);
+
+  // Fetch impound strays
+  useEffect(() => {
+    const qStrays = query(collection(db, 'impound_strays'), orderBy('capturedDate', 'desc'));
+    const unsubscribe = onSnapshot(qStrays, (snap) => {
+      setImpoundStrays(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return unsubscribe;
+  }, []);
+
+  // Handle clicking outside breed dropdown in stray form
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (strayForm.showBreedDropdown && !event.target.closest('.breed-dropdown-container')) {
+        setStrayForm((p) => ({ ...p, showBreedDropdown: false }));
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [strayForm.showBreedDropdown]);
 
   useEffect(() => {
     const qAdoptedPets = query(
@@ -1569,6 +1610,168 @@ const ImpoundDashboard = () => {
     } finally {
       setSubmittingAdoption(false);
     }
+  };
+
+  // Impound Strays Handlers
+  const handleStrayFormSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!strayForm.petName || !strayForm.petType || !strayForm.breed || !strayForm.gender) {
+      toast.error('Please fill in all required fields (Pet Name, Pet Type, Breed, Gender)');
+      return;
+    }
+    
+    if (!strayForm.imageFile && !editingStray) {
+      toast.error('Please upload a pet image');
+      return;
+    }
+    
+    setSubmittingStray(true);
+    try {
+      const storage = getStorage();
+      let imageUrl = editingStray?.imageUrl || '';
+      
+      if (strayForm.imageFile) {
+        const file = strayForm.imageFile;
+        const fileRef = ref(storage, `impound_strays/${editingStray?.id || Date.now()}_${file.name}`);
+        await uploadBytes(fileRef, file);
+        imageUrl = await getDownloadURL(fileRef);
+      }
+      
+      const strayData = {
+        petName: strayForm.petName,
+        petType: strayForm.petType,
+        breed: strayForm.breed,
+        gender: strayForm.gender,
+        imageUrl,
+        capturedDate: strayForm.capturedDate,
+        daysAtImpound: strayForm.daysAtImpound || '',
+        createdAt: editingStray ? editingStray.createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: currentUser?.email || 'impound_admin'
+      };
+      
+      if (editingStray) {
+        await updateDoc(doc(db, 'impound_strays', editingStray.id), strayData);
+        toast.success('Stray updated successfully');
+      } else {
+        await addDoc(collection(db, 'impound_strays'), strayData);
+        toast.success('Captured stray added successfully');
+      }
+      
+      setShowStrayFormModal(false);
+      setEditingStray(null);
+      setStrayForm({
+        petName: '',
+        petType: '',
+        breed: '',
+        gender: '',
+        description: '',
+        imageFile: null,
+        capturedDate: new Date().toISOString().split('T')[0],
+        location: '',
+        contactNumber: '',
+        vaccinated: false,
+        vaccinatedDate: '',
+        dewormed: false,
+        dewormedDate: '',
+        antiRabies: false,
+        antiRabiesDate: '',
+        daysAtImpound: '',
+        showBreedDropdown: false
+      });
+    } catch (error) {
+      console.error('Error saving stray:', error);
+      toast.error('Failed to save stray: ' + (error.message || 'Unknown error'));
+    } finally {
+      setSubmittingStray(false);
+    }
+  };
+  
+  const handleEditStray = (stray) => {
+    setEditingStray(stray);
+    setStrayForm({
+      petName: stray.petName || '',
+      petType: stray.petType || '',
+      breed: stray.breed || '',
+      gender: stray.gender || '',
+      imageFile: null,
+      capturedDate: stray.capturedDate || new Date().toISOString().split('T')[0],
+      daysAtImpound: stray.daysAtImpound || '',
+      showBreedDropdown: false
+    });
+    setShowStrayFormModal(true);
+  };
+  
+  const handleDeleteStray = async (stray) => {
+    if (!window.confirm(`Are you sure you want to delete ${stray.petName || 'this stray'}?`)) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'impound_strays', stray.id));
+      toast.success('Stray deleted successfully');
+    } catch (error) {
+      console.error('Error deleting stray:', error);
+      toast.error('Failed to delete stray');
+    }
+  };
+  
+  const handlePutForAdoption = async (stray) => {
+    if (!window.confirm(`Put ${stray.petName || 'this stray'} up for adoption?`)) {
+      return;
+    }
+    
+    setSubmittingStray(true);
+    try {
+      const storage = getStorage();
+      let imageUrl = stray.imageUrl || '';
+      
+      // Copy image if needed
+      if (imageUrl && !imageUrl.startsWith('http')) {
+        // If image is not a URL, we'll use the existing one
+        imageUrl = stray.imageUrl;
+      }
+      
+      // Add to adoptable_pets collection
+      await addDoc(collection(db, 'adoptable_pets'), {
+        petName: stray.petName,
+        petType: stray.petType,
+        breed: stray.breed,
+        gender: stray.gender,
+        imageUrl,
+        daysAtImpound: stray.daysAtImpound || '',
+        readyForAdoption: true,
+        createdAt: serverTimestamp(),
+        createdBy: currentUser?.email || 'impound_admin',
+        transferredFrom: 'impound_strays',
+        originalStrayId: stray.id
+      });
+      
+      // Delete from impound_strays
+      await deleteDoc(doc(db, 'impound_strays', stray.id));
+      
+      toast.success(`${stray.petName || 'Stray'} is now available for adoption`);
+    } catch (error) {
+      console.error('Error putting stray for adoption:', error);
+      toast.error('Failed to put stray for adoption');
+    } finally {
+      setSubmittingStray(false);
+    }
+  };
+  
+  const openStrayFormModal = () => {
+    setEditingStray(null);
+    setStrayForm({
+      petName: '',
+      petType: '',
+      breed: '',
+      gender: '',
+      imageFile: null,
+      capturedDate: new Date().toISOString().split('T')[0],
+      daysAtImpound: '',
+      showBreedDropdown: false
+    });
+    setShowStrayFormModal(true);
   };
 
   // Fetch all registered users from users collection
@@ -3006,165 +3209,131 @@ const ImpoundDashboard = () => {
 
         {activeTab === 'straysInventory' && (
           <div className="bg-gradient-to-b from-blue-50 to-indigo-50 shadow-2xl rounded-xl p-4 sm:p-6 border border-blue-200">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 flex items-center">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
-                <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
+              <div className="mb-4 sm:mb-0">
+                <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-2 flex items-center">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                    <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  </div>
+                  Strays Inventory
+                </h2>
+                <p className="text-sm text-gray-600 ml-11 sm:ml-14">Recently captured stray pets in the impound facility</p>
               </div>
-              Strays Inventory
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">Complete inventory of every stray that has been put in the impound facility</p>
-            
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Strays</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">{allStrayReports.length}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">In Progress</p>
-                <p className="text-xl sm:text-2xl font-bold text-orange-600">
-                  {allStrayReports.filter(r => (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress').length}
-                </p>
-              </div>
-              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">Resolved</p>
-                <p className="text-xl sm:text-2xl font-bold text-green-600">
-                  {allStrayReports.filter(r => (r.status || '').toLowerCase() === 'resolved').length}
-                </p>
-              </div>
-              <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">Completed</p>
-                <p className="text-xl sm:text-2xl font-bold text-blue-600">
-                  {allStrayReports.filter(r => (r.status || '').toLowerCase() === 'completed').length}
-                </p>
-              </div>
+              <button
+                onClick={openStrayFormModal}
+                className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base font-medium"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Captured Stray
+              </button>
             </div>
-
+            
             {/* Inventory Grid */}
             {(() => {
-              const totalPages = Math.ceil(allStrayReports.length / straysInventoryItemsPerPage);
+              const totalPages = Math.ceil(impoundStrays.length / straysInventoryItemsPerPage);
               const startIndex = (straysInventoryPage - 1) * straysInventoryItemsPerPage;
               const endIndex = startIndex + straysInventoryItemsPerPage;
-              const currentPageReports = allStrayReports.slice(startIndex, endIndex);
+              const currentPageStrays = impoundStrays.slice(startIndex, endIndex);
               
               return (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                    {currentPageReports.map((r) => (
-                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  {r.imageUrl && !r.imageUrl.startsWith('file://') ? (
-                    <ImageWithLoading
-                      src={r.imageUrl}
-                      alt="Stray Pet"
-                      className="w-full h-40 object-cover"
-                      imageId={`inventory-${r.id}`}
-                      fallbackContent={
-                        <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
-                          <span className="text-slate-400 text-sm">No image</span>
+                    {currentPageStrays.map((stray) => (
+                      <div key={stray.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col h-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                        {stray.imageUrl && !stray.imageUrl.startsWith('file://') ? (
+                          <ImageWithLoading
+                            src={stray.imageUrl}
+                            alt={stray.petName || 'Stray Pet'}
+                            className="w-full h-40 object-cover"
+                            imageId={`impound-stray-${stray.id}`}
+                            fallbackContent={
+                              <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                                <span className="text-slate-400 text-sm">No image</span>
+                              </div>
+                            }
+                          />
+                        ) : (
+                          <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                            <span className="text-slate-400 text-sm">No image</span>
+                          </div>
+                        )}
+                        <div className="p-3 sm:p-4 flex-1 flex flex-col">
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">{stray.petName || 'Unnamed Pet'}</h3>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs sm:text-sm text-gray-600 capitalize">{stray.petType || 'Unknown'}</span>
+                            {stray.breed && <span className="text-xs sm:text-sm text-gray-500">• {stray.breed}</span>}
+                            {stray.gender && <span className="text-xs sm:text-sm text-gray-500 capitalize">• {stray.gender}</span>}
+                          </div>
+                          
+                          {/* Captured Date */}
+                          {stray.capturedDate && (
+                            <div className="flex items-center mb-1.5 sm:mb-2">
+                              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <p className="text-xs sm:text-sm text-gray-600">
+                                Captured: {stray.capturedDate}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Days at Impound */}
+                          {stray.daysAtImpound && (
+                            <div className="flex items-center mb-2 sm:mb-3">
+                              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <p className="text-xs sm:text-sm text-gray-600">
+                                {stray.daysAtImpound} days at impound
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Actions */}
+                          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full mt-auto">
+                            <button 
+                              onClick={() => handleEditStray(stray)}
+                              className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center"
+                              title="Edit"
+                            >
+                              <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteStray(stray)}
+                              className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md border font-medium bg-red-600 text-white border-red-600 hover:bg-red-700 transition-colors flex items-center justify-center"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handlePutForAdoption(stray)}
+                              disabled={submittingStray}
+                              className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md border font-medium bg-green-600 text-white border-green-600 hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50"
+                              title="Put for Adoption"
+                            >
+                              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                            </button>
+                          </div>
                         </div>
-                      }
-                    />
-                  ) : (
-                    <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
-                      <span className="text-slate-400 text-sm">No image</span>
-                    </div>
-                  )}
-                  <div className="p-3 sm:p-4 flex-1 flex flex-col">
-                    {/* Status Badge */}
-                    <div className="mb-2">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        (r.status || '').toLowerCase() === 'resolved' || (r.status || '').toLowerCase() === 'completed'
-                          ? 'bg-green-100 text-green-800'
-                          : (r.status || '').toLowerCase() === 'stray' || (r.status || '').toLowerCase() === 'in progress'
-                          ? 'bg-orange-100 text-orange-800'
-                          : (r.status || '').toLowerCase() === 'declined'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {r.status || 'Unknown'}
-                      </span>
-                    </div>
-                    
-                    <p className="text-xs sm:text-sm font-medium text-gray-900 mb-2 line-clamp-3">
-                      {r.description ? r.description.substring(0, 100) + (r.description.length > 100 ? '...' : '') : 'No description'}
-                    </p>
-                    
-                    {/* Report Time */}
-                    {r.reportTime && (
-                      <div className="flex items-center mb-1.5 sm:mb-2">
-                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-xs sm:text-sm text-gray-600">
-                          {r.reportTime?.seconds ? new Date(r.reportTime.seconds * 1000).toLocaleDateString() : 'N/A'}
-                        </p>
                       </div>
-                    )}
-                    
-                    {/* Location */}
-                    <div className="flex items-center mb-1.5 sm:mb-2">
-                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <button 
-                        onClick={() => openGoogleMaps(r.location, r.locationName)}
-                        className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline truncate cursor-pointer text-left"
-                        title="Click to open in Google Maps"
-                      >
-                        {r.locationName || 'N/A'}
-                      </button>
-                    </div>
-                    
-                    {/* Contact Number */}
-                    {r.contactNumber && (
-                      <div className="flex items-center mb-2 sm:mb-3">
-                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        <p className="text-xs sm:text-sm text-gray-600 truncate">{r.contactNumber}</p>
-                      </div>
-                    )}
-                    
-                    {/* Processed By */}
-                    {r.processedBy && (
-                      <div className="flex items-center mb-2 sm:mb-3">
-                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        <p className="text-xs sm:text-sm text-gray-600 truncate">Processed by: {r.processedBy}</p>
-                      </div>
-                    )}
-                    
-                    {/* Actions */}
-                    <div className="grid grid-cols-1 gap-1.5 sm:gap-2 w-full mt-auto">
-                      <button 
-                        onClick={() => openReportDetails(r)} 
-                        className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md border font-medium bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transition-colors"
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-                    {allStrayReports.length === 0 && (
+                    ))}
+                    {impoundStrays.length === 0 && (
                       <div className="col-span-full text-center text-sm text-blue-600 py-8">
                         <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
                           <Package className="w-8 h-8 text-blue-500" />
                         </div>
-                        No strays in inventory at the moment
+                        No captured strays in inventory. Click "Add Captured Stray" to add one.
                       </div>
                     )}
                   </div>
 
                   {/* Pagination Controls */}
-                  {allStrayReports.length > 0 && totalPages > 1 && (
+                  {impoundStrays.length > 0 && totalPages > 1 && (
                     <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div className="text-sm text-gray-600">
                         Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                        <span className="font-medium">{Math.min(endIndex, allStrayReports.length)}</span> of{' '}
-                        <span className="font-medium">{allStrayReports.length}</span> strays
+                        <span className="font-medium">{Math.min(endIndex, impoundStrays.length)}</span> of{' '}
+                        <span className="font-medium">{impoundStrays.length}</span> strays
                       </div>
                       
                       <div className="flex items-center gap-2">
@@ -3235,6 +3404,198 @@ const ImpoundDashboard = () => {
                 </>
               );
             })()}
+            
+            {/* Stray Form Modal */}
+            {showStrayFormModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {editingStray ? 'Edit Captured Stray' : 'Add Captured Stray'}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setShowStrayFormModal(false);
+                        setEditingStray(null);
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <form onSubmit={handleStrayFormSubmit} className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelBase}>Pet Name *</label>
+                        <input
+                          className={inputBase}
+                          value={strayForm.petName}
+                          onChange={(e) => setStrayForm((p) => ({ ...p, petName: e.target.value }))}
+                          required
+                        />
+                      </div>
+                      <div className="relative">
+                        <label className={labelBase}>Pet Type *</label>
+                        <div className="relative">
+                          <select
+                            className={selectBase}
+                            value={strayForm.petType}
+                            onChange={(e) => {
+                              const newPetType = e.target.value;
+                              setStrayForm((p) => ({ 
+                                ...p, 
+                                petType: newPetType,
+                                breed: '',
+                                showBreedDropdown: false
+                              }));
+                            }}
+                            required
+                            style={{ 
+                              appearance: 'none',
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'none',
+                              backgroundImage: 'none'
+                            }}
+                          >
+                            <option value="">Select pet type</option>
+                            <option value="dog">Dog</option>
+                            <option value="cat">Cat</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+                            <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <label className={labelBase}>Breed *</label>
+                        <div className="relative breed-dropdown-container">
+                          <button
+                            type="button"
+                            className={`${selectBase} ${!strayForm.petType ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'cursor-pointer'}`}
+                            onClick={() => {
+                              if (strayForm.petType) {
+                                setStrayForm((p) => ({ ...p, showBreedDropdown: !p.showBreedDropdown }));
+                              }
+                            }}
+                            disabled={!strayForm.petType}
+                            style={{ textAlign: 'left' }}
+                          >
+                            {!strayForm.petType ? 'Select pet type first' : (strayForm.breed || 'Select a breed')}
+                          </button>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+                            <svg className={`w-5 h-5 ${!strayForm.petType ? 'text-gray-400' : 'text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          {strayForm.showBreedDropdown && strayForm.petType && (
+                            <div className="absolute top-full left-0 right-0 bg-white border-2 border-gray-400 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                              <div
+                                className="px-3 py-2 text-gray-900 hover:bg-gray-100 cursor-pointer"
+                                onClick={() => setStrayForm((p) => ({ ...p, breed: '', showBreedDropdown: false }))}
+                              >
+                                Select a breed
+                              </div>
+                              {(strayForm.petType === 'dog' ? DOG_BREEDS : CAT_BREEDS).map((breed) => (
+                                <div
+                                  key={breed}
+                                  className="px-3 py-2 text-gray-900 hover:bg-gray-100 cursor-pointer"
+                                  onClick={() => setStrayForm((p) => ({ ...p, breed: breed, showBreedDropdown: false }))}
+                                >
+                                  {breed}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <label className={labelBase}>Gender *</label>
+                        <div className="relative">
+                          <select
+                            className={selectBase}
+                            value={strayForm.gender}
+                            onChange={(e) => setStrayForm((p) => ({ ...p, gender: e.target.value }))}
+                            required
+                            style={{ 
+                              appearance: 'none',
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'none',
+                              backgroundImage: 'none'
+                            }}
+                          >
+                            <option value="">Select gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3" style={{zIndex: 10}}>
+                            <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelBase}>Captured Date *</label>
+                        <input
+                          type="date"
+                          className={inputBase}
+                          value={strayForm.capturedDate}
+                          onChange={(e) => setStrayForm((p) => ({ ...p, capturedDate: e.target.value }))}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className={labelBase}>Days at Impound</label>
+                        <input
+                          type="number"
+                          className={inputBase}
+                          value={strayForm.daysAtImpound}
+                          onChange={(e) => setStrayForm((p) => ({ ...p, daysAtImpound: e.target.value }))}
+                          placeholder="e.g., 30"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelBase}>Pet Image {!editingStray && '*'}</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white px-3 py-2 text-base text-gray-900 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:text-indigo-700 hover:file:bg-indigo-100"
+                        onChange={(e) => setStrayForm((p) => ({ ...p, imageFile: e.target.files?.[0] || null }))}
+                        required={!editingStray}
+                      />
+                      {editingStray && strayForm.imageFile && (
+                        <p className="mt-1 text-xs text-gray-500">New image will replace existing image</p>
+                      )}
+                    </div>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowStrayFormModal(false);
+                          setEditingStray(null);
+                        }}
+                        className="px-4 py-2 rounded-md text-base font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submittingStray}
+                        className="px-4 py-2 rounded-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {submittingStray ? 'Saving...' : (editingStray ? 'Update Stray' : 'Add Stray')}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
