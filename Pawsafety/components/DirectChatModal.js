@@ -62,6 +62,18 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
   const scrollViewRef = useRef(null);
   const currentUser = auth.currentUser;
 
+  // Pet-related FAQ questions
+  const faqQuestions = [
+    "What's the best food for my pet?",
+    "How often should I take my pet to the vet?",
+    "What are signs my pet is sick?",
+    "How do I train my pet?",
+    "What vaccinations does my pet need?",
+    "How can I help my pet lose weight?",
+    "What's the best way to socialize my pet?",
+    "How do I groom my pet at home?",
+  ];
+
   // Get chat ID - unique for each pair of users - memoized
   const getChatId = useCallback(() => {
     if (!currentUser || !friend?.id) return null;
@@ -612,6 +624,14 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }, []);
 
+  // Handle FAQ question selection
+  const handleFAQQuestion = useCallback((question) => {
+    if (isBlocked || hasBlocked || isBanned || chatRestricted) return;
+    setMessageText(question);
+    // Optionally auto-focus the input or send directly
+    // For now, just populate the input so user can edit before sending
+  }, [isBlocked, hasBlocked, isBanned, chatRestricted]);
+
   const styles = useMemo(() => StyleSheet.create({
     modalOverlay: {
       flex: 1,
@@ -784,16 +804,59 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
       alignItems: 'center',
     },
     emptyContainer: {
-      flex: 1,
-      justifyContent: 'center',
+      width: '100%',
       alignItems: 'center',
       paddingHorizontal: SPACING.xl,
+      paddingTop: SPACING.xl,
+      paddingBottom: SPACING.md,
     },
     emptyText: {
       fontSize: 15,
       color: COLORS.secondaryText,
       textAlign: 'center',
       fontFamily: FONTS.family,
+      marginBottom: SPACING.lg,
+    },
+    faqContainer: {
+      width: '100%',
+      paddingHorizontal: SPACING.md,
+      marginTop: SPACING.md,
+    },
+    faqTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: COLORS.text,
+      textAlign: 'center',
+      marginBottom: SPACING.md,
+      fontFamily: FONTS.family,
+    },
+    faqQuestionsList: {
+      gap: SPACING.sm,
+    },
+    faqQuestionButton: {
+      backgroundColor: COLORS.background || '#FFFFFF',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.medium,
+      borderWidth: 1,
+      borderColor: '#e4e6eb',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
+    },
+    faqQuestionText: {
+      fontSize: 14,
+      color: COLORS.text,
+      fontFamily: FONTS.family,
+      textAlign: 'left',
     },
     blockedMessageContainer: {
       flexDirection: 'row',
@@ -1117,6 +1180,23 @@ const DirectChatModal = ({ visible, onClose, friend }) => {
                     <Text style={styles.emptyText}>
                       {isBlocked ? 'You cannot message this person' : 'No messages yet. Start the conversation!'}
                     </Text>
+                    {!isBlocked && !hasBlocked && !isBanned && !chatRestricted && (
+                      <View style={styles.faqContainer}>
+                        <Text style={styles.faqTitle}>Common Pet Questions</Text>
+                        <View style={styles.faqQuestionsList}>
+                          {faqQuestions.map((question, index) => (
+                            <TouchableOpacity
+                              key={index}
+                              style={styles.faqQuestionButton}
+                              onPress={() => handleFAQQuestion(question)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.faqQuestionText}>{question}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    )}
                   </View>
                 ) : (
                   messages.map((message) => {
